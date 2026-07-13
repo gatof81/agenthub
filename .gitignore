@@ -1,0 +1,35 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+.npm-cache/
+
+# Environment — real values never land in the repo; use .env.example with placeholders
+.env
+.env.*
+!.env.example
+
+# Raw (unsanitized) spike recordings — only sanitized fixtures under docs/spikes/ are committed
+spikes/**/raw/
+*.raw.jsonl
+*.raw.json
+
+# Local input material (pasted briefs, discovery notes) — curated into docs/, never committed as-is
+_inputs/
+
+# Local tooling & environment state (this checkout may double as a home directory)
+.claude/
+.claude.json
+.claude.json.backup
+.config/
+.npm-global/
+.vscode-cli/
+.cache/
+.local/
+.bash_history
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
