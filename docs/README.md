@@ -40,6 +40,8 @@ From [15-open-questions.md](./15-open-questions.md):
 - **Q-02** — default permission posture of the headless runner. Security decision;
   requires explicit sign-off. Everything else carries a provisional decision that
   proceeds unless vetoed.
+- **ADR-001 acceptance** — the exec seam decision and its contract draft; once
+  accepted here, the contract goes to the shared-terminal repo as a proposal.
 
 ## Architecture decision records
 
@@ -48,7 +50,7 @@ decision and is superseded):
 
 | ADR | Topic | Status |
 | --- | --- | --- |
-| ADR-001 | Integration seam with shared-terminal: exec-over-HTTP contract (transport, auth, framing, cancellation, reconnection, correlation, versioning — and the "ask for nothing new" option) | planned — next PR |
+| [ADR-001](./adr/ADR-001-shared-terminal-exec-seam.md) | Integration seam with shared-terminal: exec-over-HTTP contract (transport, auth, framing, cancellation, reconnection, correlation, versioning — and the "ask for nothing new" option) | **proposed** — contract draft at [contracts/shared-terminal-exec-api.md](./contracts/shared-terminal-exec-api.md) |
 | ADR-002 | Hub-owned persistence (SQLite local vs own D1 vs Postgres; provisional lean: SQLite) | planned |
 
 Candidates identified for later steps (written at doc 07 time): Claude CLI runner
