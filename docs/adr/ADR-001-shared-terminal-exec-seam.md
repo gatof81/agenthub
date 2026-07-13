@@ -105,7 +105,7 @@ to be taken to the shared-terminal repo and implemented through its process.
 Key decisions embedded in the contract, and their reversibility:
 
 | Decision | Rationale | Reversible? |
-|---|---|---|
+| --- | --- | --- |
 | NDJSON transport | Above | Yes — the Hub isolates the seam behind a `SubstrateExecPort`; swapping transport touches one adapter |
 | **No event replay at the seam (v1)** | If the stream drops, conversation state is safe regardless: the CLI's own transcript under `workspace/.st/claude-state` is the source of truth for continuity, and the next turn `--resume`s it. The Hub reconciles via `GET exec status` + `kill`, marks the run interrupted, and moves on. A replay buffer buys only activity-log completeness for a rare window, at the cost of server-side state and a resume protocol | Yes — additive (`?after=seq` + ring buffer) if the gap hurts in practice |
 | **Auth: dedicated substrate account for the Hub** (existing `/auth/login`, JWT like any client) | Resolves Q-04 without new upstream auth surface. Scoping falls out of ownership: the Hub account only ever owns Hub-created sessions, so its blast radius is exactly those sessions. Doesn't die with a browser cookie; the Hub re-authenticates on expiry | Yes — a bearer/service-token scheme can replace it later without contract shape changes |

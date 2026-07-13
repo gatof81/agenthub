@@ -58,7 +58,7 @@ Request body:
 ```
 
 | Field | Type | Required | Semantics |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `cmd` | `string[]` | yes | argv array; `cmd[0]` resolved via container `PATH`. Never shell-interpreted |
 | `env` | `object` | no | extra environment; values are opaque strings. Size-capped (see Limits) |
 | `workingDir` | `string` | no | default: the session workspace (same default as `streamExec` today) |
@@ -80,7 +80,7 @@ chunked`. One JSON object per line:
 Event schema:
 
 | `type` | Fields | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `started` | `execId`, `pgid`, `requestId`, `ts` | First event, before any output. `pgid` is informational (kill is by `execId`); guaranteed ≥ 2 |
 | `output` | `stream` (`"stdout"`\|`"stderr"`), `data` | `data` is a UTF-8 chunk, not necessarily line-aligned; the consumer reassembles lines. Docker multiplexed frames preserve the stream distinction (`Tty:false`) |
 | `exit` | `exitCode`, `reason` (`"exited"`\|`"killed"`\|`"timeout"`), `ts` | Terminal event; the response ends after it |
@@ -137,7 +137,7 @@ stream (if still attached) emits `exit` with `reason: "killed"`.
 ## Error semantics (non-stream)
 
 | Status | When | Body |
-|---|---|---|
+| --- | --- | --- |
 | `400` | malformed body, empty `cmd`, non-string argv entries, oversized `env` | `{ "error": "..." }` |
 | `401` / `403` | unauthenticated / session not owned by principal | existing house shape |
 | `404` | unknown session, unknown execId | — |
