@@ -1,0 +1,20 @@
+{
+  "config": {
+    "default": true,
+    // Long lines are fine in prose and tables
+    "MD013": false,
+    // Inline HTML allowed (e.g. <details>/<summary> for collapsible sections)
+    "MD033": false,
+    // Allow status lines / badges before the first heading
+    "MD041": false,
+    // Duplicate headings allowed across sibling sections (e.g. "Decision" in each ADR)
+    "MD024": { "siblings_only": true }
+  },
+  "ignores": [
+    "node_modules/**",
+    "_inputs/**",
+    ".claude/**",
+    ".npm-global/**",
+    ".config/**"
+  ]
+}
