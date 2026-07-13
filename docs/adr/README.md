@@ -7,7 +7,7 @@ predate the separate-repos decision and are superseded by the list below.
 
 | ADR | Title | Status |
 | --- | --- | --- |
-| [ADR-001](./ADR-001-shared-terminal-exec-seam.md) | Integration seam with shared-terminal (exec-over-HTTP contract) | **proposed** — ships with [contracts/shared-terminal-exec-api.md](../contracts/shared-terminal-exec-api.md) (PROPOSAL) |
+| [ADR-001](./ADR-001-shared-terminal-exec-seam.md) | Integration seam with shared-terminal (exec-over-HTTP contract) | **accepted** — ships with [contracts/shared-terminal-exec-api.md](../contracts/shared-terminal-exec-api.md) (PROPOSAL) |
 | ADR-002 | Hub-owned persistence | planned |
 
 Candidates for doc-07 time (not yet numbered): Claude CLI runner integration

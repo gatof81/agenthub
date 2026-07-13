@@ -1,6 +1,6 @@
 # ADR-001 — Integration seam with shared-terminal: exec over HTTP
 
-Status: proposed
+Status: accepted (owner sign-off 2026-07-13)
 Date: 2026-07-13
 
 Substrate evidence cited at [shared-terminal](https://github.com/gatof81/shared-terminal) `main` @ `36be2f2`.
