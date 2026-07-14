@@ -31,8 +31,8 @@ process per conversation?
 run), cancellation is just process-group kill, crash recovery is "no process, no
 run", and continuity is the CLI's own `--resume` (substrate-guaranteed, see
 [02 §1](./02-substrate-analysis.md)). Cost: per-turn startup latency — **S-01
-measured it (2026-07-14): ~550–580 ms to first event, 3.2–4.1 s total for a
-trivial turn, session id stable across resumes** —
+measured it (2026-07-14): ~570–580 ms to first event, 3.7–4.5 s total for a
+trivial turn (n=3), session id stable across resumes** —
 [S-01 results](./spikes/S-01/RESULTS.md). **Resolved: per-turn.**
 
 ## Q-02 — Runner default permission posture `MVP-blocking` `security`
