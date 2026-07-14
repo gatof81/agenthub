@@ -57,8 +57,9 @@ projects from:
   and unrecognized CLI types persist as `unknown` with the original type
   inside the payload (FR-16).
 - **Payload cap: 64 KiB** (NFR-02). Oversized payloads are truncated to the
-  cap with `"truncated": true` and original byte count — chosen at half the
-  seam's own ~100 KB statement lesson (S-03) and comfortably above S-01's
+  cap with `"truncated": true` and original byte count — sized at half of
+  D1's ~100 KB per-statement ceiling found in S-03 (a storage-layer
+  cautionary tale, not a seam constraint) and comfortably above S-01's
   largest observed event (< 8 KiB).
 - Idempotency: `id` unique; `(runId, seq)` unique and gapless per run as
   ingested (I-4). Re-ingestion of a duplicate `id` is a no-op.
