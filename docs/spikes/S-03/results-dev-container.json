@@ -1,0 +1,52 @@
+{
+ "spike": "S-03",
+ "label": "dev-container",
+ "ranAt": "2026-07-14T15:50:51.297Z",
+ "database": "agenthub-s03-scratch",
+ "single_statement_write": {
+  "n": 30,
+  "p50_ms": 277,
+  "p95_ms": 357,
+  "min_ms": 223,
+  "max_ms": 743
+ },
+ "turn_commit_1call": {
+  "n": 15,
+  "p50_ms": 280,
+  "p95_ms": 530,
+  "min_ms": 231,
+  "max_ms": 701
+ },
+ "turn_commit_3call": {
+  "n": 15,
+  "p50_ms": 812,
+  "p95_ms": 1066,
+  "min_ms": 702,
+  "max_ms": 1325
+ },
+ "read_last_50_events": {
+  "n": 15,
+  "p50_ms": 260,
+  "p95_ms": 266,
+  "min_ms": 239,
+  "max_ms": 269
+ },
+ "value_size": [
+  {
+   "kb": 64,
+   "ok": true,
+   "ms": 398
+  },
+  {
+   "kb": 256,
+   "ok": false,
+   "ms": 900,
+   "error": "statement too long: SQLITE_TOOBIG"
+  }
+ ],
+ "statements_per_turn": {
+  "one_call_http_requests": 1,
+  "statements": 22,
+  "three_call_http_requests": 3
+ }
+}
