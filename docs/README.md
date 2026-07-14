@@ -67,9 +67,12 @@ Hub↔frontend streaming transport, Hub user/auth model.
 
 ## Work plan
 
-1. **PR-1 (this): foundational docs** — 01, 02, 03, 15, 16, this index, adr/README.
-2. **PR-2: ADR-001** — the exec seam, plus `contracts/shared-terminal-exec-api.md` (PROPOSAL to take upstream).
-3. **PR-3: ADR-002** — Hub persistence.
+Plan labels (PR-0…PR-4) are the kickoff's logical batch numbers; GitHub PR
+numbers are noted per item as they land, since the two drift.
+
+1. **PR-1 (GitHub #2, merged): foundational docs** — 01, 02, 03, 15, 16, this index, adr/README.
+2. **PR-2 (GitHub #3, merged): ADR-001** — the exec seam, plus `contracts/shared-terminal-exec-api.md` (PROPOSAL to take upstream).
+3. **PR-3 (GitHub #4): ADR-002** — Hub persistence.
 4. **PR-4: S-01 package** — script + runbook + fixture sanitization; then execute S-01 (owner-coordinated).
 5. Requirements (04) and use cases/flows (05).
 6. Domain model (06).
@@ -98,10 +101,10 @@ Hub↔frontend streaming transport, Hub user/auth model.
 
 ## Changelog
 
-- **2026-07-14** — PR-3: ADR-002 (Hub-owned D1, gated on S-03; deployment shape
-  recorded, Q-05 resolved). Q-02 resolved: curated allowlist. Risks R-14/R-15
-  revived. PR-2 merged earlier the same round: ADR-001 accepted, exec contract
-  PROPOSAL ready for upstream.
+- **2026-07-14** — PR-3 (GitHub #4): ADR-002 (Hub-owned D1, gated on S-03;
+  deployment shape recorded, Q-05 resolved). Q-02 resolved: curated allowlist.
+  Risks R-14/R-15 revived. PR-2 (GitHub #3) merged earlier the same round:
+  ADR-001 accepted, exec contract PROPOSAL ready for upstream.
 - **2026-07-13** — PR-1: foundational docs against substrate `36be2f2`. Discovery-era
   drafts (written 2026-07-12 against `7a551f0`, when the Hub was planned inside the
   shared-terminal repo) were curated into these documents; the separate-repos decision
