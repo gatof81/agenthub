@@ -90,9 +90,9 @@ verbatim.
 | `run.summary` | the persisted `RunSummary` object (FR-42) | terminal runs, after the terminal transition |
 | `project.state` | `{status}` | provisioning lifecycle (UC-01, FR-33) — emitted on every conversation stream of the project |
 
-The SSE payloads are a *projection* — recomputable from `RunEvent` rows; a
-client that misses everything can rebuild from `GET /api/runs/:id` +
-`GET /api/conversations/:id` (NFR-07).
+The SSE payloads are a *projection* — recomputable from the store; a client
+that misses everything can rebuild from `GET /api/runs/:id`,
+`GET /api/conversations/:id`, and `GET /api/projects/:id` (NFR-07).
 
 ## 4. Runner command contract (summary — normative text in ADR-003)
 
