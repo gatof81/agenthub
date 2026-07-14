@@ -16,7 +16,11 @@
 #       activity view? (adjustment A2)
 #
 # Usage:
-#   ANTHROPIC_API_KEY=sk-... ./run-spike.sh [image-tag]
+#   ANTHROPIC_API_KEY=sk-...        ./run-spike.sh [image-tag]   # pay-as-you-go
+#   CLAUDE_CODE_OAUTH_TOKEN=sk-...  ./run-spike.sh [image-tag]   # subscription
+#
+# Exactly one auth source is required. Under subscription auth the result
+# events' cost fields may read 0/absent — that is itself a probe-iv finding.
 #
 # Image tag defaults to `shared-terminal-session` (smoke-test convention).
 # SPENDS TOKENS (small prompts, ~6 turns; see runbook cost note). Prompts for
@@ -36,7 +40,17 @@ C="st-s01-$$"
 WS="$(mktemp -d)"
 FAILS=0
 
-[ -n "${ANTHROPIC_API_KEY:-}" ] || { echo "ERROR: ANTHROPIC_API_KEY is not set" >&2; exit 1; }
+AUTH_ARGS=()
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+	AUTH_ARGS+=(-e ANTHROPIC_API_KEY)
+	AUTH_MODE="api-key"
+elif [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+	AUTH_ARGS+=(-e CLAUDE_CODE_OAUTH_TOKEN)
+	AUTH_MODE="subscription-oauth"
+else
+	echo "ERROR: set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN" >&2
+	exit 1
+fi
 command -v jq >/dev/null || { echo "ERROR: jq is required" >&2; exit 1; }
 
 if [ "${S01_YES:-0}" != "1" ]; then
@@ -65,8 +79,9 @@ now_ms() { date +%s%3N; }
 
 # ── boot ─────────────────────────────────────────────────────────────────────
 phase "boot: $IMAGE"
-docker run -d --name "$C" -e ANTHROPIC_API_KEY -v "$WS":/home/developer/workspace "$IMAGE" >/dev/null \
+docker run -d --name "$C" "${AUTH_ARGS[@]}" -v "$WS":/home/developer/workspace "$IMAGE" >/dev/null \
 	|| { fail "docker run failed"; exit 1; }
+echo "  auth mode: $AUTH_MODE"
 i=0
 until docker logs "$C" 2>&1 | grep -q "container ready"; do
 	i=$((i + 1))
@@ -248,6 +263,7 @@ zombie_census final
 	echo "run: $STAMP"
 	echo "image: $IMAGE"
 	echo "cli: $CLI_VERSION"
+	echo "auth: $AUTH_MODE"
 	for d in "$OUT"/p*/; do
 		name=$(basename "$d")
 		[ -f "$d/meta.json" ] || continue
