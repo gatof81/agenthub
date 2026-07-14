@@ -1,187 +1,50 @@
-# shared-terminal Exec API — contract draft
+# shared-terminal Exec API — tracking document
 
-> **PROPOSAL** — drafted in the agenthub repo (see
-> [ADR-001](../adr/ADR-001-shared-terminal-exec-seam.md)) as a requirement from
-> the Hub. Not implemented anywhere yet. To be reviewed, amended, and
-> implemented through the shared-terminal repo's own process; that repo's
-> merged version supersedes this file, which then tracks it.
+> **TRACKING** — the canonical contract now lives upstream:
+> [`docs/EXEC_API.md` in shared-terminal](https://github.com/gatof81/shared-terminal/blob/main/docs/EXEC_API.md),
+> implemented, deployed, and verified end-to-end (shared-terminal #381 →
+> #385/#386/#387, verified here at `main @ b37dc4d`). This file records what
+> the Hub *consumes*, the deltas between the accepted merged contract and the
+> original proposal from [ADR-001](../adr/ADR-001-shared-terminal-exec-seam.md)
+> (the proposal's full text lives in this file's git history), and the
+> Hub-side implementation notes those deltas imply. On upstream changes to
+> `EXEC_API.md`, this file is updated in the same PR that adapts the Hub.
 
-Target substrate: shared-terminal @ `36be2f2` or later. The API wraps the
-existing in-process primitives `streamExec` / `killExecProcessGroup`
-(`backend/src/dockerManager.ts`) — no new execution machinery, only HTTP
-surface over what smoke-test Phase 6 already covers.
+## Surface consumed by the Hub
 
-## Design constraints honored
+| Endpoint | Use |
+| --- | --- |
+| `POST /sessions/:id/exec` → NDJSON stream (`started` / `output` / `dropped` / `exit` / `error`, versioned `v:1`) | one call per run turn (FR-10) |
+| `GET /sessions/:id/exec/:execId` → `running \| exited \| unknown` | boot reconciliation (FR-23, UC-06) |
+| `POST /sessions/:id/exec/:execId/kill {graceMs}` → `already-exited \| terminated \| killed` | cancellation (FR-20, UC-04) |
 
-- Product-agnostic: no knowledge of Hub concepts (runs, agents, conversations).
-- Routes flow through the ordinary Express middleware chain (auth, rate
-  limiting, request context) — no WS upgrade path.
-- `cmd` is an argv array end-to-end; it must ride positional parameters into
-  `setsid`/exec exactly like today's `PGID_WRAPPER_SCRIPT` path — never string
-  interpolation (house invariant, `dockerManager.ts:1191-1194`).
-- Contract is replica-agnostic: correlation by ids, no sticky-connection
-  assumptions. (The v1 *implementation* may keep its exec registry
-  process-local, matching the documented single-replica deployment.)
+Auth: existing JWT, session ownership enforced (Hub uses its dedicated
+account, SEC-06). `X-Request-Id` emitted on every response and echoed in
+`started` — recorded per run (OPS-04).
 
-## Authentication & scoping
+## Deltas: merged contract vs the ADR-001 proposal
 
-Endpoints require an authenticated principal (existing JWT auth). The principal
-must **own the session**; otherwise `403`. No new auth mechanism is required:
-the Hub authenticates via `/auth/login` as a dedicated account and only ever
-touches sessions it created. Optionally (upstream's call), accept the JWT via
-`Authorization: Bearer` in addition to the cookie for M2M ergonomics.
-
-## Correlation (required)
-
-Every response of every endpoint below carries `X-Request-Id: <16-hex>` — the
-id that already exists in `requestContext.ts` and is stamped on every log line.
-The `started` event echoes it, so a Hub-side run can be joined to substrate
-logs after the fact. If the caller supplies an `X-Request-Id` header it MAY be
-adopted (log-joined) but the response header remains the substrate's
-authoritative id.
-
-## Endpoints
-
-### 1. Start an exec — `POST /sessions/:id/exec`
-
-Starts a command in the session container and streams events until exit.
-
-Request body:
-
-```json
-{
-  "cmd": ["claude", "-p", "--resume", "abc123", "--output-format", "stream-json"],
-  "env": { "MY_VAR": "value" },
-  "workingDir": "/home/developer/workspace",
-  "maxDurationMs": 600000
-}
-```
-
-| Field | Type | Required | Semantics |
+| Topic | Proposal said | Merged contract says | Hub consequence |
 | --- | --- | --- | --- |
-| `cmd` | `string[]` | yes | argv array; `cmd[0]` resolved via container `PATH`. Never shell-interpreted |
-| `env` | `object` | no | extra environment; values are opaque strings. Size-capped (see Limits) |
-| `workingDir` | `string` | no | default: the session workspace (same default as `streamExec` today) |
-| `maxDurationMs` | `number` | no | server-side wall-clock cap; on expiry the server performs the kill procedure (below) and emits `exit` with `reason: "timeout"` |
+| Status of an unknown `execId` | `404` | **`200 {state:"unknown"}`** — after a substrate restart, "registry lost" and "never existed" are indistinguishable, so 404 would lie. Kill keeps `404` for unknown ids; registry entries age out after 1 h | UC-06's `unknown` branch handles both cases; never treat `unknown` as "run never happened" |
+| `maxDurationMs` omitted | unspecified | **defaults to the 1 h cap — an exec is always bounded** | Hub still always sends its own tighter per-run timeout (FR-17); the seam backstop is defense in depth |
+| Pre-`started` output overflow | not covered | new **`dropped` event** (`{v:1, type:"dropped", scope:"pre-start", bytes}`), non-terminal: the 256 KiB pre-start hold buffer overflowed and `bytes` were discarded — signaled, not silent | Ingestion persists it (FR-16 covers it as a typed event); activity view can mark truncation |
+| `env` limits | flat 32 KiB | **session-config rules**: name charset, ≤ 64 entries, ≤ 4096 B/value, ≤ 64 KiB total | Runner env (OAuth token + per-run vars) fits comfortably; validate Hub-side before dispatch to fail fast |
+| Kill vs natural-exit race | not covered | **kill `outcome` is authoritative** over the stream's `reason` when they disagree | Never retry or re-classify a run based on `reason` alone; record both, trust `outcome` |
+| Exit code of a killed exec | implied 128+signal | **raw signal number** (e.g. `15` = SIGTERM; `setsid -w` propagation, upstream #386) | Use `reason` as the primary classification signal; `exitCode` is diagnostic |
+| Caller-supplied `X-Request-Id` | MAY be adopted | **ignored**; the response header is always the substrate's own id | One id to record, no ambiguity |
+| Operational limits | suggested values | **4 concurrent execs/session · 120/min per IP (start+kill; status unlimited) · `graceMs` ≤ 30000** | FR-19 serializes runs per session anyway (1 ≪ 4); reconciliation polling uses status freely |
 
-Every exec runs with `newProcessGroup: true` — the pgid is the cancellation
-handle and there is no reason to offer an uncancellable mode at this seam.
+## Related upstream closures
 
-Response: `200` with `Content-Type: application/x-ndjson`, `Transfer-Encoding:
-chunked`. One JSON object per line:
+- **Zombies (Q-08): resolved.** Upstream confirmed accumulation (3 permanent
+  zombies per group kill, measured) and shipped `Init: true` (docker-init as
+  PID 1, #387), pinned by smoke-test **Phase 9**. Containers created before
+  the fix need one recycle (handled in the deployment).
+- Per-user quotas (#202): `GET /quotas` lets the Hub's service account check
+  headroom before creating sessions — input for doc 12/14.
 
-```json
-{"v":1,"type":"started","execId":"e_9f2c...","pgid":137,"requestId":"a1b2c3d4e5f60718","ts":"2026-07-13T21:00:00.000Z"}
-{"v":1,"type":"output","stream":"stdout","data":"{\"type\":\"system\",\"subtype\":\"init\", ..."}
-{"v":1,"type":"output","stream":"stderr","data":"some diagnostic\n"}
-{"v":1,"type":"exit","exitCode":0,"reason":"exited","ts":"2026-07-13T21:00:41.213Z"}
-```
+## Non-goals (v1, unchanged)
 
-Event schema:
-
-| `type` | Fields | Notes |
-| --- | --- | --- |
-| `started` | `execId`, `pgid`, `requestId`, `ts` | First event, before any output. `pgid` is informational (kill is by `execId`); guaranteed ≥ 2 |
-| `output` | `stream` (`"stdout"`\|`"stderr"`), `data` | `data` is a UTF-8 chunk, not necessarily line-aligned; the consumer reassembles lines. Docker multiplexed frames preserve the stream distinction (`Tty:false`) |
-| `exit` | `exitCode`, `reason` (`"exited"`\|`"killed"`\|`"timeout"`), `ts` | Terminal event; the response ends after it |
-| `error` | `code`, `message` | Terminal event for mid-stream failures (container died, docker error). The response ends after it |
-
-All events carry `v` (schema version, integer, currently `1`). Consumers must
-ignore unknown fields and unknown event types (forward compatibility); the `v`
-bump is reserved for breaking changes and is coordinated in this document.
-
-Stream lifecycle rules:
-
-- Client disconnect does **not** kill the process (Docker has no kill-exec;
-  see `dockerManager.ts:1143-1155`). The exec keeps running server-side and
-  remains addressable via endpoints 2 and 3.
-- The server applies flow control: when the HTTP response backpressures, the
-  underlying Docker stream is paused, not buffered unboundedly.
-
-### 2. Exec status — `GET /sessions/:id/exec/:execId`
-
-Recovery/reconciliation surface for a consumer that lost the stream.
-
-```json
-{ "execId": "e_9f2c...", "state": "running", "pgid": 137, "startedAt": "..." }
-{ "execId": "e_9f2c...", "state": "exited", "exitCode": 0, "reason": "exited", "endedAt": "..." }
-```
-
-`state`: `running` | `exited` | `unknown` (registry lost, e.g. backend
-restarted; the consumer should kill by pgid… which it no longer has — hence
-`unknown` responses include the guidance semantics below).
-
-On `unknown`, the safe consumer action is session-level reconciliation: the
-process either exited on its own or still runs; the consumer decides whether
-to stop/start the session (heavy hammer, always available today) or accept the
-orphan. v1 accepts this gap; it is the same gap the substrate's own bootstrap
-runner accepts on backend restart.
-
-### 3. Kill — `POST /sessions/:id/exec/:execId/kill`
-
-Maps 1:1 to `killExecProcessGroup(sessionId, pgid, graceMs)`.
-
-Request: `{ "graceMs": 5000 }` (optional; default 5000, server-capped).
-
-Response `200`:
-
-```json
-{ "outcome": "terminated" }
-```
-
-`outcome`: `already-exited` | `terminated` | `killed` — verbatim the primitive's
-`KillProcessGroupOutcome`. Idempotent by design (`already-exited` is the
-tolerant no-op, `dockerManager.ts:167-204`). After a successful kill the exec's
-stream (if still attached) emits `exit` with `reason: "killed"`.
-
-## Error semantics (non-stream)
-
-| Status | When | Body |
-| --- | --- | --- |
-| `400` | malformed body, empty `cmd`, non-string argv entries, oversized `env` | `{ "error": "..." }` |
-| `401` / `403` | unauthenticated / session not owned by principal | existing house shape |
-| `404` | unknown session, unknown execId | — |
-| `409` | session has no running container (`stopped`, still bootstrapping) | `{ "error": "container-not-running" }` |
-| `429` | exec concurrency or rate cap hit | — |
-
-Once the NDJSON stream has started, failures arrive as `error` events, not
-status codes.
-
-## Limits (server-enforced, deployment-configurable)
-
-- Max concurrent execs per session (suggested default: 4) — protects
-  `PidsLimit: 1024` and keeps one runaway consumer from starving tmux.
-- Max `env` payload size (suggested: 32 KiB) and max `cmd` length.
-- `graceMs` cap (suggested: 30 000).
-- `maxDurationMs` cap (suggested: 1 hour) — a seam-level backstop; consumers
-  enforce their own tighter budgets.
-
-## Versioning
-
-- Event schema: `v` field per event; breaking changes bump it and this
-  document. Additive fields/event types are not breaking (consumers must
-  ignore unknowns).
-- Endpoint shape: follows the substrate's normal API evolution (no `/v1` path
-  prefix exists today; introducing one only for this surface would be
-  inconsistent).
-
-## Security considerations
-
-- This endpoint is *arbitrary code execution in the session container* by
-  construction — exactly as powerful as the terminal WS already is for the
-  same authenticated owner. It adds capability breadth (automation), not a new
-  trust level.
-- Ownership check is the entire authorization story (single-tenant network
-  assumption, upstream #291, unchanged).
-- `env` values may carry secrets; they must never be logged (extends the
-  existing `d1Query`-style discipline) and are not echoed in any event.
-- The kill path revalidates `pgid >= 2` server-side regardless of registry
-  state (the guard at `dockerManager.ts:1363-1369` stays load-bearing).
-
-## Non-goals (v1)
-
-- Event replay / resume (`?after=seq`) — see ADR-001; additive if needed.
-- Interactive stdin / PTY allocation — the terminal WS remains the interactive
-  surface.
-- Multi-replica exec registry.
-- Any Hub-side concept (runs, budgets, turn semantics) — those live in the Hub.
+Event replay/resume · stdin/PTY (the terminal WS remains the interactive
+surface) · multi-replica exec registry.
