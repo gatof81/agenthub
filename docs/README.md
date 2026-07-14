@@ -8,7 +8,7 @@ re-verify before relying on them after that repo moves.
 
 ## Document index
 
-Docs not yet started (currently 11–14) are listed so the index shows the whole shape.
+Docs not yet started (currently 12–14) are listed so the index shows the whole shape.
 Unwritten docs are intentionally not linked (link check runs in CI).
 
 | Doc | Status | Depends on |
@@ -23,7 +23,7 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 | [08-api-and-event-contracts.md](./08-api-and-event-contracts.md) | draft — review | 07, spike S-01 |
 | [09-persistence.md](./09-persistence.md) | draft — review | 06, ADR-002 |
 | [10-security-threat-model.md](./10-security-threat-model.md) | draft — review | 07, 16 |
-| `11-ux-specification.md` | not started | 05 (frontend framework decided here) |
+| [11-ux-specification.md](./11-ux-specification.md) | draft — review | 05 (frontend framework decided here) |
 | `12-mvp-implementation-plan.md` | not started | 07–11 |
 | `13-testing-strategy.md` | not started | 08 |
 | `14-observability-and-operations.md` | not started | 07 |
@@ -31,7 +31,7 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 | [16-risk-register.md](./16-risk-register.md) | draft — review | — |
 | [adr/](./adr/README.md) | ADR-001..005 all accepted | see adr/README.md |
 
-**Reading order for this review round:** 10 (earlier rounds: 01 → 02 → 03
+**Reading order for this review round:** 11 (earlier rounds: 01 → 02 → 03
 → 15 → 16 → ADRs → spike results → 04 → 05).
 
 ## Decisions requested now
@@ -43,7 +43,7 @@ No decision is blocking right now. Q-01/Q-02/Q-04/Q-05/Q-08/Q-10 are resolved
 (#387) shipped and deployed; **Increment 2 is unblocked** and R-08 is closed).
 S-01 and S-03 both executed 2026-07-14; ADR-001 and ADR-002 are accepted.
 Owner housekeeping: the scratch D1 `agenthub-s03-scratch` can be deleted.
-Next work-plan step: UX specification (11) — the frontend framework decision (Q-06).
+Next work-plan step: MVP implementation plan (12).
 
 ## Architecture decision records
 
@@ -83,7 +83,7 @@ numbers are noted per item as they land, since the two drift.
 8. API & event contracts (08) — **merged (GitHub #13)**.
 9. Persistence (09) — **drafted (GitHub #14), in review**.
 10. Security threat model (10) — **drafted (GitHub #16), in review**.
-11. UX specification (11) — frontend framework decision.
+11. UX specification (11) — **drafted (GitHub #17), in review**; Q-06 resolved: React + Vite.
 12. MVP implementation plan (12) — fake-runtime increment first.
 13. Testing strategy (13) and observability (14).
 14. Phase-1 backlog + quality-gate review → implementation may start.
@@ -103,6 +103,10 @@ numbers are noted per item as they land, since the two drift.
 - Mitigations accepted for every MVP-phase risk in 16 marked open
 
 ## Changelog
+
+- **2026-07-14** — Doc 11 (UX spec: React + Vite framework decision [Q-06],
+  Mac productivity + iPhone conversational targets, IA, SSE client contract)
+  drafted (GitHub #17). Doc 10 merged.
 
 - **2026-07-14** — Doc 10 (threat model: trust boundaries, assets,
   5 attackers, vectors V-1..V-5 with prompt injection central, open-source
