@@ -123,6 +123,7 @@ The §5 gap is now closed upstream. Verified against `main @ b37dc4d`:
 | **`Init: true` on container create** — docker-init reaps zombies; smoke-test **Phase 9** pins it | #387; `dockerManager.ts` (`Init: true`), `smoke-test.sh` Phase 9 | §4 constraint 7 and Q-08 resolved; pre-fix containers recycle once |
 | `X-Request-Id` emitted on exec-API responses, echoed in `started` | `EXEC_API.md` §Correlation | §3's correlation gap closed for the exec surface |
 | Per-session resource caps enforced + **per-user quotas** (#202) with `GET /quotas` | #388/#389; `routes/sessions.ts` (`GET /quotas`) | Hub's service account can check headroom before creating sessions (input for docs 12/14) |
+| **Backup/restore for the substrate itself** (#240 → #390): `npm run backup`/`restore`, deterministic per-table dumps + workspace tarballs, encryption-key guard; first production backup verified 2026-07-14 | upstream #390, `docs/DEPLOYMENT.md` there | Substrate data (sessions, workspaces incl. `.st/claude-state`) has an operated recovery story. The Hub's own SQLite backup (R-16, OPS-01..03) remains the Hub's job — the two pipelines are independent by design (separate repos, separate data) |
 
 Facts elsewhere in this document remain cited at `36be2f2`; re-verification
 happens per claim as later docs consume them.
