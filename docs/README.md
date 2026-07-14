@@ -25,7 +25,7 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 | [10-security-threat-model.md](./10-security-threat-model.md) | draft — review | 07, 16 |
 | [11-ux-specification.md](./11-ux-specification.md) | merged | 05 (frontend framework decided here) |
 | [12-mvp-implementation-plan.md](./12-mvp-implementation-plan.md) | draft — review | 07–11 |
-| [13-testing-strategy.md](./13-testing-strategy.md) | draft — review | 08–12 |
+| [13-testing-strategy.md](./13-testing-strategy.md) | draft — review | 04, 08–12 |
 | `14-observability-and-operations.md` | not started | 07 |
 | [15-open-questions.md](./15-open-questions.md) | draft — review | — |
 | [16-risk-register.md](./16-risk-register.md) | draft — review | — |

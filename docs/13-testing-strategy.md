@@ -70,7 +70,7 @@ The full spine from doc 12 Increment 1, in CI, offline:
   migration **aborts boot** and leaves no half-migrated database. Runs every
   CI build.
 
-## 5. Security-derived tests (from doc 10 §6)
+## 5. Security-derived tests (from doc 10 §6; also I-7, NFR-08/R-09)
 
 These turn threat-model assumptions into assertions:
 
