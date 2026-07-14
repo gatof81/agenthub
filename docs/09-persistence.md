@@ -116,8 +116,8 @@ CREATE TABLE sse_cursor (
   -- Replay scope: only run_events-derived SSE events (message.delta,
   -- activity.item) participate in Last-Event-ID replay — they are
   -- reconstructible from run_events rows. State-change events (run.state,
-  -- conversation.state) are NOT replayed: on reconnect the client re-reads
-  -- current state via GET /api/runs/:id and GET /api/conversations/:id
+  -- project.state) are NOT replayed: on reconnect the client re-reads
+  -- current state via GET /api/runs/:id and GET /api/projects/:id
   -- (the doc 08 §3 fallback). next_seq tracks the replayable subset.
 );
 

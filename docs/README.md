@@ -29,9 +29,9 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 | `14-observability-and-operations.md` | not started | 07 |
 | [15-open-questions.md](./15-open-questions.md) | draft — review | — |
 | [16-risk-register.md](./16-risk-register.md) | draft — review | — |
-| [adr/](./adr/README.md) | ADR-001..004 all accepted | see adr/README.md |
+| [adr/](./adr/README.md) | ADR-001..005 all accepted | see adr/README.md |
 
-**Reading order for this review round:** 09 (earlier rounds: 01 → 02 → 03
+**Reading order for this review round:** adr/ADR-005 → 06 → 04 → 05 → 08 → 09 amendments (earlier rounds: 01 → 02 → 03
 → 15 → 16 → ADRs → spike results → 04 → 05).
 
 ## Decisions requested now
@@ -43,7 +43,7 @@ No decision is blocking right now. Q-01/Q-02/Q-04/Q-05/Q-08/Q-10 are resolved
 (#387) shipped and deployed; **Increment 2 is unblocked** and R-08 is closed).
 S-01 and S-03 both executed 2026-07-14; ADR-001 and ADR-002 are accepted.
 Owner housekeeping: the scratch D1 `agenthub-s03-scratch` can be deleted.
-Next work-plan step: threat model (10) once persistence (09) merges.
+Next work-plan step: threat model (10) once the project pivot merges — it absorbs the owner's open-source/security review points.
 
 ## Architecture decision records
 
@@ -56,6 +56,7 @@ decision and is superseded):
 | [ADR-002](./adr/ADR-002-hub-persistence.md) | Hub-owned persistence: **SQLite local + scheduled backups to R2** (the initial D1 directive was reverted when S-03 fired the pre-agreed latency gate); also records the deployment shape (co-located Node backend + Pages frontend, resolves Q-05) | **accepted** (2026-07-14) |
 | [ADR-003](./adr/ADR-003-claude-cli-runner.md) | Claude CLI runner integration: per-turn command construction, event mapping, marker-based post-cancel sweep, budget strategy (S-01 lessons encoded) | **accepted** (2026-07-14) |
 | [ADR-004](./adr/ADR-004-ui-streaming-transport.md) | Hub↔frontend streaming: SSE with `Last-Event-ID` replay from the store | **accepted** (2026-07-14) |
+| [ADR-005](./adr/ADR-005-project-aggregate.md) | **Project as the organizing aggregate** — owner-directed pivot: one workspace/container per project, conversations share it; minimal Phase-1 shape with an explicit deferred list (R-17) | **accepted** (2026-07-14) |
 
 Remaining candidate (deferred, non-blocking): Hub user/auth model (Q-07).
 
@@ -102,6 +103,13 @@ numbers are noted per item as they land, since the two drift.
 - Mitigations accepted for every MVP-phase risk in 16 marked open
 
 ## Changelog
+
+- **2026-07-14** — **Project-centric pivot** (owner direction, analyzed and
+  incorporated): ADR-005 accepted — Project aggregate owns the workspace,
+  conversations share it (container economics + mental model). Mechanical
+  `RunSummary` per terminal run (A6, first Work Product). Agents restated as
+  professional roles. Task entity and Work Products named as Phase 2-4
+  evolutions. UX-07 (Mac+iPhone), SEC-10 (config privacy), Q-11, R-17.
 
 - **2026-07-14** — Doc 09 (persistence: DDL, guarded-update invariant
   enforcement, migrations, snapshot/restore procedure with retention and

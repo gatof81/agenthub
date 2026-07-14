@@ -19,6 +19,7 @@ proceeds unless vetoed.
 | Q-08 | Zombie accumulation vs `PidsLimit` | infra · upstream | **RESOLVED upstream (2026-07-14)**: `Init: true` shipped (shared-terminal#387), smoke Phase 9 pins it |
 | Q-09 | Backend stack | important | **Resolved with doc 07 (2026-07-14): TypeScript/Node** — challenge window closed, no failing constraint produced |
 | Q-10 | Claude auth inside the runtime | important · security | **Resolved (owner + S-01, 2026-07-14): subscription OAuth** — works headless via env var, cost fields populated |
+| Q-11 | Intra-project run concurrency | important · UX | Provisional: serialized — one active run per project (ADR-005 trade-off); revisit only if it hurts in practice |
 
 ---
 
@@ -159,3 +160,14 @@ unchanged. Residuals: the token is a credential in container env (threat-model
 input for doc 10); spend control is subscription rate limits, not per-key
 caps, so R-06's per-run caps carry the load; killed runs emit no result event
 → their usage is recorded as unknown ([S-01 results](./spikes/S-01/RESULTS.md)).
+
+## Q-11 — Intra-project run concurrency `important` `UX`
+
+With Projects as the aggregate (ADR-005), all of a project's conversations
+share one workspace — so runs serialize per project (FR-19, I-2), and two
+conversations of the same project cannot execute simultaneously. For a single
+user this is the correct semantics (it is what makes R-11's races
+impossible), and the queue keeps the UX honest (UX-03). **Provisional:
+accept serialization.** Revisit only with concrete pain — the escape hatches
+(secondary sessions per project, or per-conversation worktrees) are known but
+are Phase-2+ material, not MVP.
