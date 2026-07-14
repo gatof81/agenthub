@@ -11,6 +11,9 @@
 #   - Replaces session_id values with stable placeholders (S01-SESSION-A, B…)
 #     consistently across all files, preserving resume-chain structure.
 #   - Replaces UUIDs (account/org/request ids) with S01-UUID-n placeholders.
+#   - Replaces Anthropic API identifiers (msg_*, req_*, toolu_*) with
+#     S01-MSG-n / S01-REQ-n / S01-TOOLU-n — they are traceable to the account
+#     in provider-side logs (first-execution review finding).
 #   - Drops fields that can carry environment specifics: cwd, apiKeySource.
 #   - Strips absolute host paths if any leaked (only container paths like
 #     /home/developer/workspace are expected and kept).
@@ -39,7 +42,11 @@ import json, os, re, shutil, sys
 run_dir, out_dir = sys.argv[1], sys.argv[2]
 session_map: dict[str, str] = {}
 uuid_map: dict[str, str] = {}
+api_id_maps: dict[str, dict[str, str]] = {"msg": {}, "req": {}, "toolu": {}}
 UUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
+# Anthropic API object ids (message/request/tool-use). Length floor keeps
+# non-identifier tokens like "msg_lifecycle" untouched.
+API_ID_RE = re.compile(r"\b(msg|req|toolu)_[A-Za-z0-9]{16,}\b")
 DROP_FIELDS = {"cwd", "apiKeySource"}
 
 def session_placeholder(sid: str) -> str:
@@ -68,7 +75,14 @@ def scrub(obj):
             if u not in uuid_map:
                 uuid_map[u] = f"S01-UUID-{len(uuid_map) + 1}"
             return uuid_map[u]
-        return UUID_RE.sub(uuid_sub, obj)
+        obj = UUID_RE.sub(uuid_sub, obj)
+        def api_id_sub(m):
+            kind, full = m.group(1), m.group(0)
+            table = api_id_maps[kind]
+            if full not in table:
+                table[full] = f"S01-{kind.upper()}-{len(table) + 1}"
+            return table[full]
+        return API_ID_RE.sub(api_id_sub, obj)
     return obj
 
 # Pass 1: collect session ids from all result events so placeholders are
@@ -123,6 +137,9 @@ with open(os.path.join(out_dir, "SANITIZATION.json"), "w", encoding="utf-8") as 
         {
             "sessions_replaced": len(session_map),
             "uuids_replaced": len(uuid_map),
+            "message_ids_replaced": len(api_id_maps["msg"]),
+            "request_ids_replaced": len(api_id_maps["req"]),
+            "tool_use_ids_replaced": len(api_id_maps["toolu"]),
             "fields_dropped": sorted(DROP_FIELDS),
             "note": "placeholder maps are intentionally NOT written out",
         },
@@ -132,9 +149,13 @@ with open(os.path.join(out_dir, "SANITIZATION.json"), "w", encoding="utf-8") as 
 print(f"sanitized -> {out_dir} (sessions={len(session_map)} uuids={len(uuid_map)})")
 PYEOF
 
-# Final gate: nothing key-shaped may remain.
+# Final gate: nothing key-shaped or provider-id-shaped may remain.
 if grep -rq "sk-ant" "$OUT_DIR"; then
 	echo "ERROR: key material survived sanitization — do not commit. Inspect $OUT_DIR" >&2
+	exit 1
+fi
+if grep -rEq "\b(msg|req|toolu)_[A-Za-z0-9]{16,}\b" "$OUT_DIR"; then
+	echo "ERROR: Anthropic API identifiers survived sanitization — do not commit. Inspect $OUT_DIR" >&2
 	exit 1
 fi
 echo "Review $OUT_DIR manually, then copy the reviewed files into docs/spikes/S-01/fixtures/."

@@ -1,9 +1,0 @@
-{
- "sessions_replaced": 5,
- "uuids_replaced": 42,
- "fields_dropped": [
-  "apiKeySource",
-  "cwd"
- ],
- "note": "placeholder maps are intentionally NOT written out"
-}

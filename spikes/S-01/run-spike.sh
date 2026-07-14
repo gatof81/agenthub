@@ -223,15 +223,18 @@ phase "P4: cancel mid tool call"
 DIR="$OUT/p4-cancel"; mkdir -p "$DIR"
 : > "$DIR/stream.jsonl"; : > "$DIR/times.tsv"; : > "$DIR/pgid"
 T0=$(now_ms)
+# Long tool call: NOT `sleep` — the CLI's own Bash-tool policy blocks a bare
+# `sleep 120` with a tool_use_error (first-execution finding), so the kill
+# would land mid-API-call instead of mid-tool-execution. node is in the image.
 docker exec "$C" setsid --wait bash -c 'echo "__S01_PGID__ $$"; exec "$@"' s01-exec \
-	bash -lc "printf '%s' 'Run this exact bash command: sleep 120. After it finishes, reply done.' | $CLAUDE --max-turns 4 --allowedTools Bash" \
+	bash -lc "printf '%s' 'Use the Bash tool to run this exact command: node -e \"setTimeout(() => {}, 120000)\". After it finishes, reply done.' | $CLAUDE --max-turns 4 --allowedTools Bash" \
 	> "$DIR/rawpipe" 2>"$DIR/stderr.log" &
 EXEC_PID=$!
 # Tail the pipe file: capture pgid, wait for the Bash tool_use to appear.
 PGID=""; SAW_TOOL=0
 for _ in $(seq 1 240); do
 	[ -z "$PGID" ] && PGID=$(awk '/^__S01_PGID__/ {print $2; exit}' "$DIR/rawpipe" 2>/dev/null)
-	if grep -q '"tool_use"' "$DIR/rawpipe" 2>/dev/null && grep -q 'sleep 120' "$DIR/rawpipe" 2>/dev/null; then SAW_TOOL=1; break; fi
+	if grep -q '"tool_use"' "$DIR/rawpipe" 2>/dev/null && grep -q 'setTimeout' "$DIR/rawpipe" 2>/dev/null; then SAW_TOOL=1; break; fi
 	sleep 0.5
 done
 grep -v '^__S01_PGID__' "$DIR/rawpipe" > "$DIR/stream.jsonl" 2>/dev/null || true
@@ -252,8 +255,8 @@ if [ "$SAW_TOOL" -eq 1 ] && [ -n "$PGID" ]; then
 		'{t0_ms:$t0, t_kill_ms:$tKill, t_end_ms:$tEnd, exec_exit_code:$rc, pgid:$pgid, kill_outcome:$outcome, cli_version:$cli}' \
 		> "$DIR/meta.json"
 	zombie_census after-p4-kill
-	SLEEPERS=$(docker exec "$C" bash -c 'for f in /proc/[0-9]*/cmdline; do tr "\0" " " < "$f" 2>/dev/null | grep -q "^sleep 120" && echo survived; done; true')
-	[ -z "$SLEEPERS" ] && ok "sleep 120 did not survive the group kill" || fail "sleep 120 SURVIVED the group kill"
+	SLEEPERS=$(docker exec "$C" bash -c 'for f in /proc/[0-9]*/cmdline; do tr "\0" " " < "$f" 2>/dev/null | grep -q "setTimeout" && echo survived; done; true')
+	[ -z "$SLEEPERS" ] && ok "long-running node child did not survive the group kill" || fail "long-running node child SURVIVED the group kill"
 else
 	fail "P4 never showed the Bash tool_use (pgid='$PGID') — inspect $DIR"
 	[ -n "$PGID" ] && kill_group "$PGID" 3000 >/dev/null
