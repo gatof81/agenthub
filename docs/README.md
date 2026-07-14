@@ -27,7 +27,7 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 | `12-mvp-implementation-plan.md` | not started | 07–11 |
 | `13-testing-strategy.md` | not started | 08 |
 | `14-observability-and-operations.md` | not started | 07 |
-| [15-open-questions.md](./15-open-questions.md) | draft — decisions requested | — |
+| [15-open-questions.md](./15-open-questions.md) | draft — review | — |
 | [16-risk-register.md](./16-risk-register.md) | draft — review | — |
 | [adr/](./adr/README.md) | ADR-001 accepted · ADR-002 proposed (gated on S-03) | see adr/README.md |
 
