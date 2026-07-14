@@ -9,9 +9,11 @@ predate the separate-repos decision and are superseded by the list below.
 | --- | --- | --- |
 | [ADR-001](./ADR-001-shared-terminal-exec-seam.md) | Integration seam with shared-terminal (exec-over-HTTP contract) | **accepted** — ships with [contracts/shared-terminal-exec-api.md](../contracts/shared-terminal-exec-api.md) (PROPOSAL) |
 | [ADR-002](./ADR-002-hub-persistence.md) | Hub-owned persistence (SQLite local + R2 backups after the S-03 gate fired on D1 latency; deployment shape recorded) | **accepted** (2026-07-14) |
+| [ADR-003](./ADR-003-claude-cli-runner.md) | Claude CLI runner integration (per-turn command construction, event mapping, marker-based post-cancel sweep, budget strategy — S-01 lessons encoded) | proposed |
+| [ADR-004](./ADR-004-ui-streaming-transport.md) | Hub↔frontend streaming: SSE with `Last-Event-ID` replay from the store | proposed |
 
-Candidates for doc-07 time (not yet numbered): Claude CLI runner integration
-(gated on S-01) · Hub↔frontend streaming transport · Hub user/auth model (Q-07).
+Remaining candidate (deliberately deferred, non-blocking): Hub user/auth model
+(Q-07) — written when multi-user pressure is real.
 
 ## Format
 

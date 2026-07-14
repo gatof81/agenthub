@@ -17,7 +17,7 @@ proceeds unless vetoed.
 | Q-06 | Frontend framework | UX · future | Open — framework only; deployment target (Cloudflare Pages) fixed by ADR-002 |
 | Q-07 | Hub users & auth model | important | Single-user first; don't preclude delegation to substrate auth |
 | Q-08 | Zombie accumulation vs `PidsLimit` | infra · upstream | **RESOLVED upstream (2026-07-14)**: `Init: true` shipped (shared-terminal#387), smoke Phase 9 pins it |
-| Q-09 | Backend stack | important | TypeScript/Node |
+| Q-09 | Backend stack | important | **Resolved with doc 07 (2026-07-14): TypeScript/Node** — challenge window closed, no failing constraint produced |
 | Q-10 | Claude auth inside the runtime | important · security | **Resolved (owner + S-01, 2026-07-14): subscription OAuth** — works headless via env var, cost fields populated |
 
 ---
@@ -125,7 +125,11 @@ parent's job; orphaned zombies re-parent to PID 1 and stay.
 unreaped `claude` zombie under PID 1 (evidence:
 [S-01 results](./spikes/S-01/RESULTS.md)) — and **RESOLVED upstream the same
 day**: shared-terminal confirmed the accumulation independently (3 permanent
-zombies per group kill) and shipped `Init: true` (docker-init as PID 1,
+zombies per group kill in its test workload — the counts differ from S-01's
+"1 per kill" because each measured a different process tree: S-01's probe
+left only the `claude` process unreaped, upstream's test counted every
+zombie descendant; both observed the same phenomenon, and `Init: true`
+moots the number) and shipped `Init: true` (docker-init as PID 1,
 [#387](https://github.com/gatof81/shared-terminal/pull/387)), pinned by its
 smoke-test Phase 9. Deployed; pre-fix containers recycle once. Consequence:
 FR-22 (the Hub-side cancel-count guard) retired before ever being built —
@@ -133,12 +137,12 @@ see [04 §2](./04-requirements.md).
 
 ## Q-09 — Backend stack `important`
 
-**Provisional: TypeScript/Node.** Matches the substrate's ecosystem (shared
-idioms, one toolchain), the CLI being orchestrated is itself Node, stream-json
-parsing and WS/SSE plumbing are native strengths, and the team is one person —
-ecosystem consistency compounds. Challenge window closes when doc 07 is written;
-a challenger needs a concrete failing constraint (e.g. a measured need Node
-can't meet), not taste.
+**Resolved (doc 07, 2026-07-14): TypeScript/Node.** Matches the substrate's
+ecosystem (shared idioms, one toolchain), the CLI being orchestrated is
+itself Node, stream-json parsing and SSE plumbing are native strengths, and
+the team is one person — ecosystem consistency compounds. The challenge
+window closed with [07-architecture.md](./07-architecture.md); no challenger
+produced a concrete failing constraint.
 
 ## Q-10 — Claude auth inside the runtime `important` `security`
 
