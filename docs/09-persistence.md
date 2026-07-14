@@ -45,7 +45,7 @@ CREATE TABLE messages (
   conversation_id TEXT NOT NULL REFERENCES conversations(id),
   role            TEXT NOT NULL CHECK (role IN ('user','assistant')),
   content         TEXT NOT NULL,
-  run_id          TEXT,                           -- set for both roles (06 §2)
+  run_id          TEXT,                           -- nullable; set for both roles in the normal flow (06 §2)
   created_at      TEXT NOT NULL
 );
 CREATE INDEX idx_messages_conv ON messages (conversation_id, created_at);
