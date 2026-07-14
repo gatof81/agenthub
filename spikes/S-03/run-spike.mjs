@@ -6,7 +6,7 @@
 //
 // Usage:
 //   CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... \
-//   node run-spike.mjs [--label vm100|other]
+//   node run-spike.mjs [--label deployment-host|other]
 //
 // Talks to the D1 HTTP API (same access path a co-located Node backend would
 // use). Uses the scratch database `agenthub-s03-scratch` — NEVER a production

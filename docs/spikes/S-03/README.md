@@ -23,7 +23,7 @@ production DB; tables dropped on exit):
 
 ```bash
 CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... \
-  node spikes/S-03/run-spike.mjs --label vm100 > results-vm100.json
+  node spikes/S-03/run-spike.mjs --label deployment-host > results-deployment-host.json
 ```
 
 Requires Node ≥ 18 (built-in fetch) and a token scoped to Account → D1 →

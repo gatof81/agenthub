@@ -1,7 +1,7 @@
 # S-03 Results
 
-**Authoritative run:** `vm100` label, 2026-07-14, from the Hub's deployment
-host (co-located with the substrate) — [results-vm100.json](./results-vm100.json).
+**Authoritative run:** `deployment-host` label, 2026-07-14, from the Hub's deployment
+host (co-located with the substrate) — [results-deployment-host.json](./results-deployment-host.json).
 Preliminary run from a non-representative host:
 [results-dev-container.json](./results-dev-container.json) (same shape, same
 conclusions). Scratch database `agenthub-s03-scratch`; tables dropped; no tokens, account

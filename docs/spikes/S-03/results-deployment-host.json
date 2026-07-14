@@ -1,6 +1,6 @@
 {
  "spike": "S-03",
- "label": "vm100",
+ "label": "deployment-host",
  "ranAt": "2026-07-14T16:12:24.096Z",
  "database": "agenthub-s03-scratch",
  "single_statement_write": {
