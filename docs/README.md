@@ -23,7 +23,7 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 | [08-api-and-event-contracts.md](./08-api-and-event-contracts.md) | draft — review | 07, spike S-01 |
 | [09-persistence.md](./09-persistence.md) | draft — review | 06, ADR-002 |
 | [10-security-threat-model.md](./10-security-threat-model.md) | draft — review | 07, 16 |
-| [11-ux-specification.md](./11-ux-specification.md) | draft — review | 05 (frontend framework decided here) |
+| [11-ux-specification.md](./11-ux-specification.md) | merged | 05 (frontend framework decided here) |
 | [12-mvp-implementation-plan.md](./12-mvp-implementation-plan.md) | draft — review | 07–11 |
 | `13-testing-strategy.md` | not started | 08 |
 | `14-observability-and-operations.md` | not started | 07 |
@@ -41,7 +41,7 @@ From [15-open-questions.md](./15-open-questions.md):
 No decision is blocking right now. Q-01/Q-02/Q-04/Q-05/Q-08/Q-10 are resolved
 (see doc 15 — Q-08 closed upstream 2026-07-14: exec API #385 and `Init: true`
 (#387) shipped and deployed; **Increment 2 is unblocked** and R-08 is closed).
-S-01 and S-03 both executed 2026-07-14; ADR-001 and ADR-002 are accepted.
+S-01 and S-03 both executed 2026-07-14; ADR-001..005 are accepted.
 Owner housekeeping: the scratch D1 `agenthub-s03-scratch` can be deleted.
 Next work-plan step: testing strategy (13) + observability (14), then the Phase-1 backlog.
 
@@ -81,9 +81,9 @@ numbers are noted per item as they land, since the two drift.
 6. Domain model (06) — **merged (GitHub #10)**.
 7. Architecture (07) + ADR-003/ADR-004 — **merged (GitHub #12), ADRs accepted**.
 8. API & event contracts (08) — **merged (GitHub #13)**.
-9. Persistence (09) — **drafted (GitHub #14), in review**.
-10. Security threat model (10) — **drafted (GitHub #16), in review**.
-11. UX specification (11) — **drafted (GitHub #17), in review**; Q-06 resolved: React + Vite.
+9. Persistence (09) — **merged (GitHub #14)**.
+10. Security threat model (10) — **merged (GitHub #16)**.
+11. UX specification (11) — **merged (GitHub #17)**; Q-06 resolved: React + Vite.
 12. MVP implementation plan (12) — **drafted (GitHub #18), in review**; fake-runtime increment first.
 13. Testing strategy (13) and observability (14).
 14. Phase-1 backlog + quality-gate review → implementation may start.
