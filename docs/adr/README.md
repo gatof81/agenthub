@@ -8,7 +8,7 @@ predate the separate-repos decision and are superseded by the list below.
 | ADR | Title | Status |
 | --- | --- | --- |
 | [ADR-001](./ADR-001-shared-terminal-exec-seam.md) | Integration seam with shared-terminal (exec-over-HTTP contract) | **accepted** — ships with [contracts/shared-terminal-exec-api.md](../contracts/shared-terminal-exec-api.md) (PROPOSAL) |
-| ADR-002 | Hub-owned persistence | planned |
+| [ADR-002](./ADR-002-hub-persistence.md) | Hub-owned persistence (own D1; deployment shape recorded) | **proposed** — gated on S-03 |
 
 Candidates for doc-07 time (not yet numbered): Claude CLI runner integration
 (gated on S-01) · Hub↔frontend streaming transport · Hub user/auth model (Q-07).
