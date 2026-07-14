@@ -27,9 +27,11 @@ stateDiagram-v2
     streaming --> completed_with_denials: result + permission_denials (FR-15)
     streaming --> cancelled: user cancel → kill outcome (FR-20)
     streaming --> failed: error event / timeout (FR-17, FR-25)
-    streaming --> interrupted: stream lost / Hub restart (FR-23)
+    streaming --> interrupted: stream lost / found in-flight at boot (FR-23)
+    starting --> interrupted: found in-flight at boot (FR-23)
     starting --> failed: exec refused (409/429/…)
     interrupted --> completed: reconcile finds exited+result
+    interrupted --> cancelled: reconcile finds running → kill (no re-attach in v1)
     interrupted --> failed: reconcile finds unknown (FR-23)
     queued --> cancelled: user cancels queued message
 ```
@@ -117,12 +119,16 @@ result event exists, so cost is `unknown` (UX-06).
 
 ## UC-06 — Hub restarts while a run is in flight
 
+`interrupted` is the reconciler's staging state: any run found in
+`starting`/`streaming` at boot (or whose stream died) is marked `interrupted`
+first, then resolved by exactly one of the three probe branches below.
+
 ```mermaid
 sequenceDiagram
     participant Hub
     participant ST
     Note over Hub: boot
-    Hub->>Hub: find runs in starting/streaming (FR-23)
+    Hub->>Hub: runs found in starting/streaming → interrupted (FR-23)
     Hub->>ST: GET /sessions/:id/exec/:execId
     alt exited
         ST-->>Hub: {state: exited, exitCode}
@@ -132,7 +138,7 @@ sequenceDiagram
         Hub->>ST: kill (no re-attach in v1) → run→cancelled
     else unknown
         ST-->>Hub: {state: unknown}
-        Hub->>Hub: run→interrupted→failed; note orphan possibility
+        Hub->>Hub: run→failed; note orphan possibility
     end
     Note over Hub: conversation stays usable: next turn --resume (FR-24)
 ```
