@@ -8,7 +8,7 @@ re-verify before relying on them after that repo moves.
 
 ## Document index
 
-Docs 04–14 are planned but not started; they are listed so the index shows the whole shape.
+Docs not yet started (currently 07–14) are listed so the index shows the whole shape.
 Unwritten docs are intentionally not linked (link check runs in CI).
 
 | Doc | Status | Depends on |

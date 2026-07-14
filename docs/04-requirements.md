@@ -58,7 +58,7 @@ open-question resolution — so the spec stays falsifiable. Sources:
 | FR-30 | M | The Hub provisions agent sessions through the substrate's public API (template → create → bootstrap with agentSeed → start/stop) | 02 §3 |
 | FR-31 | M | The user can open the underlying terminal session of any conversation | 01 §2 |
 | FR-32 | M | The UI signals "agent working" while a run is active in a session the user may also be typing into; manual-intervention races are documented behavior, not prevented | R-11 |
-| FR-33 | S | Session lifecycle surfaces (stopped, bootstrapping, recreated) are reflected in conversation state rather than manifesting as opaque run failures | 02 §4.4 |
+| FR-33 | S | Session lifecycle surfaces (stopped, bootstrapping, recreated) are reflected in conversation state rather than manifesting as opaque run failures | 02 §4 (constraint 4) |
 
 ## 5. Non-functional
 
@@ -83,7 +83,7 @@ open-question resolution — so the spec stays falsifiable. Sources:
 | SEC-04 | M | Secrets (substrate credentials, Claude OAuth token, Cloudflare tokens) live in Hub config/env, never in prompts, run events, logs, or the database | R-07, R-05 |
 | SEC-05 | M | Run-event payloads are classified before persisting; known secret values are scrubbed; payloads are never written to logs by default | R-07 |
 | SEC-06 | M | The Hub authenticates to the substrate as a **dedicated account** that owns only Hub-created sessions (blast radius = those sessions) | Q-04 / ADR-001 |
-| SEC-07 | M | The Claude subscription OAuth token is provided to sessions as env at exec time; it must not be committed to session workspaces or echoed by seeded config | Q-10, 02 §4.1 |
+| SEC-07 | M | The Claude subscription OAuth token is provided to sessions as env at exec time; it must not be committed to session workspaces or echoed by seeded config | Q-10, 02 §4 (constraint 1) |
 | SEC-08 | M | Audit trail from day 1: every run's commands, files, denials, cancellations, and approvals are queryable per conversation | 01 §2, R-05 |
 | SEC-09 | F | Autonomy levels 0–3 map to allowlist tiers at doc-07/08 time; the Phase-1 single allowlist must be expressible as one of those tiers (no redesign) | Q-02 path, 01 §3 |
 
