@@ -63,6 +63,12 @@ The full spine from doc 12 Increment 1, in CI, offline:
 - **Restore drill (automated)**: snapshot → restore into a scratch DB → boot
   reconciliation → assert data intact and a turn can run (OPS-03, R-16). The
   once-before-Phase-1-exit production drill is manual and additional.
+- **Migration runner** (the migration half of this gate; strategy in 09 §4):
+  apply the initial DDL from an empty database *and* from a
+  schema-version-gap fixture (an older `meta.schema_version`) → assert the
+  schema lands at the current version; assert a deliberately failing
+  migration **aborts boot** and leaves no half-migrated database. Runs every
+  CI build.
 
 ## 5. Security-derived tests (from doc 10 §6)
 
