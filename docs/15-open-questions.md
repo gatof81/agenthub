@@ -16,7 +16,7 @@ proceeds unless vetoed.
 | Q-05 | Hub deployment & exposure | important · infra | **Resolved (owner, 2026-07-14): shared-terminal shape — see ADR-002** |
 | Q-06 | Frontend framework | UX · future | Open — framework only; deployment target (Cloudflare Pages) fixed by ADR-002 |
 | Q-07 | Hub users & auth model | important | Single-user first; don't preclude delegation to substrate auth |
-| Q-08 | Zombie accumulation vs `PidsLimit` | infra · upstream | **Confirmed by S-01**: 1 zombie per killed run, PID 1 reaps nothing; reported on shared-terminal#381 |
+| Q-08 | Zombie accumulation vs `PidsLimit` | infra · upstream | **RESOLVED upstream (2026-07-14)**: `Init: true` shipped (shared-terminal#387), smoke Phase 9 pins it |
 | Q-09 | Backend stack | important | TypeScript/Node |
 | Q-10 | Claude auth inside the runtime | important · security | **Resolved (owner + S-01, 2026-07-14): subscription OAuth** — works headless via env var, cost fields populated |
 
@@ -121,14 +121,15 @@ orphans. If cancelled runs leave zombies, do they accumulate against
 `killExecProcessGroup` is zombie-aware for *liveness checks*, but reaping is the
 parent's job; orphaned zombies re-parent to PID 1 and stay.
 
-**Confirmed by S-01 (2026-07-14):** each group-killed run leaves exactly one
-unreaped `claude` zombie under PID 1; a harness bug in the first attempt
-additionally proved orphans zombify permanently (8/8). Ceiling ≈ 1000
-cancelled runs per container lifetime. Reported upstream on
-[shared-terminal#381](https://github.com/gatof81/shared-terminal/issues/381)
-(suggested: smoke-test phase + `Init: true`). Until fixed upstream, remains
-the residual of R-04 — the Hub tracks cancel counts per session as a cheap
-guard. Evidence: [S-01 results](./spikes/S-01/RESULTS.md).
+**Confirmed by S-01 (2026-07-14)** — each group-killed run left exactly one
+unreaped `claude` zombie under PID 1 (evidence:
+[S-01 results](./spikes/S-01/RESULTS.md)) — and **RESOLVED upstream the same
+day**: shared-terminal confirmed the accumulation independently (3 permanent
+zombies per group kill) and shipped `Init: true` (docker-init as PID 1,
+[#387](https://github.com/gatof81/shared-terminal/pull/387)), pinned by its
+smoke-test Phase 9. Deployed; pre-fix containers recycle once. Consequence:
+FR-22 (the Hub-side cancel-count guard) retired before ever being built —
+see [04 §2](./04-requirements.md).
 
 ## Q-09 — Backend stack `important`
 

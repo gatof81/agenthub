@@ -98,13 +98,14 @@ sequenceDiagram
     ST-->>Hub: outcome (already-exited | terminated | killed)
     Hub->>Hub: run→cancelled + kill outcome + usage=unknown [tx] (FR-18/20)
     Hub->>ST: post-cancel sweep — survivors of the tool child escape (FR-21)
-    Hub->>Hub: cancel counter++ for session (FR-22)
     Hub-->>UI: cancelled state + what was killed/survived
 ```
 
 S-01 evidence baked in: the Bash tool's children escape the process group, so
-the sweep is mandatory; each kill leaves one zombie (counter, FR-22); no
-result event exists, so cost is `unknown` (UX-06).
+the sweep is mandatory (they keep *running*; since upstream #387 their
+zombies are at least reaped — FR-22's counter was retired with it); no result
+event exists, so cost is `unknown` (UX-06). If kill `outcome` and stream
+`reason` disagree, the outcome is authoritative (merged contract).
 
 ## UC-05 — Run completes with permission denials
 
@@ -195,7 +196,7 @@ contract replica-agnostic (NFR-05).
 | UC-01 | FR-01/02/04/30/33, FR-25 |
 | UC-02 | FR-03/05/10–14/16/17/18, NFR-01/06, SEC-06/07, OPS-04 |
 | UC-03 | FR-04/19, UX-03 |
-| UC-04 | FR-18/20/21/22, UX-04/06 |
+| UC-04 | FR-18/20/21, UX-04/06 (FR-22 retired) |
 | UC-05 | FR-15, SEC-03, UX-02/03 |
 | UC-06 | FR-23/24, NFR-05 |
 | UC-07 | FR-06/24 |

@@ -38,14 +38,11 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 
 From [15-open-questions.md](./15-open-questions.md):
 
-No decision is blocking right now. Q-01/Q-02/Q-04/Q-05/Q-10 are resolved (see
-doc 15). Q-08 is **confirmed, not resolved**: one zombie per killed run,
-residual tracked in R-04, upstream fix pending on
-[shared-terminal#381](https://github.com/gatof81/shared-terminal/issues/381) —
-the same issue that carries the accepted ADR-001 exec contract proposal.
+No decision is blocking right now. Q-01/Q-02/Q-04/Q-05/Q-08/Q-10 are resolved
+(see doc 15 — Q-08 closed upstream 2026-07-14: exec API #385 and `Init: true`
+(#387) shipped and deployed; **Increment 2 is unblocked** and R-08 is closed).
 S-01 and S-03 both executed 2026-07-14; ADR-001 and ADR-002 are accepted.
 Owner housekeeping: the scratch D1 `agenthub-s03-scratch` can be deleted.
-Next work-plan step: requirements (04) + use cases/flows (05).
 
 ## Architecture decision records
 
@@ -54,7 +51,7 @@ decision and is superseded):
 
 | ADR | Topic | Status |
 | --- | --- | --- |
-| [ADR-001](./adr/ADR-001-shared-terminal-exec-seam.md) | Integration seam with shared-terminal: exec-over-HTTP contract (transport, auth, framing, cancellation, reconnection, correlation, versioning — and the "ask for nothing new" option) | **accepted** — contract draft at [contracts/shared-terminal-exec-api.md](./contracts/shared-terminal-exec-api.md) |
+| [ADR-001](./adr/ADR-001-shared-terminal-exec-seam.md) | Integration seam with shared-terminal: exec-over-HTTP contract (transport, auth, framing, cancellation, reconnection, correlation, versioning — and the "ask for nothing new" option) | **accepted & implemented upstream** (#385) — [contracts/shared-terminal-exec-api.md](./contracts/shared-terminal-exec-api.md) tracks the canonical `EXEC_API.md` |
 | [ADR-002](./adr/ADR-002-hub-persistence.md) | Hub-owned persistence: **SQLite local + scheduled backups to R2** (the initial D1 directive was reverted when S-03 fired the pre-agreed latency gate); also records the deployment shape (co-located Node backend + Pages frontend, resolves Q-05) | **accepted** (2026-07-14) |
 
 Candidates identified for later steps (written at doc 07 time): Claude CLI runner
@@ -105,6 +102,10 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-14** — Upstream landed the exec seam (shared-terminal #385/#386/#387,
+  deployed & verified): contract doc now TRACKS canonical `EXEC_API.md` with the
+  accepted deltas; Q-08 resolved (`Init: true`); FR-22 retired; R-04 residual (a)
+  and R-08 closed; 02 gains a `b37dc4d` addendum. **Increment 2 unblocked.**
 - **2026-07-14** — Docs 04 (requirements, stable IDs, spike-traceable) and 05
   (run state machine + 10 flows) drafted (GitHub #8).
 - **2026-07-14** — S-03 EXECUTED (GitHub #7): the pre-agreed latency gate fired

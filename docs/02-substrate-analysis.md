@@ -111,3 +111,18 @@ the Hub's Phase 1 is **an HTTP contract over `streamExec`/`killExecProcessGroup`
 (streaming, cancellation, reconnection, correlation, versioning) — designed in
 ADR-001 as a proposal to take upstream. Until that lands upstream, Hub development
 proceeds against a fake substrate adapter (risk R-08).
+
+## 6. Addendum — substrate updates since `36be2f2` (verified at `b37dc4d`, 2026-07-14)
+
+The §5 gap is now closed upstream. Verified against `main @ b37dc4d`:
+
+| Change | Evidence | Effect here |
+| --- | --- | --- |
+| **Exec API implemented and deployed** (#381 → #385): the three endpoints of ADR-001, canonical contract at `docs/EXEC_API.md` | `git log` #385; verified end-to-end by upstream | §3's critical gap closed; R-08 closed; [contracts/shared-terminal-exec-api.md](./contracts/shared-terminal-exec-api.md) now **tracks** the canonical doc and records the accepted deltas |
+| `setsid -w` exit-code propagation for `newProcessGroup` execs | #386 | killed execs report the raw signal number; `reason` is the primary classifier |
+| **`Init: true` on container create** — docker-init reaps zombies; smoke-test **Phase 9** pins it | #387; `dockerManager.ts` (`Init: true`), `smoke-test.sh` Phase 9 | §4 constraint 7 and Q-08 resolved; pre-fix containers recycle once |
+| `X-Request-Id` emitted on exec-API responses, echoed in `started` | `EXEC_API.md` §Correlation | §3's correlation gap closed for the exec surface |
+| Per-session resource caps enforced + **per-user quotas** (#202) with `GET /quotas` | #388/#389; `routes/sessions.ts` (`GET /quotas`) | Hub's service account can check headroom before creating sessions (input for docs 12/14) |
+
+Facts elsewhere in this document remain cited at `36be2f2`; re-verification
+happens per claim as later docs consume them.
