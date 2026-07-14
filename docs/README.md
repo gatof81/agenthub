@@ -29,7 +29,7 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 | `14-observability-and-operations.md` | not started | 07 |
 | [15-open-questions.md](./15-open-questions.md) | draft — decisions requested | — |
 | [16-risk-register.md](./16-risk-register.md) | draft — review | — |
-| [adr/](./adr/README.md) | ADR-001/002 planned, none written | see adr/README.md |
+| [adr/](./adr/README.md) | ADR-001 accepted · ADR-002 planned | see adr/README.md |
 
 **Reading order for this review round:** 01 → 02 → 03 → 15 → 16.
 
@@ -41,6 +41,9 @@ From [15-open-questions.md](./15-open-questions.md):
   requires explicit sign-off. Everything else carries a provisional decision that
   proceeds unless vetoed.
 
+ADR-001 was accepted 2026-07-13; its contract draft is ready to go to the
+shared-terminal repo as a proposal.
+
 ## Architecture decision records
 
 New repo, new numbering (the discovery-era ADR list predates the separate-repos
@@ -48,7 +51,7 @@ decision and is superseded):
 
 | ADR | Topic | Status |
 | --- | --- | --- |
-| ADR-001 | Integration seam with shared-terminal: exec-over-HTTP contract (transport, auth, framing, cancellation, reconnection, correlation, versioning — and the "ask for nothing new" option) | planned — next PR |
+| [ADR-001](./adr/ADR-001-shared-terminal-exec-seam.md) | Integration seam with shared-terminal: exec-over-HTTP contract (transport, auth, framing, cancellation, reconnection, correlation, versioning — and the "ask for nothing new" option) | **accepted** — contract draft at [contracts/shared-terminal-exec-api.md](./contracts/shared-terminal-exec-api.md) |
 | ADR-002 | Hub-owned persistence (SQLite local vs own D1 vs Postgres; provisional lean: SQLite) | planned |
 
 Candidates identified for later steps (written at doc 07 time): Claude CLI runner

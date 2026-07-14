@@ -12,7 +12,7 @@ unless vetoed — except **Q-02, which requires explicit sign-off**.
 | Q-01 | Runner process model | MVP-blocking | One `claude -p --resume` process per turn |
 | Q-02 | Runner default permission posture | MVP-blocking · security | **None — sign-off required** |
 | Q-03 | Turn semantics & queuing | MVP-blocking | 1 message = 1 run; queue during a run |
-| Q-04 | Seam auth: service token vs user JWT | MVP-blocking · security | Resolve inside ADR-001; lean: dedicated service credential |
+| Q-04 | Seam auth: service token vs user JWT | MVP-blocking · security | Provisionally resolved by ADR-001: dedicated substrate account, existing JWT auth |
 | Q-05 | Hub deployment & exposure | important · infra | Co-located with the substrate, seam over localhost |
 | Q-06 | Frontend framework | UX · future | Decide at doc 11, not before |
 | Q-07 | Hub users & auth model | important | Single-user first; don't preclude delegation to substrate auth |
@@ -73,9 +73,11 @@ user's JWT?
   the Hub must store/refresh a browser-oriented credential, runs outlive
   cookies, and a Hub compromise leaks a full user credential.
 
-**Provisional lean:** dedicated service credential mapped to a substrate account
-owned by the Hub, with scoping stated as a contract requirement. Full analysis
-and decision inside ADR-001 (it shapes the contract's auth section).
+**Provisionally resolved by [ADR-001](./adr/ADR-001-shared-terminal-exec-seam.md):**
+the Hub authenticates as a **dedicated substrate account** via the existing
+`/auth/login` (JWT like any client) and only ever owns Hub-created sessions —
+scoping falls out of ownership, no new upstream auth surface. Revisit only if
+the substrate grows first-class service tokens.
 
 ## Q-05 — Hub deployment `important` `infra`
 
