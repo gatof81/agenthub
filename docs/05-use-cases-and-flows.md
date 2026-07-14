@@ -145,7 +145,9 @@ sequenceDiagram
 
 The stream has no replay (ADR-001): whatever events were persisted before the
 crash are the activity record; conversation continuity is the CLI transcript's
-job, not the Hub's.
+job, not the Hub's. Reconciliation works purely from persisted ids and the
+seam's status endpoint — no sticky connections — which is what keeps the
+contract replica-agnostic (NFR-05).
 
 ## UC-07 — Substrate container recreate
 
@@ -157,7 +159,7 @@ job, not the Hub's.
 
 ## UC-08 — Seam outage / exec failure
 
-1. `POST exec` fails (substrate down, 409 container-not-running, 429 caps).
+1. `POST exec` fails (substrate down, 409 container-not-running (FR-33), 429 caps).
 2. Run → `failed` with the error preserved and shown; message stays in
    history and can be re-sent (FR-25).
 3. If the NDJSON stream dies mid-run, UC-06's logic applies immediately
