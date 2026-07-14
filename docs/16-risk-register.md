@@ -25,8 +25,8 @@ risk. `P`robability / `I`mpact: L/M/H. **Phase** = where the mitigation must lan
 | R-13 | Single-replica assumptions leak into Hub contracts, blocking Agent Nodes (Phase 5) | carried | L | M | Contracts written replica-agnostic (ids + resumable event streams); implementations may stay process-local | — | 2-5 |
 | R-14 | D1 round-trip latency/cost on chat-shaped write volume | **CLOSED by S-03 + ADR-002 reversion (2026-07-14)** — measured 291 ms p50 turn-commit fired the gate; SQLite chosen, so the risk is mooted, not mitigated | — | — | — | — | — |
 | R-15 | D1 non-transactionality → inconsistent run state | **CLOSED with R-14** — SQLite provides real transactions | — | — | — | — | — |
-| R-17 | **Project aggregate scope creep**: Projects invite everything (memory, documents, repos, terminals, permissions) to attach to them ahead of need | NEW (opened by ADR-005) | M | M | ADR-005 records the explicit deferred list; each deferred item needs its phase and a failing constraint to land (R-10 discipline) | — | all |
 | R-16 | Backup-pipeline failure → the SQLite file is the only copy of every conversation until the next successful R2 snapshot | NEW (opened by ADR-002) | M | H | Consistent snapshots (online backup API / `VACUUM INTO`), monitored freshness signal, restore procedure tested before Phase-1 exit (doc 09/14 requirements) | Window between snapshots is unavoidable; cadence bounds it | 1 |
+| R-17 | **Project aggregate scope creep**: Projects invite everything (memory, documents, repos, terminals, permissions) to attach to them ahead of need | NEW (opened by ADR-005) | M | M | ADR-005 records the explicit deferred list; each deferred item needs its phase and a failing constraint to land (R-10 discipline) | — | all |
 
 ## Dropped from the discovery register (with cause)
 

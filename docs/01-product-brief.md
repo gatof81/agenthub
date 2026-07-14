@@ -10,7 +10,8 @@
 ## 1. Vision
 
 Agent Hub is a **personal hub for AI agents behind a chat interface**. The
-user works in **Projects** — "I'm going to work on Educación Hz", never "I
+user works in **Projects** — "I'm going to work on the home-automation
+project", never "I
 want to talk to agent X" ([ADR-005](./adr/ADR-005-project-aggregate.md)).
 Each project owns a workspace and holds conversations; each conversation is
 handled by one or more agents.

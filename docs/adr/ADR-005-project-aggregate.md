@@ -6,7 +6,7 @@ Date: 2026-07-14
 ## Context
 
 The owner's working intuition is project-shaped ("I'm going to work on
-Educación Hz"), never agent-shaped ("I want to talk to agent X"). The
+the home-automation project"), never agent-shaped ("I want to talk to agent X"). The
 pre-pivot model made `Conversation` the top-level unit, each owning its own
 substrate session — which meant **one Docker container per conversation**.
 With the substrate's per-session caps now enforced (4 cores / 8 GiB,
@@ -43,8 +43,13 @@ Project { id, name, status, sessionBinding, defaultAgentId, instructions?, creat
 
 - Conversations belong to exactly one project and **inherit its session**;
   the CLI's own multi-session transcripts keep per-conversation continuity
-  (`runtimeSessionId` stays on `Conversation` — many CLI sessions share one
-  workspace under `.st/claude-state`, a substrate-verified property).
+  (`runtimeSessionId` stays on `Conversation`). Many CLI sessions sharing one
+  workspace is **directly verified by S-01's published run**: five distinct
+  CLI sessions were created in a single workspace container, and P3 resumed
+  one specific session by id while the others coexisted
+  ([fixtures](../spikes/S-01/fixtures/run-20260714T142930Z/),
+  `SANITIZATION.json: sessions_replaced: 5`; persistence layout per
+  shared-terminal #371/#378).
 - One container per *project*; run serialization (FR-19) was already
   session-scoped, so "one active run per project" falls out unchanged.
 - `defaultAgentId` seeds new conversations; per-conversation agent override

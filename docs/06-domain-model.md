@@ -69,7 +69,7 @@ permission overrides.
 | `id`, `title`, `status` | status: `active \| archived` — provisioning belongs to the project |
 | `projectId` | immutable (I-10) |
 | `agentId` | immutable in Phase 1 (agent switching is Phase-2 scope); defaults from the project |
-| `runtimeSessionId` | the CLI's own session id used for `--resume`; updated from each result event (S-01: stable across resumes, but drift is captured, FR-24). Many CLI sessions coexist in one workspace under `.st/claude-state` (substrate-verified), which is what lets conversations share the project's container |
+| `runtimeSessionId` | the CLI's own session id used for `--resume`; updated from each result event (S-01: stable across resumes, but drift is captured, FR-24). Many CLI sessions coexist in one workspace — directly verified by S-01's published run (five distinct sessions in one container, one resumed by id while the others coexisted; see the [S-01 fixtures](./spikes/S-01/fixtures/run-20260714T142930Z/)) — which is what lets conversations share the project's container |
 
 ### SessionBinding (value object on Project)
 
