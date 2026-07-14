@@ -57,10 +57,11 @@ projects from:
   and unrecognized CLI types persist as `unknown` with the original type
   inside the payload (FR-16).
 - **Payload cap: 64 KiB** (NFR-02). Oversized payloads are truncated to the
-  cap with `"truncated": true` and original byte count — sized at half of
-  D1's ~100 KB per-statement ceiling found in S-03 (a storage-layer
-  cautionary tale, not a seam constraint) and comfortably above S-01's
-  largest observed event (< 8 KiB).
+  cap with `"truncated": true` and original byte count — sized 8× above
+  S-01's largest observed event (< 8 KiB), generous headroom for real tool
+  output. (S-03's D1 ~100 KB per-statement ceiling served as a historical
+  upper bound; SQLite imposes no such limit — bounding payloads is schema
+  hygiene, not a storage constraint.)
 - Idempotency: `id` unique; `(runId, seq)` unique and gapless per run as
   ingested (I-4). Re-ingestion of a duplicate `id` is a no-op.
 
