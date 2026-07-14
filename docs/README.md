@@ -42,8 +42,9 @@ doc 15). Q-08 is **confirmed, not resolved**: one zombie per killed run,
 residual tracked in R-04, upstream fix pending on
 [shared-terminal#381](https://github.com/gatof81/shared-terminal/issues/381) —
 the same issue that carries the accepted ADR-001 exec contract proposal.
-S-01 executed 2026-07-14. Owner-coordinated next action: schedule spike S-03
-(scratch D1 + scoped token) to close ADR-002.
+S-01 and S-03 both executed 2026-07-14; ADR-001 and ADR-002 are accepted.
+Owner housekeeping: the scratch D1 `agenthub-s03-scratch` can be deleted.
+Next work-plan step: requirements (04) + use cases/flows (05).
 
 ## Architecture decision records
 
@@ -53,7 +54,7 @@ decision and is superseded):
 | ADR | Topic | Status |
 | --- | --- | --- |
 | [ADR-001](./adr/ADR-001-shared-terminal-exec-seam.md) | Integration seam with shared-terminal: exec-over-HTTP contract (transport, auth, framing, cancellation, reconnection, correlation, versioning — and the "ask for nothing new" option) | **accepted** — contract draft at [contracts/shared-terminal-exec-api.md](./contracts/shared-terminal-exec-api.md) |
-| [ADR-002](./adr/ADR-002-hub-persistence.md) | Hub-owned persistence: own D1 chosen (owner platform directive; SQLite documented as revert path); also records the deployment shape (co-located Node backend + Pages frontend, resolves Q-05) | **proposed** — acceptance gated on S-03 |
+| [ADR-002](./adr/ADR-002-hub-persistence.md) | Hub-owned persistence: **SQLite local + scheduled backups to R2** (the initial D1 directive was reverted when S-03 fired the pre-agreed latency gate); also records the deployment shape (co-located Node backend + Pages frontend, resolves Q-05) | **accepted** (2026-07-14) |
 
 Candidates identified for later steps (written at doc 07 time): Claude CLI runner
 integration (per-turn `-p --resume`, policy→flags, cancel mapping — gated on S-01),
@@ -65,7 +66,7 @@ Hub↔frontend streaming transport, Hub user/auth model.
 | --- | --- | --- |
 | S-01 | Headless runner probe on pinned CLI 2.1.207: freeze-without-permission-flags, per-turn `--resume` latency, mid-tool-call cancellation via process-group kill, cost/`session_id` result fields, `tool_use` event shape | **EXECUTED 2026-07-14** — all questions answered; see [spikes/S-01/RESULTS.md](./spikes/S-01/RESULTS.md). Headlines: no freeze but silent auto-denial; per-turn resume ≈ 0.6 s; 1 zombie per cancelled run (Q-08 confirmed); **Bash-tool children survive group kill** (runner post-cancel policy needed) |
 | S-02 | Claude state continuity across container recreate | **resolved upstream** — shared-terminal #371/#378, re-asserted by its CI smoke test |
-| S-03 | D1 turn-commit latency, value-size limits, quota math against a scratch database | **required** — gates ADR-002 acceptance (revert criteria defined there); owner-coordinated (needs scratch D1 + scoped token) |
+| S-03 | D1 turn-commit latency, value-size limits, quota math against a scratch database | **EXECUTED 2026-07-14** — gate fired: turn-commit p50 291 ms from the deployment host (ceiling was 150 ms) → ADR-002 reverted to SQLite + R2 backups. See [spikes/S-03/RESULTS.md](./spikes/S-03/RESULTS.md) |
 
 ## Work plan
 
@@ -103,6 +104,10 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-14** — S-03 EXECUTED (GitHub #7): the pre-agreed latency gate fired
+  (turn-commit p50 291 ms > 150 ms from the deployment host) and the owner
+  confirmed the reversion — ADR-002 accepted as **SQLite local + R2 backups**.
+  R-14/R-15 closed (mooted); R-16 opened (backup-pipeline failure).
 - **2026-07-14** — S-01 EXECUTED (GitHub #6): sanitized fixtures + RESULTS.
   Q-01/Q-10 closed; Q-08 confirmed (upstream #381 pending); R-03 re-scoped
   (silent denial, not freeze). Auth: subscription OAuth validated headless.
