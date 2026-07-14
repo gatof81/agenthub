@@ -66,7 +66,7 @@ open-question resolution — so the spec stays falsifiable. Sources:
 | FR-30 | M | The Hub provisions **one session per project** through the substrate's public API (template → create → bootstrap with agentSeed carrying project instructions → start/stop) | 02 §3, ADR-005 |
 | FR-31 | M | The user can open the underlying terminal session of any conversation | 01 §2 |
 | FR-32 | M | The UI signals "agent working" while a run is active in a session the user may also be typing into; manual-intervention races are documented behavior, not prevented | R-11 |
-| FR-33 | S | Session lifecycle surfaces (stopped, bootstrapping, recreated) are reflected in conversation state rather than manifesting as opaque run failures | 02 §4 (constraint 4) |
+| FR-33 | S | Session lifecycle surfaces (stopped, bootstrapping, recreated) are reflected in **project** state rather than manifesting as opaque run failures | 02 §4 (constraint 4), ADR-005 |
 
 ## 5. Non-functional
 

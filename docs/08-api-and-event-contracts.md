@@ -138,7 +138,7 @@ Machine-readable `code` on run errors and API error bodies:
 
 | Code | Meaning | Surfaces as |
 | --- | --- | --- |
-| `provisioning_failed` | session create/bootstrap failed (UC-01) | conversation `status: error` |
+| `provisioning_failed` | session create/bootstrap failed (UC-01) | project `status: error` |
 | `seam_unavailable` | substrate unreachable / 5xx | run `failed`; retryable by re-send |
 | `exec_refused` | seam 409/429 (container down, caps) | run `failed` (FR-33 context attached) |
 | `run_timeout` | wall-clock cap hit (FR-17) | run `failed` |
