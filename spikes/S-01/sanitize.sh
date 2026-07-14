@@ -14,6 +14,8 @@
 #   - Replaces Anthropic API identifiers (msg_*, req_*, toolu_*) with
 #     S01-MSG-n / S01-REQ-n / S01-TOOLU-n — they are traceable to the account
 #     in provider-side logs (first-execution review finding).
+#   - Replaces thinking-block `signature` values with S01-SIG-n — same class:
+#     Anthropic-issued per-request tokens traceable to the account.
 #   - Drops fields that can carry environment specifics: cwd, apiKeySource.
 #   - Strips absolute host paths if any leaked (only container paths like
 #     /home/developer/workspace are expected and kept).
@@ -54,6 +56,8 @@ def session_placeholder(sid: str) -> str:
         session_map[sid] = f"S01-SESSION-{chr(ord('A') + len(session_map))}"
     return session_map[sid]
 
+sig_map: dict[str, str] = {}
+
 def scrub(obj):
     if isinstance(obj, dict):
         out = {}
@@ -62,6 +66,10 @@ def scrub(obj):
                 continue
             if k == "session_id" and isinstance(v, str):
                 out[k] = session_placeholder(v)
+            elif k == "signature" and isinstance(v, str) and len(v) >= 20:
+                if v not in sig_map:
+                    sig_map[v] = f"S01-SIG-{len(sig_map) + 1}"
+                out[k] = sig_map[v]
             else:
                 out[k] = scrub(v)
         return out
@@ -140,6 +148,7 @@ with open(os.path.join(out_dir, "SANITIZATION.json"), "w", encoding="utf-8") as 
             "message_ids_replaced": len(api_id_maps["msg"]),
             "request_ids_replaced": len(api_id_maps["req"]),
             "tool_use_ids_replaced": len(api_id_maps["toolu"]),
+            "signatures_replaced": len(sig_map),
             "fields_dropped": sorted(DROP_FIELDS),
             "note": "placeholder maps are intentionally NOT written out",
         },
@@ -156,6 +165,10 @@ if grep -rq "sk-ant" "$OUT_DIR"; then
 fi
 if grep -rEq "\b(msg|req|toolu)_[A-Za-z0-9]{16,}\b" "$OUT_DIR"; then
 	echo "ERROR: Anthropic API identifiers survived sanitization — do not commit. Inspect $OUT_DIR" >&2
+	exit 1
+fi
+if grep -rEq '"signature"[[:space:]]*:[[:space:]]*"[A-Za-z0-9+/]{20,}' "$OUT_DIR"; then
+	echo "ERROR: thinking signatures survived sanitization — do not commit. Inspect $OUT_DIR" >&2
 	exit 1
 fi
 echo "Review $OUT_DIR manually, then copy the reviewed files into docs/spikes/S-01/fixtures/."

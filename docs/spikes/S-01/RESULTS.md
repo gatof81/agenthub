@@ -1,6 +1,6 @@
 # S-01 Results
 
-**Published run:** `20260714T142930Z` · **Image:** `shared-terminal-session:latest` (CLI `2.1.207`, default model `claude-sonnet-5`) · **Auth:** subscription OAuth (`CLAUDE_CODE_OAUTH_TOKEN` env var) · **Host:** the substrate's own Docker host · **Fixtures:** [`fixtures/run-20260714T142930Z/`](./fixtures/run-20260714T142930Z/) (sanitized: 5 session ids, 43 UUIDs, 12 message ids, 12 request ids, 5 tool-use ids replaced; hand-reviewed).
+**Published run:** `20260714T142930Z` · **Image:** `shared-terminal-session:latest` (CLI `2.1.207`, default model `claude-sonnet-5`) · **Auth:** subscription OAuth (`CLAUDE_CODE_OAUTH_TOKEN` env var) · **Host:** the substrate's own Docker host · **Fixtures:** [`fixtures/run-20260714T142930Z/`](./fixtures/run-20260714T142930Z/) (sanitized: 5 session ids, 43 UUIDs, 12 message ids, 12 request ids, 5 tool-use ids, 3 thinking signatures replaced; hand-reviewed).
 
 ## Run history (three attempts, each one taught something)
 
