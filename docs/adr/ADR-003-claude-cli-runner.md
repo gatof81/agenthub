@@ -16,6 +16,16 @@ them. Q-01 already resolved the process model (per-turn); this ADR fixes the
 concrete command construction, event mapping, caps, cancellation, and
 recovery behavior.
 
+## Options
+
+For the process model — re-affirmed, not reopened: **per-turn
+`claude -p --resume`** (chosen; Q-01, measured ~0.6 s to first event). A
+**long-lived interactive process** was rejected in 15 (Q-01) — lifecycle,
+cancellation, and crash-recovery complexity with no measured need.
+**Do nothing** (no adapter layer, the orchestrator shells out directly) is
+rejected by R-12: the fake runtime must be a peer implementation, which
+requires the port. The sections below fix the *how* of the chosen option.
+
 ## Decision
 
 ### Command construction (per turn)
@@ -36,15 +46,6 @@ claude -p --output-format stream-json --verbose
   validated Hub-side against the seam's session-config rules before dispatch.
 - The exec's `maxDurationMs` is set to the run's wall-clock cap (FR-17); the
   seam's 1 h backstop stays behind it as defense in depth.
-
-### Options considered for the process model
-
-Re-affirmed, not reopened: per-turn `claude -p --resume` (Q-01, measured
-~0.6 s to first event). A long-lived interactive process was rejected in 15
-(Q-01) — lifecycle, cancellation, and crash-recovery complexity with no
-measured need. **Do nothing** (no adapter layer, orchestrator shells out
-directly) is rejected by R-12: the fake runtime must be a peer
-implementation, which requires the port.
 
 ### Event mapping
 
