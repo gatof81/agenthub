@@ -32,7 +32,8 @@ maintainer delegates coding, neutralizing Angular's structure advantage.
 **SvelteKit / SolidJS** — leaner, but smaller productivity-component
 ecosystems for the same reason. **Vanilla TS** — Q-06 already ruled out the
 substrate's no-framework rule here; a multi-panel streaming productivity UI in
-vanilla grows unmaintainable (the discovery-era R-09 concern).
+vanilla grows unmaintainable (the pre-separation vanilla-TS scope concern, now
+closed — see the dropped-risks table in [16](./16-risk-register.md)).
 
 The choice is reversible in principle (the API/SSE contract is
 framework-agnostic) but not cheaply once built; recorded as a decision, not a
