@@ -94,7 +94,7 @@ Tool output echoes `.env`; a token lands in a run event, the DB, or a log.
 
 - Single-credential gateway on every `/api` route (08 §1); no unauthenticated
   mutation.
-- The seam is localhost-only — not publicly routable (07 §4).
+- The seam is localhost-only — not publicly routable (07 §1).
 - Inherits the substrate's CSWSH/upgrade defenses for anything WS; the Hub's
   own live channel is SSE over authenticated HTTP (ADR-004), no upgrade path.
 
