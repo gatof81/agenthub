@@ -44,8 +44,9 @@ residual tracked in R-04, upstream fix pending on
 [shared-terminal#381](https://github.com/gatof81/shared-terminal/issues/381) —
 the same issue that carries the accepted ADR-001 exec contract proposal.
 S-01 and S-03 both executed 2026-07-14; ADR-001 and ADR-002 are accepted.
-Owner housekeeping: the scratch D1 `agenthub-s03-scratch` can be deleted.
-Next work-plan step: requirements (04) + use cases/flows (05).
+Owner housekeeping: the scratch D1 `agenthub-s03-scratch` can be deleted;
+implementing the exec API (shared-terminal#381) unblocks Increment 2.
+Next work-plan step: architecture (07) once the domain model (06) merges.
 
 ## Architecture decision records
 
