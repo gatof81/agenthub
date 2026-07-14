@@ -37,9 +37,11 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 
 From [15-open-questions.md](./15-open-questions.md):
 
-No decision is blocking right now. Q-01/Q-02/Q-04/Q-05/Q-08/Q-10 are resolved
-(see doc 15); ADR-001 is accepted and proposed upstream as
-[shared-terminal#381](https://github.com/gatof81/shared-terminal/issues/381);
+No decision is blocking right now. Q-01/Q-02/Q-04/Q-05/Q-10 are resolved (see
+doc 15). Q-08 is **confirmed, not resolved**: one zombie per killed run,
+residual tracked in R-04, upstream fix pending on
+[shared-terminal#381](https://github.com/gatof81/shared-terminal/issues/381) —
+the same issue that carries the accepted ADR-001 exec contract proposal.
 S-01 executed 2026-07-14. Owner-coordinated next action: schedule spike S-03
 (scratch D1 + scoped token) to close ADR-002.
 
