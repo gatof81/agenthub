@@ -15,6 +15,7 @@
     "_inputs/**",
     ".claude/**",
     ".npm-global/**",
-    ".config/**"
+    ".config/**",
+    ".st/**"
   ]
 }
