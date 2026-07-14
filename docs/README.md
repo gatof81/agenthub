@@ -95,7 +95,7 @@ numbers are noted per item as they land, since the two drift.
 - Architecture reviewed (07)
 - Domain model validated (06)
 - Initial threat model (10)
-- Main contracts defined (08 + ADR-001 contract proposal)
+- Main contracts defined (08 + exec contract, live upstream)
 - Critical flows defined (05)
 - Test & migration strategy (13)
 - Phase-1 backlog exists
