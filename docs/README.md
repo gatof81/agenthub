@@ -61,7 +61,7 @@ Hub↔frontend streaming transport, Hub user/auth model.
 
 | Spike | Question it settles | Status |
 | --- | --- | --- |
-| S-01 | Headless runner probe on pinned CLI 2.1.207: freeze-without-permission-flags, per-turn `--resume` latency, mid-tool-call cancellation via process-group kill, cost/`session_id` result fields, `tool_use` event shape | package prepared in logical PR-4 (upcoming); execution coordinated by owner (spends tokens) |
+| S-01 | Headless runner probe on pinned CLI 2.1.207: freeze-without-permission-flags, per-turn `--resume` latency, mid-tool-call cancellation via process-group kill, cost/`session_id` result fields, `tool_use` event shape | **package ready** (`spikes/S-01/`, runbook at `docs/spikes/S-01/`) — execution owner-scheduled (spends tokens) |
 | S-02 | Claude state continuity across container recreate | **resolved upstream** — shared-terminal #371/#378, re-asserted by its CI smoke test |
 | S-03 | D1 turn-commit latency, value-size limits, quota math against a scratch database | **required** — gates ADR-002 acceptance (revert criteria defined there); owner-coordinated (needs scratch D1 + scoped token) |
 
@@ -73,7 +73,7 @@ numbers are noted per item as they land, since the two drift.
 1. **PR-1 (GitHub #2, merged): foundational docs** — 01, 02, 03, 15, 16, this index, adr/README.
 2. **PR-2 (GitHub #3, merged): ADR-001** — the exec seam, plus `contracts/shared-terminal-exec-api.md` (PROPOSAL to take upstream).
 3. **PR-3 (GitHub #4): ADR-002** — Hub persistence.
-4. **PR-4: S-01 package** — script + runbook + fixture sanitization; then execute S-01 (owner-coordinated).
+4. **PR-4 (GitHub #5): S-01 package** — script + runbook + fixture sanitization; then execute S-01 (owner-coordinated).
 5. Requirements (04) and use cases/flows (05).
 6. Domain model (06).
 7. Architecture (07) + remaining ADRs.
@@ -101,6 +101,9 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-14** — PR-4 (GitHub #5): S-01 spike package (probe script, kill/zombie
+  instrumentation, sanitizer, runbook). Exec contract proposed upstream:
+  shared-terminal#381.
 - **2026-07-14** — PR-3 (GitHub #4): ADR-002 (Hub-owned D1, gated on S-03;
   deployment shape recorded, Q-05 resolved). Q-02 resolved: curated allowlist.
   Risks R-14/R-15 revived. PR-2 (GitHub #3) merged earlier the same round:
