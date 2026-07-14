@@ -187,15 +187,19 @@ job, not the Hub's.
 | UC-01 | FR-01/02/04/30/33, FR-25 |
 | UC-02 | FR-03/05/10–14/16/17/18, NFR-01/06, SEC-06/07, OPS-04 |
 | UC-03 | FR-04/19, UX-03 |
-| UC-04 | FR-18/20/21/22, UX-06 |
+| UC-04 | FR-18/20/21/22, UX-04/06 |
 | UC-05 | FR-15, SEC-03, UX-02/03 |
 | UC-06 | FR-23/24, NFR-05 |
 | UC-07 | FR-06/24 |
 | UC-08 | FR-17/25, FR-33 |
 | UC-09 | FR-19/31/32, UX-05 |
-| UC-10 | OPS-01/02/03, R-16 |
+| UC-10 | OPS-01/02/03 |
 
-Not flow-shaped (hence absent above): SEC-09 (forward constraint), OPS-05/06
-(continuous monitoring), NFR-02/03/04/08 (design/test-time properties).
-ID gaps between requirement sections (e.g. FR-07–FR-09) are reserved, unassigned
-numbers — not missing coverage.
+Not flow-shaped (hence absent above): SEC-01/02/04/05/08 (enforcement and
+cross-cutting security properties, asserted in code review and tests, not in
+a single flow) · SEC-09 (forward constraint) · NFR-02/03/04/08
+(design/test-time properties) · NFR-07 (deferred to the doc-07/11 transport
+decision) · OPS-05/06 (continuous monitoring) · UX-01 (cross-cutting
+presentation rule; FR-03 is its flow-side twin in UC-02). Every other ID in
+04 appears in the table above. ID gaps between requirement sections (e.g.
+FR-07–FR-09) are reserved, unassigned numbers — not missing coverage.
