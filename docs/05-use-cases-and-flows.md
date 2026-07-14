@@ -70,9 +70,11 @@ sequenceDiagram
     Hub-->>UI: final answer + cost
 ```
 
-Covers FR-03/05/10/11/12/13/14/17/18; NFR-01/06; SEC-06/07; OPS-04.
-The runner passes prompts via stdin and never positionally after variadic
-flags (S-01 harness lesson).
+Covers FR-03/05/10/11/12/13/14/16/17/18; NFR-01/06; SEC-06/07; OPS-04.
+Ingestion tolerates unknown event types mid-stream — S-01 observed
+`rate_limit_event` interleaved in ordinary turns (FR-16). The runner passes
+prompts via stdin and never positionally after variadic flags (S-01 harness
+lesson).
 
 ## UC-03 — Message arrives during an active run
 
@@ -183,10 +185,10 @@ job, not the Hub's.
 | Flow | Requirements exercised |
 | --- | --- |
 | UC-01 | FR-01/02/04/30/33, FR-25 |
-| UC-02 | FR-03/05/10–14/17/18, NFR-01/06, SEC-06/07, OPS-04 |
+| UC-02 | FR-03/05/10–14/16/17/18, NFR-01/06, SEC-06/07, OPS-04 |
 | UC-03 | FR-04/19, UX-03 |
 | UC-04 | FR-18/20/21/22, UX-06 |
-| UC-05 | FR-15/16, SEC-03, UX-02/03 |
+| UC-05 | FR-15, SEC-03, UX-02/03 |
 | UC-06 | FR-23/24, NFR-05 |
 | UC-07 | FR-06/24 |
 | UC-08 | FR-17/25, FR-33 |
