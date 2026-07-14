@@ -14,7 +14,7 @@ proceeds unless vetoed.
 | Q-03 | Turn semantics & queuing | MVP-blocking | 1 message = 1 run; queue during a run |
 | Q-04 | Seam auth: service token vs user JWT | MVP-blocking · security | Provisionally resolved by ADR-001: dedicated substrate account, existing JWT auth |
 | Q-05 | Hub deployment & exposure | important · infra | **Resolved (owner, 2026-07-14): shared-terminal shape — see ADR-002** |
-| Q-06 | Frontend framework | UX · future | Decide at doc 11, not before |
+| Q-06 | Frontend framework | UX · future | Open — framework only; deployment target (Cloudflare Pages) fixed by ADR-002 |
 | Q-07 | Hub users & auth model | important | Single-user first; don't preclude delegation to substrate auth |
 | Q-08 | Zombie accumulation vs `PidsLimit` | infra · upstream | Verify upstream; propose smoke phase + `Init: true` if confirmed |
 | Q-09 | Backend stack | important | TypeScript/Node |
@@ -97,7 +97,9 @@ repo (public-repo hygiene, R-09).
 
 Greenfield decision — shared-terminal's "no framework" rule does not apply here.
 Deliberately **not decided now**; decided in the UX phase (doc 11) with actual
-UI requirements on the table.
+UI requirements on the table. One input is already fixed:
+[ADR-002](./adr/ADR-002-hub-persistence.md) locks the deployment target to
+Cloudflare Pages — doc 11 chooses the framework, not where it deploys.
 
 ## Q-07 — Hub users & auth `important`
 
