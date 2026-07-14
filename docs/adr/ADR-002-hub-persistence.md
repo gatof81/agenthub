@@ -3,6 +3,9 @@
 Status: proposed — decision taken, acceptance gated on spike S-03
 Date: 2026-07-14
 
+Substrate evidence cited at [shared-terminal](https://github.com/gatof81/shared-terminal) `main` @ `36be2f2`
+(`d1Query`: `backend/src/db.ts:81`; `DockerManager.reconcile()`: `backend/src/dockerManager.ts:2254`).
+
 ## Context
 
 The Hub owns its data: conversations, messages, agents, runs, run events,
