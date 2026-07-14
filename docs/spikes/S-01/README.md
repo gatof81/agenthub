@@ -1,7 +1,7 @@
 # Spike S-01 — headless runner probe (runbook)
 
 **Status:** **EXECUTED 2026-07-14** — see [RESULTS.md](./RESULTS.md); fixtures
-under [`fixtures/`](./fixtures/run-20260714T141723Z/). · **Package:**
+under [`fixtures/`](./fixtures/run-20260714T142930Z/). · **Package:**
 `spikes/S-01/` (repo root), kept runnable for fixture refreshes on CLI bumps
 (risk R-02). **Target:** shared-terminal session image at `36be2f2` (CLI
 pinned 2.1.207).

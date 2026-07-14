@@ -1,0 +1,9 @@
+{
+ "t0_ms": 1784039408040,
+ "t_kill_ms": 1784039416142,
+ "t_end_ms": 1784039416827,
+ "exec_exit_code": 15,
+ "pgid": "213",
+ "kill_outcome": "terminated",
+ "cli_version": "2.1.207 (Claude Code)"
+}

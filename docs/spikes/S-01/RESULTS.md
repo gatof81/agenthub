@@ -1,49 +1,75 @@
 # S-01 Results
 
-**Run:** `20260714T141723Z` · **Image:** `shared-terminal-session:latest` (CLI `2.1.207`, default model `claude-sonnet-5`) · **Auth:** subscription OAuth (`CLAUDE_CODE_OAUTH_TOKEN` env var) · **Host:** the substrate's own Docker host · **Fixtures:** [`fixtures/run-20260714T141723Z/`](./fixtures/run-20260714T141723Z/) (sanitized: 5 session ids, 42 UUIDs replaced; reviewed by hand).
+**Published run:** `20260714T142930Z` · **Image:** `shared-terminal-session:latest` (CLI `2.1.207`, default model `claude-sonnet-5`) · **Auth:** subscription OAuth (`CLAUDE_CODE_OAUTH_TOKEN` env var) · **Host:** the substrate's own Docker host · **Fixtures:** [`fixtures/run-20260714T142930Z/`](./fixtures/run-20260714T142930Z/) (sanitized: 5 session ids, 43 UUIDs, 12 message ids, 12 request ids, 5 tool-use ids replaced; hand-reviewed).
 
-A first attempt (`20260714T141224Z`, discarded) failed on probe-harness bugs and
-accidentally produced one finding of its own — see [Zombies](#zombies-q-08).
+## Run history (three attempts, each one taught something)
+
+| Attempt | Outcome | What it contributed |
+| --- | --- | --- |
+| 1 (`…141224Z`, discarded) | Harness bugs: bare `setsid` double-forked (stream truncated, exit codes masked), `--allowedTools`' variadic parsing ate positional prompts, empty `--resume` ate the prompt | 8 orphaned `claude` processes → 8 permanent zombies: **PID 1 reaps nothing** |
+| 2 (`…141723Z`, discarded) | All probes green, but review caught two flaws: sanitizer left real `msg_*`/`req_*`/`toolu_*` ids, and P4's `sleep 120` was **blocked by the CLI's own built-in Bash policy** — the kill landed mid-API-call, not mid-tool | The built-in Bash-policy finding; sanitizer hardened (provider ids + hard-fail gate) |
+| 3 (`…142930Z`, **published**) | Clean run; P4 redesigned around a `node -e "setTimeout(...)"` long call | Everything below, including the tool-child escape finding |
 
 ## Answers
 
 | Question | Verdict | Evidence |
 | --- | --- | --- |
-| i — freeze without permission flags | **NO freeze on 2.1.207 — silent auto-denial.** The run completes `success` in 5.8 s with `is_error: false`; the Write attempt lands in `permission_denials` (tool name + full input) and no file is created. The risk is worse than a hang in one way: an unpoliced runner would report "success" on work that silently didn't happen | `p1-freeze/stream.jsonl` (result event) |
-| ii — `--resume` startup latency | **~550–580 ms to first event; 3.2–4.1 s total** for a trivial turn (n=3). `session_id` is **stable across resumes** (all three turns share P2's id). Per-turn process model (Q-01) validated | `p2-baseline/`, `p3-resume-*/meta.json` |
-| iii — cancellation mid tool call | **TERM → `terminated` within the first poll**; the in-flight `sleep 120` died with the group; the CLI flushed nothing after TERM (stream just ends); exec exit code 15. **A killed run emits NO `result` event** → no cost/usage record for cancelled runs (see consequences) | `p4-cancel/` (meta.json, stream.jsonl) |
-| iv — result fields | `total_cost_usd`, `num_turns`, `usage{input_tokens, output_tokens, cache_*, service_tier, …}`, `session_id`, `uuid`, `permission_denials` — **all populated under subscription auth** (cost is notional dollars; run total ≈ $0.16). `UsageRecord` (A3) can consume this as-is | `p*/result-event.json`, `summary.txt` |
-| v — `tool_use` shape | **Directly derivable**: `Write` → `input.file_path` + `input.content`; `Bash` → `input.command` + `input.description`. Activity view (A2) needs no filesystem diffing. Bonus event type discovered: `rate_limit_event` (subscription accounts) — doc 08 must treat unknown event types as pass-through | `p5-toolshape/tool-use-extract.json` |
-| + onboarding | **No onboarding/trust blocker**: a fresh state dir + `CLAUDE_CODE_OAUTH_TOKEN` alone produced a successful turn (P0). The Hub runner needs no config seeding for auth | `p0-onboarding/` |
+| i — freeze without permission flags | **No freeze on 2.1.207 — silent auto-denial.** The run completes `success` (`is_error: false`) with the Write attempt recorded in `permission_denials` (tool name + full input) and no file created. Reproduced in both clean runs. Worse than a hang in one way: an unpoliced runner reports success on work that silently didn't happen | `p1-freeze/stream.jsonl` |
+| ii — `--resume` startup latency | **~570–580 ms to first event; 3.7–4.5 s total** for a trivial turn (n=3; attempt 2 measured the same envelope). `session_id` stable across all three resumes → **Q-01 validated: per-turn process model** | `p2-baseline/`, `p3-resume-*/meta.json` |
+| iii — cancellation mid tool call | Two scenarios now covered. **Mid-API-call** (attempt 2): TERM → `terminated` first poll, CLI flushes nothing, no result event. **Mid-tool-execution** (published run): same kill semantics on the `claude` group, `terminated`, exit code 15 — **but the Bash tool's in-flight child survived the group kill** (see below) | `p4-cancel/` |
+| iv — result fields | `total_cost_usd`, `num_turns`, `usage{…}`, `session_id`, `uuid`, `permission_denials` — populated under subscription auth (notional dollars; published run ≈ $0.12). `UsageRecord` (A3) consumes this as-is. **Killed runs emit no result event** → their usage must be recorded as unknown | `p*/result-event.json`, `summary.txt` |
+| v — `tool_use` shape | **Directly derivable**: `Write` → `input.file_path` + `input.content`; `Bash` → `input.command` + `input.description`. No fs diffing needed (A2). Extra event type observed: `rate_limit_event` → consumers must pass through unknown event types | `p5-toolshape/tool-use-extract.json` |
+| + onboarding | **No onboarding/trust blocker**: fresh state dir + `CLAUDE_CODE_OAUTH_TOKEN` alone → successful turn. No config seeding needed for auth | `p0-onboarding/` |
 
-## Zombies (Q-08)
+## Finding: Bash-tool children escape the process group
 
-Confirmed on both attempts, two different ways:
+In the published run, P4 killed the `claude` process group two seconds into a
+running `node -e "setTimeout(() => {}, 120000)"` Bash tool call. The group
+died (`terminated`, exit 15) — **and a process carrying the tool command's
+argv survived the kill**. Claude Code evidently detaches Bash tool commands
+into their own process group, so killing the CLI's group does not kill its
+in-flight shell commands.
 
-- Clean run: each group-killed exec leaves **exactly one zombie** (`claude`
-  child, re-parented to PID 1, never reaped) — `zombies-after-p4-kill.txt`.
-- First attempt (double-fork harness bug): 8 orphaned `claude` processes → 8
-  permanent zombies, demonstrating PID 1 (`tail -f`) reaps nothing.
+Implications:
 
-Implication: with `PidsLimit: 1024`, a long-lived container tops out around
-~1000 cancelled runs. Slow leak, real ceiling. Reported upstream on the exec
-API proposal (shared-terminal#381) with a suggested smoke-test phase +
-`Init: true` evaluation.
+1. **For the Hub runner (doc 08):** cancelling a run ≠ cancelling its running
+   commands. The runner needs a post-cancel policy: sweep survivors (e.g.
+   kill user processes started after run start, tmux excluded), or accept
+   orphans and lean on per-run `maxDurationMs` and the substrate's
+   `PidsLimit`. To be designed with doc 08; the exec seam contract (ADR-001)
+   is unaffected — `killExecProcessGroup` does exactly what it promises.
+2. **R-04's residual "daemon children that leave the process group" is no
+   longer hypothetical** — it is the *default* behavior for every Bash tool
+   call ([16-risk-register.md](../../16-risk-register.md)).
+
+## Zombies (Q-08) — confirmed
+
+Every group-killed exec leaves one unreaped `claude` zombie under PID 1
+(reproduced in both clean runs: `zombies-after-p4-kill.txt`); attempt 1's 8/8
+orphans → permanent zombies proved PID 1 reaps nothing. Ceiling ≈ 1000
+cancelled runs per container lifetime against `PidsLimit: 1024`. Reported
+upstream: [shared-terminal#381](https://github.com/gatof81/shared-terminal/issues/381)
+(suggested smoke phase + `Init: true`).
+
+## Other operational findings
+
+- **CLI built-in Bash policy**: 2.1.207 blocks a bare `sleep 120` with a
+  `tool_use_error` ("use Monitor / run_in_background"). The runner's
+  allowlist design must account for the CLI having *its own* opinions about
+  Bash usage — denials can come from two layers.
+- **Harness lessons that transfer to the runner**: hold the direct parent
+  (`setsid --wait` semantics) or exit codes are masked and orphans zombify;
+  never pass prompts positionally after `--allowedTools` (variadic); never
+  pass `--resume` an empty value (it consumes the prompt).
 
 ## Consequences applied
 
-1. **Q-01 closes**: per-turn `claude -p --resume` validated — sub-second
-   startup, stable session id.
-2. **R-03 re-scoped**: "freeze forever" → "silent denial"; the mitigation is
-   unchanged (explicit allowlist per Q-02 + timeout backstop) but the failure
-   mode a missing policy produces is *silent no-op reported as success*, which
-   the runner must treat as a first-class outcome (surface
-   `permission_denials` in the activity view).
-3. **Q-10 closes**: subscription OAuth works headless; cost fields populated.
-4. **New requirement for the runner/UsageRecord**: cancelled runs have no
-   `result` event — usage for them must be marked unknown (or reconstructed
-   from earlier stream events); doc 08/09 requirement.
-5. **Harness lessons that transfer to the runner** (doc 08): `--allowedTools`
-   is variadic — prompts must ride stdin, never positionally after it; and
-   process supervision must hold the direct parent (`setsid --wait`
-   semantics) or exit codes are masked and orphans zombify.
+1. **Q-01 closed** — per-turn `claude -p --resume` validated.
+2. **Q-08 closed (confirmed)** — reported upstream on #381.
+3. **Q-10 closed** — subscription OAuth headless works; cost fields populated.
+4. **R-03 re-scoped** — silent denial, not freeze; runner must surface
+   `permission_denials` as a first-class outcome.
+5. **R-04 residual upgraded** — tool-child escape is default behavior; runner
+   post-cancel policy required (doc 08).
+6. **UsageRecord requirement** — cancelled runs have no result event; usage
+   recorded as unknown or reconstructed from prior stream events.

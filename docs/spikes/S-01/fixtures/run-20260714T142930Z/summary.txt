@@ -1,0 +1,20 @@
+run: 20260714T142930Z
+image: shared-terminal-session:latest
+cli: 2.1.207 (Claude Code)
+auth: subscription-oauth
+p0-onboarding: rc=0 t_first=1497ms t_total=4556ms
+p1-freeze: rc=0 t_first=566ms t_total=8180ms
+p2-baseline: rc=0 t_first=585ms t_total=5433ms
+p3-resume-1: rc=0 t_first=580ms t_total=4474ms
+p3-resume-2: rc=0 t_first=569ms t_total=3652ms
+p3-resume-3: rc=0 t_first=580ms t_total=3844ms
+p4-cancel: rc=15 t_first=n/ams t_total=8787ms
+p5-toolshape: rc=0 t_first=558ms t_total=12603ms
+costs:
+p0-onboarding: cost=0.0101405 turns=1 session=S01-SESSION-A
+p1-freeze: cost=0.022584599999999996 turns=2 session=S01-SESSION-B
+p2-baseline: cost=0.0101426 turns=1 session=S01-SESSION-C
+p3-resume-1: cost=0.0095817 turns=1 session=S01-SESSION-C
+p3-resume-2: cost=0.0095871 turns=1 session=S01-SESSION-C
+p3-resume-3: cost=0.009592499999999999 turns=1 session=S01-SESSION-C
+p5-toolshape: cost=0.0447234 turns=4 session=S01-SESSION-E
