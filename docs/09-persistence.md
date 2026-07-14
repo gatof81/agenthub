@@ -120,7 +120,7 @@ state=?` and assert exactly one changed row — the substrate's own
 | Dispatch | run `queued→starting` (guarded UPDATE) |
 | Event ingestion | batch of `INSERT OR IGNORE` run_events + sse_cursor bump — batched per stream flush, not per event |
 | Terminal transition | run state + assistant message upsert + usage_record insert |
-| Reconcile (UC-06) | per-run: staging to `interrupted`, then its resolution |
+| Reconcile (UC-06) | **two transactions per run** (a network probe sits between them): (1) stage to `interrupted`; (2) resolve after the seam status probe. A crash between the two leaves the run in `interrupted` — the next boot's reconciler picks those up directly at step 2 |
 
 All writes go through `HubStore`; the in-memory fake implements the same
 interface with the same guarded-update semantics (NFR-03) so tests exercise
@@ -156,7 +156,7 @@ own transcripts (FR-24). **Drill required once before Phase-1 exit**, restoring
 a production snapshot into a scratch environment and sending one turn.
 
 Accepted loss window = snapshot cadence (R-16 residual). The substrate's own
-backup (#390) is independent and covers the session workspaces; the two
+backup (shared-terminal #390) is independent and covers the session workspaces; the two
 restores compose but never depend on each other.
 
 ## 6. Size & retention
