@@ -145,7 +145,7 @@ API key (`ANTHROPIC_API_KEY`, pay-as-you-go, headless-friendly, per-key spend
 caps) vs OAuth/subscription state persisted under `.st/claude-state`
 (subscription pricing, but browser-interactive setup and credentials-on-disk in
 plaintext on the host). Interacts with R-06 (spend control) and the substrate's
-plaintext-state constraint ([02 §4.1](./02-substrate-analysis.md)).
+plaintext-state constraint ([02 §4](./02-substrate-analysis.md), constraint 1).
 **Resolved (owner directive + S-01 validation, 2026-07-14): subscription
 OAuth.** S-01 ran headless with `CLAUDE_CODE_OAUTH_TOKEN` as a plain env var:
 no onboarding blocker on a fresh state dir, and result events still populate
