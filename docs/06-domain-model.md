@@ -15,7 +15,7 @@ erDiagram
     AGENT ||--o{ CONVERSATION : "handles (1 per conversation in P1)"
     CONVERSATION ||--o{ MESSAGE : contains
     CONVERSATION ||--o{ RUN : owns
-    MESSAGE |o--o| RUN : "user message triggers ≤1"
+    MESSAGE ||--o| RUN : "user message triggers ≤1"
     RUN ||--o{ RUN_EVENT : emits
     RUN ||--o| USAGE_RECORD : "exactly 1 when terminal"
     CONVERSATION ||--|| SESSION_BINDING : "bound to"
