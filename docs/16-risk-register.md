@@ -1,6 +1,6 @@
 # 16 — Risk Register
 
-**Status:** draft — review · **Last updated:** 2026-07-13
+**Status:** draft — review · **Last updated:** 2026-07-14
 
 Inherited from the discovery register (2026-07-12, written against substrate
 `7a551f0`, before the separate-repos decision) and updated against `36be2f2`

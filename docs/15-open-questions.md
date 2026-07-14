@@ -1,6 +1,6 @@
 # 15 — Open Questions
 
-**Status:** draft — decisions requested · **Last updated:** 2026-07-13
+**Status:** draft — review · **Last updated:** 2026-07-14
 
 Classification: `MVP-blocking` (must close before the affected increment) ·
 `important` (shapes design; close before doc 07) · `future` (later phase) ·

@@ -31,7 +31,7 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 | [16-risk-register.md](./16-risk-register.md) | draft — review | — |
 | [adr/](./adr/README.md) | ADR-001 accepted · ADR-002 proposed (gated on S-03) | see adr/README.md |
 
-**Reading order for this review round:** 01 → 02 → 03 → 15 → 16.
+**Reading order for this review round:** 01 → 02 → 03 → 15 → 16 → adr/ADR-001 → adr/ADR-002.
 
 ## Decisions requested now
 
