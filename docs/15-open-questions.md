@@ -90,7 +90,8 @@ talking over localhost avoids exposing the seam publicly and keeps latency nil.
 [ADR-002](./adr/ADR-002-hub-persistence.md):** the Hub mirrors
 shared-terminal's topology — long-lived Node backend co-located on the
 substrate host behind the Cloudflare tunnel, frontend on Cloudflare Pages,
-seam over localhost, Hub-owned D1 for persistence. A Workers-based backend was
+seam over localhost, SQLite local + R2 backups for persistence (ADR-002 final
+after the S-03 gate fired on D1 latency). A Workers-based backend was
 considered and set aside (long-lived streams + process state would demand
 Durable Objects and a public seam). Hostname/exposure details stay out of this
 repo (public-repo hygiene, R-09).

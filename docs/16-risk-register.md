@@ -23,14 +23,15 @@ risk. `P`robability / `I`mpact: L/M/H. **Phase** = where the mitigation must lan
 | R-11 | Workspace races: agent run vs human typing in the same session, or two conversations bound to one session | carried | M | M | Serialize runs per session (Q-03 queue); surface "agent working" in the terminal-adjacent UI; document the manual-intervention contract | Human-vs-agent races remain possible by design (shared workspace is a feature) | 1 |
 | R-12 | `RuntimeAdapter` contract shaped around Claude CLI quirks, blocking Ollama/HTTP/node runtimes later | carried | M | M | Fake adapter is the second implementation from day 1 (A1); contract reviewed against a hypothetical HTTP runtime before freeze | — | 1-2 |
 | R-13 | Single-replica assumptions leak into Hub contracts, blocking Agent Nodes (Phase 5) | carried | L | M | Contracts written replica-agnostic (ids + resumable event streams); implementations may stay process-local | — | 2-5 |
-| R-14 | D1 round-trip latency/cost on chat-shaped write volume (revived by ADR-002's D1 decision) | **revived** → S-03 measures | M | M | Batch event writes per turn (no per-delta rows); query-count budget per endpoint; S-03 numbers gate ADR-002 acceptance, with agreed revert-to-SQLite criteria | RTT floor on every turn commit remains | 1 |
-| R-15 | D1 non-transactionality → inconsistent run state on crash between writes (revived by ADR-002) | **revived** | M | M | Atomic `UPDATE … WHERE` + affected-rows check; idempotent event ingestion; reconcile-on-boot mirroring `DockerManager.reconcile()` | Small windows remain; reconciliation heals | 1 |
+| R-14 | D1 round-trip latency/cost on chat-shaped write volume | **CLOSED by S-03 + ADR-002 reversion (2026-07-14)** — measured 291 ms p50 turn-commit fired the gate; SQLite chosen, so the risk is mooted, not mitigated | — | — | — | — | — |
+| R-15 | D1 non-transactionality → inconsistent run state | **CLOSED with R-14** — SQLite provides real transactions | — | — | — | — | — |
+| R-16 | Backup-pipeline failure → the SQLite file is the only copy of every conversation until the next successful R2 snapshot | NEW (opened by ADR-002) | M | H | Consistent snapshots (online backup API / `VACUUM INTO`), monitored freshness signal, restore procedure tested before Phase-1 exit (doc 09/14 requirements) | Window between snapshots is unavoidable; cadence bounds it | 1 |
 
 ## Dropped from the discovery register (with cause)
 
 | Old ID | Was | Why dropped |
 | --- | --- | --- |
-| old R-08 / R-14 | D1 cost/latency blowup; D1 non-transactionality → inconsistent run state | Dropped 2026-07-13 as premised on sharing the substrate's D1. **Revived 2026-07-14 as R-14/R-15 above**: ADR-002 chose a Hub-owned D1, so both apply to the Hub's own database; S-03 runs before the ADR closes |
+| old R-08 / R-14 | D1 cost/latency blowup; D1 non-transactionality → inconsistent run state | Dropped 2026-07-13 as premised on sharing the substrate's D1. Revived 2026-07-14 as R-14/R-15 when ADR-002 initially chose a Hub-owned D1; **closed the same day** when S-03 fired the latency gate and ADR-002 reverted to SQLite (see R-14/R-15 rows above) |
 | old R-09 | Frontend scope explosion in vanilla TS | Premised on living inside shared-terminal and its no-framework rule. New repo = greenfield frontend decision (Q-06) |
 | old R-15 | Claude auth model mismatch | Not a risk to *track* but a decision to *make* — moved to Q-10 |
 | old S-02 | `~/.claude` persistence spike | Resolved upstream (#371/#378); its findings are now substrate CI invariants |

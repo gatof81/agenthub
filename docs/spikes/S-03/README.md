@@ -1,9 +1,9 @@
 # Spike S-03 — D1 turn-commit latency, size limits, quota math (runbook)
 
-**Status:** package ready; **preliminary run captured** (non-representative
-host); authoritative run from VM co-located with the substrate **pending**.
-Gates ADR-002 acceptance (revert criteria: turn-commit p50 > 150 ms from the
-co-located host, or quota headroom < 10×).
+**Status:** **EXECUTED 2026-07-14** — authoritative run from the deployment
+host captured; **the ADR-002 revert criterion fired** (turn-commit p50
+291 ms > 150 ms) and the decision reverted to SQLite local + R2 backups.
+See [RESULTS.md](./RESULTS.md).
 
 ## What it measures
 
