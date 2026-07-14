@@ -24,6 +24,8 @@
 //   6. statement count per turn → quota math happens in RESULTS.md
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { randomUUID } from "node:crypto";
+
 const TOKEN = process.env.CLOUDFLARE_API_TOKEN;
 const ACCOUNT = process.env.CLOUDFLARE_ACCOUNT_ID;
 const DB_NAME = "agenthub-s03-scratch";
@@ -93,7 +95,7 @@ async function main() {
   // Warmup.
   for (let i = 0; i < 3; i++) await q("SELECT 1;");
 
-  const uid = () => crypto.randomUUID();
+  const uid = () => randomUUID();
   const now = () => new Date().toISOString();
   const payload = JSON.stringify({ type: "output", stream: "stdout", data: "x".repeat(400) }).replace(/'/g, "''");
 
