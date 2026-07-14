@@ -1,0 +1,2 @@
+{"name":"Write","input":{"file_path":"/home/developer/hello.txt","content":"hello from S-01"}}
+{"name":"Bash","input":{"command":"cat hello.txt","description":"Print contents of hello.txt"}}
