@@ -54,7 +54,6 @@ user-editable entity (Agent Registry) without field renames.
 | `agentId` | immutable in Phase 1 (agent switching is Phase-2 scope) |
 | `sessionBinding` | see below |
 | `runtimeSessionId` | the CLI's own session id used for `--resume`; updated from each result event (S-01: stable across resumes, but drift is captured, FR-24) |
-| `cancelCount` | zombie-budget guard counter, monotonic per session lifetime (FR-22) |
 
 ### SessionBinding (value object)
 
@@ -121,7 +120,6 @@ per A2 and the anti-over-architecture rule, nothing is double-written.
 | I-6 | `Conversation.agentId` never changes in Phase 1 | FR-02 boundary |
 | I-7 | `policySnapshot` is non-empty on every run — a run without an explicit allowlist must be unrepresentable | FR-11, SEC-01/02 |
 | I-8 | Snapshots (`capsSnapshot`, `policySnapshot`, `cliVersion`) are immutable once the run leaves `queued` | SEC-08 audit trail |
-| I-9 | `cancelCount` only increments; crossing the threshold flags the conversation, never blocks it silently | FR-22 |
 
 ## 4. Ports (domain boundaries)
 

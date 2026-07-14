@@ -106,7 +106,7 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
-- **2026-07-14** — Doc 06 (domain model: 2 aggregates, invariants I-1..I-9,
+- **2026-07-14** — Doc 06 (domain model: 2 aggregates, invariants I-1..I-8,
   3 ports) drafted (GitHub #10). 04/05 merged.
 - **2026-07-14** — Docs 04 (requirements, stable IDs, spike-traceable) and 05
   (run state machine + 10 flows) drafted (GitHub #8).
