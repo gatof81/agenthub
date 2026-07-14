@@ -113,13 +113,23 @@ start until all the *specification* gates pass (brief, scope, architecture,
 domain, threat model, contracts, flows, testing strategy, Phase-1 backlog,
 ADRs, risk mitigations), and the increments above satisfy the *build* side:
 
-| Gate | Satisfied by |
+| Gate (README) | Satisfied by |
 | --- | --- |
-| Main contracts defined | 08 + exec contract (done) |
-| Architecture reviewed | 07 (done) |
+| Product brief approved | 01 |
+| MVP scope approved | 03 |
+| Architecture reviewed | 07 |
+| Domain model validated | 06 |
+| Initial threat model | 10 |
+| Main contracts defined | 08 + exec contract (tracking live upstream) |
+| Critical flows defined | 05 |
 | Test & migration strategy | 09 migrations + doc 13 |
 | Phase-1 backlog exists | the standalone Phase-1 backlog (planned after doc 14) |
-| R-01..R-16 mitigations accepted | 16, closed/accepted per doc |
+| ADR-001..005 resolved; later ADRs drafted | all five accepted |
+| MVP-phase risk mitigations accepted | 16 (R-01/R-04/R-08/R-14/R-15 closed; open ones mitigated + accepted) |
+
+Status of each is authoritative in the README gate list and the source doc;
+this table maps gate → owning artifact. Approval of the draft docs is the
+owner's remaining act on the specification gates.
 
 ## What this plan deliberately excludes
 
