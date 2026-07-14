@@ -8,7 +8,7 @@ re-verify before relying on them after that repo moves.
 
 ## Document index
 
-Docs not yet started (currently 09–14) are listed so the index shows the whole shape.
+Docs not yet started (currently 10–14) are listed so the index shows the whole shape.
 Unwritten docs are intentionally not linked (link check runs in CI).
 
 | Doc | Status | Depends on |
@@ -21,7 +21,7 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 | [06-domain-model.md](./06-domain-model.md) | draft — review | 04, 05 |
 | [07-architecture.md](./07-architecture.md) | draft — review | 06, ADR-001..004 |
 | [08-api-and-event-contracts.md](./08-api-and-event-contracts.md) | draft — review | 07, spike S-01 |
-| `09-persistence.md` | not started | 06, ADR-002 |
+| [09-persistence.md](./09-persistence.md) | draft — review | 06, ADR-002 |
 | `10-security-threat-model.md` | not started | 07 |
 | `11-ux-specification.md` | not started | 05 (frontend framework decided here) |
 | `12-mvp-implementation-plan.md` | not started | 07–11 |
@@ -31,7 +31,7 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 | [16-risk-register.md](./16-risk-register.md) | draft — review | — |
 | [adr/](./adr/README.md) | ADR-001..004 all accepted | see adr/README.md |
 
-**Reading order for this review round:** 08 (earlier rounds: 01 → 02 → 03
+**Reading order for this review round:** 09 (earlier rounds: 01 → 02 → 03
 → 15 → 16 → ADRs → spike results → 04 → 05).
 
 ## Decisions requested now
@@ -43,7 +43,7 @@ No decision is blocking right now. Q-01/Q-02/Q-04/Q-05/Q-08/Q-10 are resolved
 (#387) shipped and deployed; **Increment 2 is unblocked** and R-08 is closed).
 S-01 and S-03 both executed 2026-07-14; ADR-001 and ADR-002 are accepted.
 Owner housekeeping: the scratch D1 `agenthub-s03-scratch` can be deleted.
-Next work-plan step: persistence (09) once contracts (08) merge.
+Next work-plan step: threat model (10) once persistence (09) merges.
 
 ## Architecture decision records
 
@@ -79,8 +79,8 @@ numbers are noted per item as they land, since the two drift.
 5. Requirements (04) and use cases/flows (05) — **merged (GitHub #8)**.
 6. Domain model (06) — **merged (GitHub #10)**.
 7. Architecture (07) + ADR-003/ADR-004 — **merged (GitHub #12), ADRs accepted**.
-8. API & event contracts (08) — **drafted (GitHub #13), in review**.
-9. Persistence (09).
+8. API & event contracts (08) — **merged (GitHub #13)**.
+9. Persistence (09) — **drafted (GitHub #14), in review**.
 10. Security threat model (10).
 11. UX specification (11) — frontend framework decision.
 12. MVP implementation plan (12) — fake-runtime increment first.
@@ -102,6 +102,10 @@ numbers are noted per item as they land, since the two drift.
 - Mitigations accepted for every MVP-phase risk in 16 marked open
 
 ## Changelog
+
+- **2026-07-14** — Doc 09 (persistence: DDL, guarded-update invariant
+  enforcement, migrations, snapshot/restore procedure with retention and
+  drill requirement) drafted (GitHub #14). 08 merged.
 
 - **2026-07-14** — Doc 08 (Hub HTTP+SSE contracts, RunEvent schema with 64 KiB
   cap, initial `dev` allowlist, error taxonomy) drafted (GitHub #13).
