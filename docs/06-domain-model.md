@@ -148,8 +148,8 @@ model-authored fields are a later enrichment, not Phase 1.
 | I-6 | `Conversation.agentId` never changes in Phase 1 | FR-02 boundary |
 | I-7 | `policySnapshot` is non-empty on every run — a run without an explicit allowlist must be unrepresentable | FR-11, SEC-01/02 |
 | I-8 | `capsSnapshot`/`policySnapshot` are immutable once the run leaves `queued`; `cliVersion`/`model` are **write-once** when the init event records them and immutable after | SEC-08 audit trail |
-| I-10 | `Conversation.projectId` never changes | ADR-005 |
 | — | (I-9 is a retired draft-era number — assigned to the FR-22 cancel counter and withdrawn with it before merge; invariant IDs, like requirement IDs, are never reused) | — |
+| I-10 | `Conversation.projectId` never changes | ADR-005 |
 | I-11 | Every terminal run has exactly one `RunSummary`, written in the terminal transition's transaction | FR-42 |
 
 ## 4. Ports (domain boundaries)
