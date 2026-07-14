@@ -19,8 +19,8 @@
 #   ANTHROPIC_API_KEY=sk-...        ./run-spike.sh [image-tag]   # pay-as-you-go
 #   CLAUDE_CODE_OAUTH_TOKEN=sk-...  ./run-spike.sh [image-tag]   # subscription
 #
-# Exactly one auth source is required. Under subscription auth the result
-# events' cost fields may read 0/absent — that is itself a probe-iv finding.
+# Exactly one auth source is required. Under subscription auth, result events
+# populate total_cost_usd/usage with notional dollars (confirmed by S-01).
 #
 # Image tag defaults to `shared-terminal-session` (smoke-test convention).
 # SPENDS TOKENS (small prompts, ~6 turns; see runbook cost note). Prompts for

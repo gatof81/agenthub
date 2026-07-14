@@ -65,7 +65,8 @@ upstream: [shared-terminal#381](https://github.com/gatof81/shared-terminal/issue
 ## Consequences applied
 
 1. **Q-01 closed** — per-turn `claude -p --resume` validated.
-2. **Q-08 closed (confirmed)** — reported upstream on #381.
+2. **Q-08 confirmed (not resolved)** — the question is answered, the problem
+   remains open upstream (#381); residual tracked in R-04.
 3. **Q-10 closed** — subscription OAuth headless works; cost fields populated.
 4. **R-03 re-scoped** — silent denial, not freeze; runner must surface
    `permission_denials` as a first-class outcome.

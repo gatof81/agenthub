@@ -104,9 +104,8 @@ numbers are noted per item as they land, since the two drift.
 ## Changelog
 
 - **2026-07-14** — S-01 EXECUTED (GitHub #6): sanitized fixtures + RESULTS.
-  Q-01/Q-08/Q-10 closed; R-03 re-scoped (silent denial, not freeze); zombie
-  residual confirmed and reported on shared-terminal#381. Auth: subscription
-  OAuth validated headless.
+  Q-01/Q-10 closed; Q-08 confirmed (upstream #381 pending); R-03 re-scoped
+  (silent denial, not freeze). Auth: subscription OAuth validated headless.
 - **2026-07-14** — PR-4 (GitHub #5): S-01 spike package (probe script, kill/zombie
   instrumentation, sanitizer, runbook). Exec contract proposed upstream:
   shared-terminal#381.
