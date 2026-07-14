@@ -46,7 +46,7 @@ open-question resolution — so the spec stays falsifiable. Sources:
 | --- | --- | --- | --- |
 | FR-20 | M | The user can cancel an in-flight run; cancellation maps to the seam's kill endpoint (TERM→poll→KILL) and the run is marked `cancelled` with the kill outcome recorded | ADR-001, S-01 (iii) |
 | FR-21 | M | **Post-cancel sweep policy**: after a kill, the runner must handle Bash-tool children that escaped the process group (detect survivors; kill or record them; never assume the group kill was complete) | S-01 — tool-child escape finding |
-| FR-22 | M | The Hub tracks cancel counts per session as a zombie-budget guard while upstream #381 is open; crossing a threshold recommends session recreate | Q-08 (confirmed) |
+| FR-22 | M | The Hub tracks cancel counts per session as a zombie-budget guard while [shared-terminal#381](https://github.com/gatof81/shared-terminal/issues/381) is open; crossing a threshold recommends session recreate | Q-08 (confirmed) |
 | FR-23 | M | On Hub boot, reconcile in-flight runs: query exec status via the seam; `exited` → finalize, `running` → re-attach or kill, `unknown` → mark `interrupted` | ADR-001 (status endpoint), 03 §2.10 |
 | FR-24 | M | A run interrupted by stream loss or restart never corrupts the conversation: the next turn `--resume`s the runtime's own session state | ADR-001 (no-replay rationale) |
 | FR-25 | M | Seam outage or exec failure produces a user-visible failed run with the error preserved — never a silent hang; per-run timeout is the backstop | R-03 re-scoped, 03 §2.10 |

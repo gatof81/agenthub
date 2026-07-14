@@ -29,7 +29,7 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 | `14-observability-and-operations.md` | not started | 07 |
 | [15-open-questions.md](./15-open-questions.md) | draft — review | — |
 | [16-risk-register.md](./16-risk-register.md) | draft — review | — |
-| [adr/](./adr/README.md) | ADR-001 accepted · ADR-002 proposed (gated on S-03) | see adr/README.md |
+| [adr/](./adr/README.md) | ADR-001 accepted · ADR-002 accepted | see adr/README.md |
 
 **Reading order for this review round:** 04 → 05 (earlier round: 01 → 02 → 03
 → 15 → 16 → adr/ADR-001 → adr/ADR-002; spike results under docs/spikes/).
