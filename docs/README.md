@@ -99,7 +99,7 @@ numbers are noted per item as they land, since the two drift.
 - Critical flows defined (05)
 - Test & migration strategy (13)
 - Phase-1 backlog exists
-- ADR-001 and ADR-002 resolved; later ADRs at least drafted
+- ADR-001..005 resolved; later ADRs at least drafted
 - Mitigations accepted for every MVP-phase risk in 16 marked open
 
 ## Changelog

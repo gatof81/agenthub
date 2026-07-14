@@ -62,7 +62,8 @@ allowlist is decided (08 §5), Q-10 auth is subscription OAuth.
    (`contracts/shared-terminal-exec-api.md`) — exec stream, status, kill;
    `X-Request-Id` capture (OPS-04); session lifecycle (create from template;
    the substrate's `agentSeed` bootstrap step [02 §1] writes settings/CLAUDE.md
-   from the project's `instructions` field [ADR-005]; start/stop — FR-30).
+   into the session [02 §3] from the project's `instructions` field [ADR-005];
+   start/stop — FR-30).
 2. **Real `claude-cli` `RuntimeAdapter`** (ADR-003): command construction
    (stdin prompt, mandatory allowlist, `--resume`), env wiring
    (`CLAUDE_CODE_OAUTH_TOKEN` + `HUB_RUN_ID`, SEC-07), stream-json parsing to
@@ -125,7 +126,7 @@ ADRs, risk mitigations), and the increments above satisfy the *build* side:
 | Critical flows defined | 05 |
 | Test & migration strategy | 09 migrations + doc 13 |
 | Phase-1 backlog exists | the standalone Phase-1 backlog (planned after doc 14) |
-| ADR-001..005 resolved; later ADRs drafted | all five accepted |
+| ADR-001..005 resolved; later ADRs at least drafted | all five accepted |
 | MVP-phase risk mitigations accepted | 16 (R-01/R-04/R-08/R-14/R-15 closed; open ones mitigated + accepted) |
 
 Status of each is authoritative in the README gate list and the source doc;
