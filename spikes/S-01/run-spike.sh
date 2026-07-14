@@ -94,8 +94,12 @@ echo "  claude --version: $CLI_VERSION"
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 # exec_probe NAME TIMEOUT_S CMD...
-# Runs CMD in the container under setsid (own process group, sentinel pgid
-# line — mirrors the substrate's streamExec wrapper). Streams stdout lines to
+# Runs CMD in the container under `setsid --wait` (own process group, sentinel
+# pgid line — mirrors the substrate's streamExec wrapper; --wait keeps the
+# parent attached so docker exec streams until the command really exits and
+# the exit code propagates; without it setsid double-forks, the stream
+# truncates at the first flush and the orphan zombifies under PID 1 — the
+# first S-01 attempt demonstrated exactly that). Streams stdout lines to
 # $OUT/NAME/stream.jsonl with per-line timestamps in times.tsv. Writes
 # meta.json with t0/t_first/t_end/rc/pgid.
 exec_probe() {
@@ -103,7 +107,7 @@ exec_probe() {
 	local dir="$OUT/$name"; mkdir -p "$dir"
 	: > "$dir/stream.jsonl"; : > "$dir/times.tsv"; : > "$dir/pgid"
 	local t0; t0=$(now_ms)
-	timeout -k 5 "$timeout_s" docker exec "$C" setsid bash -c \
+	timeout -k 5 "$timeout_s" docker exec "$C" setsid --wait bash -c \
 		'echo "__S01_PGID__ $$"; exec "$@"' s01-exec "$@" 2>"$dir/stderr.log" \
 		| while IFS= read -r line; do
 			case "$line" in
@@ -166,9 +170,13 @@ zombie_census() { # NAME — snapshot zombies in the container
 
 CLAUDE="claude -p --output-format stream-json --verbose"
 
+# Prompts ride stdin everywhere: --allowedTools is variadic and swallows a
+# positional prompt (first-attempt finding), and stdin sidesteps the whole
+# flag-ordering class of bugs.
+
 # ── P0: bare headless run on fresh state (onboarding/trust behavior) ────────
 phase "P0: fresh-state headless run (onboarding probe)"
-exec_probe p0-onboarding 90 bash -lc "$CLAUDE --max-turns 1 'Reply with exactly: ok'"
+exec_probe p0-onboarding 90 bash -lc "printf '%s' 'Reply with exactly: ok' | $CLAUDE --max-turns 1"
 if jq -e 'select(.type=="result")' "$OUT/p0-onboarding/stream.jsonl" >/dev/null 2>&1; then
 	ok "P0 produced a result event — no onboarding blocker"
 else
@@ -180,7 +188,7 @@ fi
 
 # ── P1: no permission flags + a tool-requiring task (freeze probe) ──────────
 phase "P1: freeze without permission flags (90s timeout)"
-exec_probe p1-freeze 90 bash -lc "$CLAUDE --max-turns 3 'Create a file named probe.txt containing the word hello. You must actually create it.'"
+exec_probe p1-freeze 90 bash -lc "printf '%s' 'Create a file named probe.txt containing the word hello. You must actually create it.' | $CLAUDE --max-turns 3"
 P1_RC=$(jq -r .exit_code "$OUT/p1-freeze/meta.json")
 if jq -e 'select(.type=="result")' "$OUT/p1-freeze/stream.jsonl" >/dev/null 2>&1; then
 	echo "  P1 completed with a result event (rc=$P1_RC) — did NOT freeze; check whether the tool ran or was auto-denied"
@@ -193,26 +201,30 @@ zombie_census after-p1
 
 # ── P2: baseline turn — timings, session_id, cost fields ────────────────────
 phase "P2: baseline turn"
-exec_probe p2-baseline 120 bash -lc "$CLAUDE --max-turns 1 'Reply with exactly: ready'"
+exec_probe p2-baseline 120 bash -lc "printf '%s' 'Reply with exactly: ready' | $CLAUDE --max-turns 1"
 SID=$(jq -r 'select(.type=="result") | .session_id // empty' "$OUT/p2-baseline/stream.jsonl" | tail -1)
 if [ -n "$SID" ]; then ok "session_id captured"; else fail "no session_id in P2 result — resume probes will fail"; fi
 jq -c 'select(.type=="result")' "$OUT/p2-baseline/stream.jsonl" > "$OUT/p2-baseline/result-event.json" 2>/dev/null
 
 # ── P3: --resume startup latency × 3 ─────────────────────────────────────────
 phase "P3: resume latency (3 turns)"
-for n in 1 2 3; do
-	exec_probe "p3-resume-$n" 120 bash -lc "$CLAUDE --max-turns 1 --resume $SID 'Reply with exactly: again $n'"
-	NEW_SID=$(jq -r 'select(.type=="result") | .session_id // empty' "$OUT/p3-resume-$n/stream.jsonl" | tail -1)
-	[ -n "$NEW_SID" ] && SID="$NEW_SID"   # some CLI versions fork a new id per resume — capture drift
-done
+if [ -z "$SID" ]; then
+	fail "skipping P3 — no session_id from P2 (do not feed --resume an empty id: it eats the prompt)"
+else
+	for n in 1 2 3; do
+		exec_probe "p3-resume-$n" 120 bash -lc "printf '%s' 'Reply with exactly: again $n' | $CLAUDE --max-turns 1 --resume $SID"
+		NEW_SID=$(jq -r 'select(.type=="result") | .session_id // empty' "$OUT/p3-resume-$n/stream.jsonl" | tail -1)
+		[ -n "$NEW_SID" ] && SID="$NEW_SID"   # some CLI versions fork a new id per resume — capture drift
+	done
+fi
 
 # ── P4: cancellation mid tool call + zombie census ───────────────────────────
 phase "P4: cancel mid tool call"
 DIR="$OUT/p4-cancel"; mkdir -p "$DIR"
 : > "$DIR/stream.jsonl"; : > "$DIR/times.tsv"; : > "$DIR/pgid"
 T0=$(now_ms)
-docker exec "$C" setsid bash -c 'echo "__S01_PGID__ $$"; exec "$@"' s01-exec \
-	bash -lc "$CLAUDE --max-turns 4 --allowedTools Bash 'Run this exact bash command: sleep 120. After it finishes, reply done.'" \
+docker exec "$C" setsid --wait bash -c 'echo "__S01_PGID__ $$"; exec "$@"' s01-exec \
+	bash -lc "printf '%s' 'Run this exact bash command: sleep 120. After it finishes, reply done.' | $CLAUDE --max-turns 4 --allowedTools Bash" \
 	> "$DIR/rawpipe" 2>"$DIR/stderr.log" &
 EXEC_PID=$!
 # Tail the pipe file: capture pgid, wait for the Bash tool_use to appear.
@@ -251,7 +263,7 @@ rm -f "$DIR/rawpipe"
 
 # ── P5: tool_use shape for the activity view ─────────────────────────────────
 phase "P5: tool_use event shape"
-exec_probe p5-toolshape 180 bash -lc "$CLAUDE --max-turns 6 --allowedTools 'Write,Bash' 'Create a file named hello.txt containing exactly: hello from S-01. Then run: cat hello.txt'"
+exec_probe p5-toolshape 180 bash -lc "printf '%s' 'Create a file named hello.txt containing exactly: hello from S-01. Then run: cat hello.txt' | $CLAUDE --max-turns 6 --allowedTools 'Write,Bash'"
 jq -c '.. | objects | select(.type? == "tool_use") | {name: .name, input: .input}' \
 	"$OUT/p5-toolshape/stream.jsonl" > "$OUT/p5-toolshape/tool-use-extract.json" 2>/dev/null
 echo "  tool_use blocks extracted: $(wc -l < "$OUT/p5-toolshape/tool-use-extract.json")"
@@ -267,7 +279,7 @@ zombie_census final
 	for d in "$OUT"/p*/; do
 		name=$(basename "$d")
 		[ -f "$d/meta.json" ] || continue
-		jq -r --arg n "$name" '"\($n): rc=\(.exit_code // .exec_exit_code) t_first=\((.t_first_line_ms // 0) - .t0_ms)ms t_total=\(.t_end_ms - .t0_ms)ms"' "$d/meta.json"
+		jq -r --arg n "$name" '"\($n): rc=\(.exit_code // .exec_exit_code) t_first=\(if .t_first_line_ms then .t_first_line_ms - .t0_ms else "n/a" end)ms t_total=\(.t_end_ms - .t0_ms)ms"' "$d/meta.json"
 	done
 	echo "costs:"
 	for d in "$OUT"/p*/; do
