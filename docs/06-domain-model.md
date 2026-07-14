@@ -78,13 +78,13 @@ seam can answer live.
 | --- | --- |
 | `id`, `conversationId`, `messageId` | the triggering user message |
 | `state` | exactly the 05 state machine: `queued \| starting \| streaming \| completed \| completed_with_denials \| cancelled \| interrupted \| failed` |
-| `execId?`, `pgid?` | seam handles (ADR-001), set by the `started` event — both absent while `queued`; `pgid` informational |
+| `execId?`, `pgid?` | seam handles (ADR-001), set by the `started` event — absent through `queued` and `starting`; `pgid` informational |
 | `capsSnapshot`, `policySnapshot` | the caps and allowlist the run actually ran with — snapshots, not references, so later agent edits never rewrite history (SEC-08) |
 | `cliVersion`, `model` | recorded from the init event (FR-12, R-02) |
 | `killOutcome?` | `already-exited \| terminated \| killed` when cancelled (FR-20) |
 | `sweepResult?` | post-cancel survivor sweep outcome (FR-21) |
 | `error?` | terminal error detail for `failed` (FR-25) |
-| `createdAt`, `startedAt?`, `endedAt?` | `startedAt` absent while `queued`; `endedAt` absent until terminal |
+| `createdAt`, `startedAt?`, `endedAt?` | `startedAt` set by the `started` event (absent through `queued`/`starting`); `endedAt` absent until terminal |
 
 ### RunEvent
 
