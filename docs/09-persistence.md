@@ -27,18 +27,30 @@ conversation continuity, FR-24) cover the tail. Accepted trade-off.
 ## 2. Schema (DDL)
 
 ```sql
-CREATE TABLE conversations (
+CREATE TABLE projects (
   id                 TEXT PRIMARY KEY,
-  title              TEXT NOT NULL,
-  agent_id           TEXT NOT NULL,               -- immutable (I-6): no UPDATE path exposed
+  name               TEXT NOT NULL,
   status             TEXT NOT NULL CHECK (status IN ('provisioning','ready','error','archived')),
-  session_id         TEXT,                        -- SessionBinding
+  default_agent_id   TEXT NOT NULL,
+  instructions       TEXT,                        -- seeded via agentSeed (FR-41); sensitive → never logged
+  session_id         TEXT,                        -- SessionBinding (ADR-005: one workspace per project)
   session_template_id TEXT,
   session_last_state TEXT,                        -- UX cache only (06 §2)
-  runtime_session_id TEXT,                        -- --resume handle (FR-24)
   created_at         TEXT NOT NULL,
   updated_at         TEXT NOT NULL
 );
+
+CREATE TABLE conversations (
+  id                 TEXT PRIMARY KEY,
+  project_id         TEXT NOT NULL REFERENCES projects(id),  -- immutable (I-10)
+  title              TEXT NOT NULL,
+  agent_id           TEXT NOT NULL,               -- immutable (I-6): no UPDATE path exposed
+  status             TEXT NOT NULL CHECK (status IN ('active','archived')),
+  runtime_session_id TEXT,                        -- --resume handle (FR-24), per conversation
+  created_at         TEXT NOT NULL,
+  updated_at         TEXT NOT NULL
+);
+CREATE INDEX idx_conversations_project ON conversations (project_id, updated_at);
 
 CREATE TABLE messages (
   id              TEXT PRIMARY KEY,
@@ -103,16 +115,22 @@ CREATE TABLE sse_cursor (
   next_seq        INTEGER NOT NULL                -- Last-Event-ID ordering (ADR-004).
   -- Replay scope: only run_events-derived SSE events (message.delta,
   -- activity.item) participate in Last-Event-ID replay — they are
-  -- reconstructible from run_events rows. State-change events (run.state,
-  -- conversation.state) are NOT replayed: on reconnect the client re-reads
-  -- current state via GET /api/runs/:id and GET /api/conversations/:id
-  -- (the doc 08 §3 fallback). next_seq tracks the replayable subset.
+  -- reconstructible from run_events rows. State/summary events (run.state,
+  -- project.state, run.usage, run.summary) are NOT replayed: on reconnect
+  -- the client re-reads current state via GET /api/runs/:id,
+  -- GET /api/conversations/:id and GET /api/projects/:id (the doc 08 §3
+  -- fallback). next_seq tracks the replayable subset.
+);
+
+CREATE TABLE run_summaries (
+  run_id   TEXT PRIMARY KEY REFERENCES runs(id),  -- 1:1 with terminal runs (I-11)
+  summary  TEXT NOT NULL                          -- JSON (06 §RunSummary shape, FR-42)
 );
 
 CREATE TABLE meta ( key TEXT PRIMARY KEY, value TEXT NOT NULL );  -- schema_version, etc.
 ```
 
-Invariants not expressible as constraints (I-2 single active run, I-3 legal
+Invariants not expressible as constraints (I-2 single active run per project, I-3 legal
 transitions, write-once `cli_version`) are enforced in the `HubStore`
 transaction layer: state changes use `UPDATE runs SET state=? WHERE id=? AND
 state=?` and assert exactly one changed row — the substrate's own
@@ -125,7 +143,7 @@ state=?` and assert exactly one changed row — the substrate's own
 | Send message (UC-02) | insert user message + insert run(`queued`) |
 | Dispatch | run `queued→starting` (guarded UPDATE) |
 | Event ingestion | batch of `INSERT OR IGNORE` run_events + sse_cursor bump — batched per stream flush, not per event |
-| Terminal transition | run state + assistant message upsert + usage_record insert |
+| Terminal transition | run state + assistant message upsert + usage_record insert + run_summaries insert (I-11) |
 | Reconcile (UC-06) | **two transactions per run** (a network probe sits between them): (1) stage to `interrupted`; (2) resolve after the seam status probe. A crash between the two leaves the run in `interrupted` — the next boot's reconciler picks those up directly at step 2 |
 
 All writes go through `HubStore`; the in-memory fake implements the same

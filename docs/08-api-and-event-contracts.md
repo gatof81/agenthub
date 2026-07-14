@@ -26,12 +26,15 @@ All routes under `/api`, behind the single-credential gateway middleware
 | --- | --- | --- |
 | `GET /api/health` | liveness + backup freshness signal | unauthenticated liveness, authenticated detail |
 | `GET /api/agents` | list config-defined agents | id, name, allowlist, caps — read-only in Phase 1 (FR-02) |
-| `POST /api/conversations` | create conversation → provisions its session (UC-01) | body `{agentId, title?}`; returns `202` with `status: "provisioning"` |
-| `GET /api/conversations` | list with status + last message | archived filtered by default |
+| `POST /api/projects` | create project → provisions its session (UC-01, FR-40) | body `{name, defaultAgentId, instructions?}`; returns `202` with `status: "provisioning"` |
+| `GET /api/projects` / `GET /api/projects/:id` | list / detail incl. session state + conversations | archived filtered by default |
+| `PATCH /api/projects/:id` | rename / archive (archiving stops the session) | FR-40 |
+| `POST /api/projects/:id/conversations` | create conversation in the project (instant — no provisioning, ADR-005) | body `{title?, agentId?}` (agent defaults from project) |
+| `GET /api/conversations` | list across projects with status + last message | archived filtered by default |
 | `GET /api/conversations/:id` | detail + messages (paged) | `?before=<messageId>&limit=` |
 | `PATCH /api/conversations/:id` | rename / archive | `{title?}` or `{status: "archived"}` (FR-01) |
-| `POST /api/conversations/:id/messages` | send message → creates the run (FR-03) | body `{content}`; returns `202 {messageId, runId, runState}` — `queued` or `starting` (UC-03); `409` while `provisioning`/`error` |
-| `GET /api/runs/:id` | run detail: state, snapshots, activity projection, usage, error | activity derived on read (06 §2) |
+| `POST /api/conversations/:id/messages` | send message → creates the run (FR-03) | body `{content}`; returns `202 {messageId, runId, runState}` — `queued` or `starting` (UC-03); `409` while the **project** is `provisioning`/`error` |
+| `GET /api/runs/:id` | run detail: state, snapshots, activity projection, usage, **summary**, error | activity derived on read (06 §2); summary per FR-42 |
 | `POST /api/runs/:id/cancel` | cancel active or queued run (FR-20) | returns `202`; final state + `killOutcome`/`sweepResult` arrive via SSE and `GET /api/runs/:id` |
 | `GET /api/conversations/:id/events` | **SSE stream** (ADR-004) | `Last-Event-ID` replay; §3 |
 
@@ -67,9 +70,16 @@ projects from:
 
 ## 3. SSE projection (per conversation)
 
-`GET /api/conversations/:id/events`, `text/event-stream`. SSE `id:` is the
-global per-conversation event sequence; on reconnect the Hub replays from the
-store starting after `Last-Event-ID` (ADR-004). Heartbeat comment every 25 s.
+`GET /api/conversations/:id/events`, `text/event-stream`. Heartbeat comment
+every 25 s. **Replay contract:** SSE `id:` is assigned only to *replayable*
+events — those reconstructible from `run_events` rows (`message.delta`,
+`activity.item`); on reconnect the Hub replays that subset from the store
+starting after `Last-Event-ID` (ADR-004, 09 §sse_cursor). State/summary
+events (`run.state`, `project.state`, `run.usage`, `run.summary`) are
+delivered **without** a replayable id — on reconnect the client re-reads
+current state via `GET /api/runs/:id` and `GET /api/projects/:id`; nothing is
+lost because those objects live in the store, they are simply not re-streamed
+verbatim.
 
 | SSE `event:` | Payload | Emitted when |
 | --- | --- | --- |
@@ -77,11 +87,12 @@ store starting after `Last-Event-ID` (ADR-004). Heartbeat comment every 25 s.
 | `message.delta` | `{runId, messageId, text}` | assistant text chunks from `output` events |
 | `activity.item` | `{runId, kind: "command" \| "file" \| "denial", detail}` | derived from `tool_use` / `permission_denial` |
 | `run.usage` | `{runId, totalCostUsd?, numTurns?, source}` | terminal runs (FR-18; `source: "cancelled-unknown"` has null cost) |
-| `conversation.state` | `{status}` | provisioning lifecycle (UC-01, FR-33) |
+| `run.summary` | the persisted `RunSummary` object (FR-42) | terminal runs, after the terminal transition |
+| `project.state` | `{status}` | provisioning lifecycle (UC-01, FR-33) — emitted on every conversation stream of the project |
 
-The SSE payloads are a *projection* — recomputable from `RunEvent` rows; a
-client that misses everything can rebuild from `GET /api/runs/:id` +
-`GET /api/conversations/:id` (NFR-07).
+The SSE payloads are a *projection* — recomputable from the store; a client
+that misses everything can rebuild from `GET /api/runs/:id`,
+`GET /api/conversations/:id`, and `GET /api/projects/:id` (NFR-07).
 
 ## 4. Runner command contract (summary — normative text in ADR-003)
 
@@ -116,6 +127,10 @@ Rationale, informed by the S-01 `tool_use` corpus and R-05:
   outcome (FR-15), never a silent capability.
 - Command-pattern narrowing (`Bash(gh pr view:*)`-style) and autonomy-tier
   mapping are the SEC-09 path, deliberately not in Phase 1.
+- **Config placement (SEC-10):** real agent/project definitions live in
+  gitignored deployment config; the repo ships only a generic
+  `agents.example.yaml`. Agent instructions carry personal project context
+  and are treated as sensitive.
 
 ## 6. Error taxonomy
 
@@ -123,7 +138,7 @@ Machine-readable `code` on run errors and API error bodies:
 
 | Code | Meaning | Surfaces as |
 | --- | --- | --- |
-| `provisioning_failed` | session create/bootstrap failed (UC-01) | conversation `status: error` |
+| `provisioning_failed` | session create/bootstrap failed (UC-01) | project `status: error` |
 | `seam_unavailable` | substrate unreachable / 5xx | run `failed`; retryable by re-send |
 | `exec_refused` | seam 409/429 (container down, caps) | run `failed` (FR-33 context attached) |
 | `run_timeout` | wall-clock cap hit (FR-17) | run `failed` |
