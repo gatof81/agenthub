@@ -100,7 +100,13 @@ CREATE TABLE usage_records (
 
 CREATE TABLE sse_cursor (
   conversation_id TEXT PRIMARY KEY REFERENCES conversations(id),
-  next_seq        INTEGER NOT NULL                -- Last-Event-ID ordering (ADR-004)
+  next_seq        INTEGER NOT NULL                -- Last-Event-ID ordering (ADR-004).
+  -- Replay scope: only run_events-derived SSE events (message.delta,
+  -- activity.item) participate in Last-Event-ID replay — they are
+  -- reconstructible from run_events rows. State-change events (run.state,
+  -- conversation.state) are NOT replayed: on reconnect the client re-reads
+  -- current state via GET /api/runs/:id and GET /api/conversations/:id
+  -- (the doc 08 §3 fallback). next_seq tracks the replayable subset.
 );
 
 CREATE TABLE meta ( key TEXT PRIMARY KEY, value TEXT NOT NULL );  -- schema_version, etc.
