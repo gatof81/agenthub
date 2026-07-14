@@ -58,6 +58,10 @@ rows — doc 08 defines the schema.
 
 - Doc 08 specifies the SSE event names/payloads and the replay semantics;
   doc 13 tests reconnect-with-gap against the store.
+- **"Nothing is lost" means data is not lost** (it lives in the store) — not
+  that every event type is replayed verbatim: only `run_events`-derived
+  events carry a replayable `id:`; state/summary events are recovered by
+  re-reading current state over REST on reconnect (doc 08 §3, 09 §sse_cursor).
 - The in-process broadcaster is a plain pub/sub keyed by conversation —
   no new infrastructure (R-10).
 - If Phase 5 (remote Agent Nodes) ever demands bidirectional server push,

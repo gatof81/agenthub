@@ -70,9 +70,16 @@ projects from:
 
 ## 3. SSE projection (per conversation)
 
-`GET /api/conversations/:id/events`, `text/event-stream`. SSE `id:` is the
-global per-conversation event sequence; on reconnect the Hub replays from the
-store starting after `Last-Event-ID` (ADR-004). Heartbeat comment every 25 s.
+`GET /api/conversations/:id/events`, `text/event-stream`. Heartbeat comment
+every 25 s. **Replay contract:** SSE `id:` is assigned only to *replayable*
+events — those reconstructible from `run_events` rows (`message.delta`,
+`activity.item`); on reconnect the Hub replays that subset from the store
+starting after `Last-Event-ID` (ADR-004, 09 §sse_cursor). State/summary
+events (`run.state`, `project.state`, `run.usage`, `run.summary`) are
+delivered **without** a replayable id — on reconnect the client re-reads
+current state via `GET /api/runs/:id` and `GET /api/projects/:id`; nothing is
+lost because those objects live in the store, they are simply not re-streamed
+verbatim.
 
 | SSE `event:` | Payload | Emitted when |
 | --- | --- | --- |
