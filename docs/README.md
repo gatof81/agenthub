@@ -22,7 +22,7 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 | [07-architecture.md](./07-architecture.md) | draft — review | 06, ADR-001..004 |
 | [08-api-and-event-contracts.md](./08-api-and-event-contracts.md) | draft — review | 07, spike S-01 |
 | [09-persistence.md](./09-persistence.md) | draft — review | 06, ADR-002 |
-| [10-security-threat-model.md](./10-security-threat-model.md) | draft — review | 07 |
+| [10-security-threat-model.md](./10-security-threat-model.md) | draft — review | 07, 16 |
 | `11-ux-specification.md` | not started | 05 (frontend framework decided here) |
 | `12-mvp-implementation-plan.md` | not started | 07–11 |
 | `13-testing-strategy.md` | not started | 08 |
