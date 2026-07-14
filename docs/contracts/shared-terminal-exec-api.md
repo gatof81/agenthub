@@ -172,7 +172,7 @@ status codes.
   same authenticated owner. It adds capability breadth (automation), not a new
   trust level.
 - Ownership check is the entire authorization story (single-tenant network
-  assumption #291 unchanged).
+  assumption, upstream #291, unchanged).
 - `env` values may carry secrets; they must never be logged (extends the
   existing `d1Query`-style discipline) and are not echoed in any event.
 - The kill path revalidates `pgid >= 2` server-side regardless of registry
