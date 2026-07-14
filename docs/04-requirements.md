@@ -18,12 +18,20 @@ open-question resolution — so the spec stays falsifiable. Sources:
 
 | ID | P | Requirement | Source |
 | --- | --- | --- | --- |
-| FR-01 | M | Create, list, rename, and archive conversations. Each conversation is bound to exactly one agent in Phase 1 | 03 §2 |
+| FR-01 | M | Create, list, rename, and archive conversations **within a project**. Each conversation is bound to exactly one agent in Phase 1 (defaulting from the project) | 03 §2, ADR-005 |
 | FR-02 | M | Phase 1 agents are defined in configuration (identity, instructions, allowlist, session template binding) — no registry UI | 03 §2 (A4), Phase-2 boundary |
 | FR-03 | M | Sending a message creates exactly one run (1 message = 1 run) | Q-03 |
 | FR-04 | M | Messages sent while a run is active are queued and dispatched in order after it finishes; the queue survives cancellation of the active run | Q-03 |
 | FR-05 | M | The assistant's answer streams into the conversation as it is produced | 03 §2 |
 | FR-06 | M | Conversation history and run outcomes survive Hub restarts and substrate session recreates | 01 §9; substrate property (02 §1) |
+
+## 1b. Functional — projects (ADR-005)
+
+| ID | P | Requirement | Source |
+| --- | --- | --- | --- |
+| FR-40 | M | Create, list, rename, and archive projects. Creating a project provisions its substrate session (workspace); archiving stops it | ADR-005, UC-01 |
+| FR-41 | M | Conversations belong to exactly one project (immutable) and share its workspace; project `defaultAgentId` and `instructions` seed new conversations and the session | ADR-005, I-10 |
+| FR-42 | M | Every terminal run produces a persisted, **mechanically derived** `RunSummary` (objective excerpt, outcome, files, commands, denials, warnings, cost, duration, continuation handle) — written in the terminal transition's transaction | owner direction (2026-07-14), 06 §RunSummary |
 
 ## 2. Functional — runs & the runner
 
@@ -38,7 +46,7 @@ open-question resolution — so the spec stays falsifiable. Sources:
 | FR-16 | M | Unknown stream event types (e.g. `rate_limit_event`) are persisted and passed through without breaking ingestion | S-01 (v) |
 | FR-17 | M | Every run enforces: max turns, budget cap, wall-clock timeout | 03 (hard limits), R-06 |
 | FR-18 | M | A `UsageRecord` per run captures the result event's cost/usage fields; **cancelled runs record usage as `unknown`** (no result event exists) | A3, S-01 (iii/iv) |
-| FR-19 | M | Runs are serialized per session: one active run per workspace at a time | R-11, Q-03 |
+| FR-19 | M | Runs are serialized per session — with ADR-005, that means **one active run per project** at a time | R-11, Q-03, Q-11 |
 
 ## 3. Functional — cancellation & recovery
 
@@ -55,7 +63,7 @@ open-question resolution — so the spec stays falsifiable. Sources:
 
 | ID | P | Requirement | Source |
 | --- | --- | --- | --- |
-| FR-30 | M | The Hub provisions agent sessions through the substrate's public API (template → create → bootstrap with agentSeed → start/stop) | 02 §3 |
+| FR-30 | M | The Hub provisions **one session per project** through the substrate's public API (template → create → bootstrap with agentSeed carrying project instructions → start/stop) | 02 §3, ADR-005 |
 | FR-31 | M | The user can open the underlying terminal session of any conversation | 01 §2 |
 | FR-32 | M | The UI signals "agent working" while a run is active in a session the user may also be typing into; manual-intervention races are documented behavior, not prevented | R-11 |
 | FR-33 | S | Session lifecycle surfaces (stopped, bootstrapping, recreated) are reflected in conversation state rather than manifesting as opaque run failures | 02 §4 (constraint 4) |
@@ -86,6 +94,7 @@ open-question resolution — so the spec stays falsifiable. Sources:
 | SEC-07 | M | The Claude subscription OAuth token is provided to sessions as env at exec time; it must not be committed to session workspaces or echoed by seeded config | Q-10, 02 §4 (constraint 1) |
 | SEC-08 | M | Audit trail from day 1: every run's commands, files, denials, cancellations, and approvals are queryable per conversation | 01 §2, R-05 |
 | SEC-09 | F | Autonomy levels 0–3 map to allowlist tiers at doc-07/08 time; the Phase-1 single allowlist must be expressible as one of those tiers (no redesign) | Q-02 path, 01 §3 |
+| SEC-10 | M | Agent and project configuration containing personal context (instructions, project names, infrastructure details) lives in gitignored deployment config — only a generic `agents.example.yaml` ships in the public repo | owner direction (2026-07-14), R-09 |
 
 ## 7. Operations
 
@@ -108,6 +117,7 @@ open-question resolution — so the spec stays falsifiable. Sources:
 | UX-04 | M | Cancellation is available whenever a run is active and reflects the real kill outcome | FR-20 |
 | UX-05 | M | The terminal is reachable from the conversation without losing chat context | FR-31 |
 | UX-06 | S | Cost per run visible in the activity view; `unknown` shown honestly for cancelled runs | FR-18 |
+| UX-07 | M | Primary devices are **Mac and iPhone**: the full API is usable without a terminal or desktop session; the iPhone experience never requires one (FR-31 stays optional). Approvals/notifications arrive with autonomy levels ≥ 2 (Phase 2+; the run state machine reserves `awaiting_approval` for it) | owner direction (2026-07-14) |
 
 ## 9. Traceability notes
 

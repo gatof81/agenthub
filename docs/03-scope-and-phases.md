@@ -7,9 +7,9 @@
 | Phase | Name | Delivers | Explicitly excluded until then |
 | --- | --- | --- | --- |
 | 1 | Single-agent chat (MVP) | §2 below | routing, multi-agent, remote nodes |
-| 2 | Agent Registry | Agents as first-class entities: create/edit identity, instructions, tools, permissions, runtime binding; agent ↔ conversation association UI | automatic selection |
+| 2 | Agent Registry & Project enrichment | Agents as first-class entities (create/edit identity, instructions, tools, permissions, runtime binding); project memory/documents/multi-repo (ADR-005 deferred list); **Task** as an entity (unattended work with checkpoints + notifications — today a task is just a run with bigger caps); notifications channel (UX-07) | automatic selection |
 | 3 | Automatic router | System picks agent(s) per message; conversation modes (automatic / preferred / pinned / explicit); cross-run budgets | multi-agent execution |
-| 4 | Multi-agent | Parallel, sequential, delegation, debate, supervisor — each bounded: budgets, depth, timeouts, loop prevention | — |
+| 4 | Multi-agent teams | Parallel, sequential, delegation, debate, supervisor — each bounded: budgets, depth, timeouts, loop prevention. **Need-to-know context**: agents exchange typed **Work Products** (generic artifact system grown from Phase 1's `RunSummary`), never a shared transcript | — |
 | 5 | Remote Agent Nodes | Runtimes on other machines / other shared-terminal installations | — |
 | 6 | Advanced memory | Beyond per-runtime session continuity | — |
 
@@ -20,8 +20,9 @@ phase arrives (anti-over-architecture principle).
 
 End-to-end flow, all of it in scope:
 
-1. Create a chat and associate it with an agent.
-2. Agent is bound to a shared-terminal session/template.
+1. Create a **project** (one substrate session/workspace) and conversations
+   within it, each associated with an agent (ADR-005).
+2. The project is bound to a shared-terminal session/template.
 3. Send a message → a **run** executes Claude CLI headless in the session workspace.
 4. Response streams back into the chat.
 5. Continuity between messages (same CLI conversation via `--resume`).
@@ -39,6 +40,8 @@ End-to-end flow, all of it in scope:
 | A2 | **Activity (files/commands) derives from `tool_use` events** in the CLI's stream-json output, not from filesystem diffs | Deterministic, cheap, attributable to the run; fs diffs race with human terminal use |
 | A3 | **Minimal `UsageRecord` in Phase 1** — cost per run, which the CLI already reports | Consumption visibility from day 1 (risk R-06); no billing logic |
 | A4 | **No automatic agent selection, no multi-agent** in the MVP | Phase 3–4 scope |
+| A5 | **Project-centric from day 1** (ADR-005): one workspace/container per project, conversations share it | Owner's mental model + container economics (per-session caps) |
+| A6 | **Mechanical `RunSummary` per terminal run** — derived from persisted events, never model-generated | First Work Product; zero token cost, deterministic (FR-42) |
 
 ### Hard limits from day 1
 

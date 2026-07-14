@@ -9,12 +9,17 @@
 
 ## 1. Vision
 
-Agent Hub is a **personal hub for AI agents behind a chat interface**. The user
-creates conversations — per project, topic, or task — and each conversation is
+Agent Hub is a **personal hub for AI agents behind a chat interface**. The
+user works in **Projects** — "I'm going to work on Educación Hz", never "I
+want to talk to agent X" ([ADR-005](./adr/ADR-005-project-aggregate.md)).
+Each project owns a workspace and holds conversations; each conversation is
 handled by one or more agents.
 
-An **agent is a logical entity**: identity, instructions, specialty, tools, memory,
-permissions, and policies — **decoupled from the runtime** that executes it. The
+An **agent is a professional role** — Software Architect, QA Engineer,
+Security Reviewer, Home Automation Engineer — a logical entity with identity,
+instructions, specialty, tools, memory, permissions, and policies,
+**decoupled from the runtime** that executes it. Agents exist because they
+represent specialties, never because they wrap a particular model. The
 first runtime is the Claude Code CLI running headless inside a
 [shared-terminal](https://github.com/gatof81/shared-terminal) session. Later
 runtimes (local models via Ollama, HTTP services, remote Agent Nodes, other
@@ -50,8 +55,11 @@ the user can always drop into the workspace the agent operates on.
 Conversation modes — automatic routing / preferred agent / pinned agent / explicit
 selection — and multi-agent patterns — parallel, sequential, delegation, debate,
 supervisor — arrive in phases 3–4, always bounded: budgets, delegation depth,
-timeouts, loop prevention. They are documented as vision here and designed in
-detail only when their phase arrives.
+timeouts, loop prevention. Teams collaborate on a **need-to-know basis**:
+agents exchange structured **Work Products** (security reviews, QA reports,
+implementation plans) rather than sharing one transcript — Phase 1's
+`RunSummary` is the first such artifact. Documented as vision here; designed
+in detail only when their phase arrives.
 
 ## 5. Phases
 
@@ -90,9 +98,12 @@ These supersede the original brief and are not reopened without cause:
 
 ## 8. Non-goals (MVP horizon)
 
-Billing/monetization · multi-tenancy beyond the substrate's single-tenant
-assumption · mobile apps · plugin marketplaces · training or fine-tuning ·
-replacing shared-terminal's own UI.
+**A generic SaaS platform** — Agent Hub is built personal-first: the best
+possible tool for its single owner's daily work; generalization is earned
+later by the architecture, never paid for up front · billing/monetization ·
+multi-tenancy beyond the substrate's single-tenant assumption · native mobile
+apps (the iPhone experience is web-first, UX-07) · plugin marketplaces ·
+training or fine-tuning · replacing shared-terminal's own UI.
 
 ## 9. Success criteria for Phase 1
 

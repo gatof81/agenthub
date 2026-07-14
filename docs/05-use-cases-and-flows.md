@@ -36,17 +36,23 @@ stateDiagram-v2
     queued --> cancelled: user cancels queued message
 ```
 
-## UC-01 — Create a conversation (and its session)
+Reserved for autonomy levels ≥ 2 (Phase 2+, UX-07): an `awaiting_approval`
+state between `streaming` and its terminal states — reserved now so mobile
+approvals extend the machine instead of redesigning it.
 
-1. User creates a conversation and picks an agent (from config, FR-02).
-2. Hub creates a substrate session from the agent's template
-   (`POST /templates`-derived `POST /sessions`), with agentSeed carrying the
-   agent's settings/CLAUDE.md (FR-30).
-3. Bootstrap streams; Hub records session id ↔ conversation binding.
-4. Conversation is usable when the session reports ready; earlier messages
-   queue (FR-04, FR-33).
+## UC-01 — Create a project (and its session), then conversations
 
-Failure path: bootstrap failure → conversation shows a provisioning error
+1. User creates a **project**, picking a default agent and optional
+   instructions (FR-40/41, FR-02).
+2. Hub provisions the project's substrate session from the agent's template,
+   with agentSeed carrying agent settings + project instructions (FR-30).
+3. Bootstrap streams; Hub records session id ↔ project binding.
+4. The project is usable when the session reports ready; conversations under
+   it are created instantly (no per-conversation provisioning — they share
+   the workspace, ADR-005); messages sent before readiness queue (FR-04,
+   FR-33).
+
+Failure path: bootstrap failure → the **project** shows a provisioning error
 with the bootstrap log link; retry recreates the session (FR-33, FR-25).
 
 ## UC-02 — Send a message (happy path)
@@ -68,11 +74,11 @@ sequenceDiagram
     Hub-->>UI: stream deltas + activity
     CLI-->>ST: result event, exit 0
     ST-->>Hub: exit {exitCode}
-    Hub->>Hub: run→completed + UsageRecord [tx]
-    Hub-->>UI: final answer + cost
+    Hub->>Hub: run→completed + UsageRecord + RunSummary [tx] (FR-42)
+    Hub-->>UI: final answer + cost + summary
 ```
 
-Covers FR-03/05/10/11/12/13/14/16/17/18; NFR-01/06; SEC-06/07; OPS-04.
+Covers FR-03/05/10/11/12/13/14/16/17/18/42; NFR-01/06; SEC-06/07; OPS-04.
 Ingestion tolerates unknown event types mid-stream — S-01 observed
 `rate_limit_event` interleaved in ordinary turns (FR-16). The runner passes
 prompts via stdin and never positionally after variadic flags (S-01 harness
@@ -173,9 +179,10 @@ contract replica-agnostic (NFR-05).
 1. User opens the session terminal from the conversation (FR-31, UX-05).
 2. While a run is active, the UI shows "agent working" in/near the terminal
    surface (FR-32).
-3. Human-vs-agent workspace races are possible by design (shared workspace is
-   a feature); runs stay serialized per session (FR-19) so agent-vs-agent
-   races cannot happen.
+3. Human-vs-agent workspace races are possible by design (the shared project
+   workspace is a feature); runs stay serialized per project session (FR-19,
+   I-2) so agent-vs-agent races cannot happen — across all of the project's
+   conversations.
 
 ## UC-10 — Backup and restore (operational)
 
@@ -193,8 +200,8 @@ contract replica-agnostic (NFR-05).
 
 | Flow | Requirements exercised |
 | --- | --- |
-| UC-01 | FR-01/02/04/30/33, FR-25 |
-| UC-02 | FR-03/05/10–14/16/17/18, NFR-01/06, SEC-06/07, OPS-04 |
+| UC-01 | FR-01/02/04/25/30/33, FR-40/41 |
+| UC-02 | FR-03/05/10–14/16/17/18/42, NFR-01/06, SEC-06/07, OPS-04 |
 | UC-03 | FR-04/19, UX-03 |
 | UC-04 | FR-18/20/21, UX-04/06 (FR-22 retired) |
 | UC-05 | FR-15, SEC-03, UX-02/03 |
@@ -204,11 +211,12 @@ contract replica-agnostic (NFR-05).
 | UC-09 | FR-19/31/32, UX-05 |
 | UC-10 | OPS-01/02/03 |
 
-Not flow-shaped (hence absent above): SEC-01/02/04/05/08 (enforcement and
+Not flow-shaped (hence absent above): SEC-01/02/04/05/08/10 (enforcement and
 cross-cutting security properties, asserted in code review and tests, not in
 a single flow) · SEC-09 (forward constraint) · NFR-02/03/04/08
 (design/test-time properties) · NFR-07 (deferred to the doc-07/11 transport
 decision) · OPS-05/06 (continuous monitoring) · UX-01 (cross-cutting
-presentation rule; FR-03 is its flow-side twin in UC-02). Every other ID in
+presentation rule; FR-03 is its flow-side twin in UC-02) · UX-07
+(device-target constraint asserted across the API surface, not one flow). Every other ID in
 04 appears in the table above. ID gaps between requirement sections (e.g.
 FR-07–FR-09) are reserved, unassigned numbers — not missing coverage.

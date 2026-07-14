@@ -12,23 +12,26 @@ canonical for both.
 
 ```mermaid
 erDiagram
+    PROJECT ||--o{ CONVERSATION : contains
+    PROJECT ||--|| SESSION_BINDING : "owns the workspace"
     AGENT ||--o{ CONVERSATION : "handles (1 per conversation in P1)"
     CONVERSATION ||--o{ MESSAGE : contains
     CONVERSATION ||--o{ RUN : owns
     MESSAGE ||--o| RUN : "user message triggers ≤1"
     RUN ||--o{ RUN_EVENT : emits
     RUN ||--o| USAGE_RECORD : "exactly 1 when terminal"
-    CONVERSATION ||--|| SESSION_BINDING : "bound to"
+    RUN ||--o| RUN_SUMMARY : "exactly 1 when terminal"
 ```
 
 Two aggregates, one configuration entity, one value object:
 
 | Element | Kind | Why it exists |
 | --- | --- | --- |
-| `Agent` | configuration entity (file/env-defined in P1, FR-02) | The logical identity decoupled from runtime (01 §1) |
-| `Conversation` | aggregate root (owns `Message`s, `SessionBinding`, runtime continuity state) | The user-facing unit |
-| `Run` | aggregate root (owns `RunEvent`s, `UsageRecord`) | The execution unit; heaviest write path |
-| `SessionBinding` | value object on `Conversation` | The substrate seam reference |
+| `Project` | aggregate root (owns `SessionBinding` and its `Conversation`s) | The organizing unit — matches how the owner works ([ADR-005](./adr/ADR-005-project-aggregate.md)); one workspace/container per project |
+| `Agent` | configuration entity (file/env-defined in P1, FR-02) | A **professional role** (architect, QA, security reviewer…) decoupled from the runtime that executes it (01 §1); the runtime is an execution detail |
+| `Conversation` | entity under `Project` (owns `Message`s, runtime continuity state) | The dialogue unit; inherits the project's workspace |
+| `Run` | aggregate root (owns `RunEvent`s, `UsageRecord`, `RunSummary`) | The execution unit; heaviest write path |
+| `SessionBinding` | value object on `Project` | The substrate seam reference |
 
 ## 2. Entities
 
@@ -46,21 +49,34 @@ Two aggregates, one configuration entity, one value object:
 Phase-2 forward constraint: this shape must survive becoming a stored,
 user-editable entity (Agent Registry) without field renames.
 
+### Project
+
+| Field | Notes |
+| --- | --- |
+| `id`, `name`, `status` | status: `provisioning \| ready \| error \| archived` — session provisioning lives here (UC-01) |
+| `sessionBinding` | see below — one workspace/container per project (ADR-005) |
+| `defaultAgentId` | seeds new conversations; overridable per conversation |
+| `instructions?` | project-level context seeded into the session (agentSeed) |
+
+Deferred to Phase 2+ (ADR-005, guarded by R-17): project memory, document
+library, multiple repos/workspaces, multiple terminals, per-project
+permission overrides.
+
 ### Conversation
 
 | Field | Notes |
 | --- | --- |
-| `id`, `title`, `status` | status: `provisioning \| ready \| error \| archived` (UC-01) |
-| `agentId` | immutable in Phase 1 (agent switching is Phase-2 scope) |
-| `sessionBinding` | see below |
-| `runtimeSessionId` | the CLI's own session id used for `--resume`; updated from each result event (S-01: stable across resumes, but drift is captured, FR-24) |
+| `id`, `title`, `status` | status: `active \| archived` — provisioning belongs to the project |
+| `projectId` | immutable (I-10) |
+| `agentId` | immutable in Phase 1 (agent switching is Phase-2 scope); defaults from the project |
+| `runtimeSessionId` | the CLI's own session id used for `--resume`; updated from each result event (S-01: stable across resumes, but drift is captured, FR-24). Many CLI sessions coexist in one workspace under `.st/claude-state` (substrate-verified), which is what lets conversations share the project's container |
 
-### SessionBinding (value object)
+### SessionBinding (value object on Project)
 
 `{sessionId, templateId, lastKnownState}` — everything the Hub knows about
-its substrate session. The substrate remains the authority on session state;
-`lastKnownState` is a cache for UX (FR-33), never a basis for decisions the
-seam can answer live.
+the project's substrate session. The substrate remains the authority on
+session state; `lastKnownState` is a cache for UX (FR-33), never a basis for
+decisions the seam can answer live.
 
 ### Message
 
@@ -108,18 +124,32 @@ per A2 and the anti-over-architecture rule, nothing is double-written.
 | `totalCostUsd?`, `numTurns?`, `usage?` | from the result event; **all null when `source = cancelled-unknown`** (FR-18) |
 | `source` | `result-event \| cancelled-unknown \| error-partial` |
 
+### RunSummary (persisted projection)
+
+Written in the same transaction as the terminal state transition, 1:1 with
+terminal runs (I-11). **Mechanically derived — never model-generated** (zero
+token cost, deterministic, available even for cancelled runs): objective
+(user-message excerpt), outcome state, files touched and commands run (from
+the activity projection), denial count, warnings (capped stderr excerpt),
+cost/turns (from `UsageRecord`, `unknown` where it is), duration, and the
+`runtimeSessionId` continuation handle. This is the first **Work Product**
+(01 §4) — the Phase-4 generic artifact system grows from this seed. Narrative
+model-authored fields are a later enrichment, not Phase 1.
+
 ## 3. Invariants
 
 | # | Invariant | Enforced by |
 | --- | --- | --- |
 | I-1 | One user message triggers at most one run; every run has exactly one triggering message | FR-03; unique index on `Run.messageId` |
-| I-2 | At most one run per conversation is in a non-terminal state; queued runs dispatch FIFO | FR-04/19; transactional dispatch (NFR-01) |
+| I-2 | At most one run per **project** is in a non-terminal state (conversations share the workspace, ADR-005); queued runs dispatch FIFO across the project | FR-04/19; transactional dispatch (NFR-01) |
 | I-3 | Run state changes follow the 05 state machine only, each transition one transaction | UC-06 preamble |
 | I-4 | `RunEvent` ingestion is idempotent (`id`) and ordered (`runId, seq`) | FR-13 |
 | I-5 | Every terminal run has exactly one `UsageRecord`, even if its values are unknown | FR-18 |
 | I-6 | `Conversation.agentId` never changes in Phase 1 | FR-02 boundary |
 | I-7 | `policySnapshot` is non-empty on every run — a run without an explicit allowlist must be unrepresentable | FR-11, SEC-01/02 |
 | I-8 | `capsSnapshot`/`policySnapshot` are immutable once the run leaves `queued`; `cliVersion`/`model` are **write-once** when the init event records them and immutable after | SEC-08 audit trail |
+| I-10 | `Conversation.projectId` never changes | ADR-005 |
+| I-11 | Every terminal run has exactly one `RunSummary`, written in the terminal transition's transaction | FR-42 |
 
 ## 4. Ports (domain boundaries)
 
@@ -136,6 +166,9 @@ or a session — those are `claude-cli` implementation details.
 ## 5. Deliberately not modeled (Phase 1)
 
 User/tenant (single-user, Q-07) · agent registry persistence (Phase 2 — the
-`Agent` shape is the forward contract) · router/multi-agent constructs
-(Phases 3–4) · memory beyond `runtimeSessionId` continuity (Phase 6) ·
-cross-run budgets (Phase 3; per-run caps only, R-06).
+`Agent` shape is the forward contract) · `Task` as an entity distinct from a
+run (Phase 2-3 — today a task IS a run with bigger caps; 03 §1) ·
+router/multi-agent constructs and generic `WorkProduct`s (Phases 3–4 —
+`RunSummary` is the seed) · project memory/documents (Phase 2+, ADR-005) ·
+memory beyond `runtimeSessionId` continuity (Phase 6) · cross-run budgets
+(Phase 3; per-run caps only, R-06).
