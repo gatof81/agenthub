@@ -8,7 +8,7 @@ re-verify before relying on them after that repo moves.
 
 ## Document index
 
-Docs not yet started (currently 12–14) are listed so the index shows the whole shape.
+Docs not yet started (currently 13–14) are listed so the index shows the whole shape.
 Unwritten docs are intentionally not linked (link check runs in CI).
 
 | Doc | Status | Depends on |
@@ -23,15 +23,15 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 | [08-api-and-event-contracts.md](./08-api-and-event-contracts.md) | draft — review | 07, spike S-01 |
 | [09-persistence.md](./09-persistence.md) | draft — review | 06, ADR-002 |
 | [10-security-threat-model.md](./10-security-threat-model.md) | draft — review | 07, 16 |
-| [11-ux-specification.md](./11-ux-specification.md) | draft — review | 05 (frontend framework decided here) |
-| `12-mvp-implementation-plan.md` | not started | 07–11 |
+| [11-ux-specification.md](./11-ux-specification.md) | merged | 05 (frontend framework decided here) |
+| [12-mvp-implementation-plan.md](./12-mvp-implementation-plan.md) | draft — review | 07–11 |
 | `13-testing-strategy.md` | not started | 08 |
 | `14-observability-and-operations.md` | not started | 07 |
 | [15-open-questions.md](./15-open-questions.md) | draft — review | — |
 | [16-risk-register.md](./16-risk-register.md) | draft — review | — |
 | [adr/](./adr/README.md) | ADR-001..005 all accepted | see adr/README.md |
 
-**Reading order for this review round:** 11 (earlier rounds: 01 → 02 → 03
+**Reading order for this review round:** 12 (earlier rounds: 01 → 02 → 03
 → 15 → 16 → ADRs → spike results → 04 → 05).
 
 ## Decisions requested now
@@ -41,9 +41,9 @@ From [15-open-questions.md](./15-open-questions.md):
 No decision is blocking right now. Q-01/Q-02/Q-04/Q-05/Q-08/Q-10 are resolved
 (see doc 15 — Q-08 closed upstream 2026-07-14: exec API #385 and `Init: true`
 (#387) shipped and deployed; **Increment 2 is unblocked** and R-08 is closed).
-S-01 and S-03 both executed 2026-07-14; ADR-001 and ADR-002 are accepted.
+S-01 and S-03 both executed 2026-07-14; ADR-001..005 are accepted.
 Owner housekeeping: the scratch D1 `agenthub-s03-scratch` can be deleted.
-Next work-plan step: MVP implementation plan (12).
+Next work-plan step: testing strategy (13) + observability (14), then the Phase-1 backlog.
 
 ## Architecture decision records
 
@@ -81,10 +81,10 @@ numbers are noted per item as they land, since the two drift.
 6. Domain model (06) — **merged (GitHub #10)**.
 7. Architecture (07) + ADR-003/ADR-004 — **merged (GitHub #12), ADRs accepted**.
 8. API & event contracts (08) — **merged (GitHub #13)**.
-9. Persistence (09) — **drafted (GitHub #14), in review**.
-10. Security threat model (10) — **drafted (GitHub #16), in review**.
-11. UX specification (11) — **drafted (GitHub #17), in review**; Q-06 resolved: React + Vite.
-12. MVP implementation plan (12) — fake-runtime increment first.
+9. Persistence (09) — **merged (GitHub #14)**.
+10. Security threat model (10) — **merged (GitHub #16)**.
+11. UX specification (11) — **merged (GitHub #17)**; Q-06 resolved: React + Vite.
+12. MVP implementation plan (12) — **drafted (GitHub #18), in review**; fake-runtime increment first.
 13. Testing strategy (13) and observability (14).
 14. Phase-1 backlog + quality-gate review → implementation may start.
 
@@ -95,14 +95,18 @@ numbers are noted per item as they land, since the two drift.
 - Architecture reviewed (07)
 - Domain model validated (06)
 - Initial threat model (10)
-- Main contracts defined (08 + ADR-001 contract proposal)
+- Main contracts defined (08 + exec contract, live upstream)
 - Critical flows defined (05)
 - Test & migration strategy (13)
 - Phase-1 backlog exists
-- ADR-001 and ADR-002 resolved; later ADRs at least drafted
+- ADR-001..005 resolved; later ADRs at least drafted
 - Mitigations accepted for every MVP-phase risk in 16 marked open
 
 ## Changelog
+
+- **2026-07-14** — Doc 12 (MVP implementation plan: 3 increments
+  fake→real→hardening, backend-first module build order, quality-gate
+  mapping) drafted (GitHub #18). Doc 11 merged (Q-06: React + Vite).
 
 - **2026-07-14** — Doc 11 (UX spec: React + Vite framework decision [Q-06],
   Mac productivity + iPhone conversational targets, IA, SSE client contract)
