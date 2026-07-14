@@ -46,7 +46,6 @@ See [results-dev-container.json](./results-dev-container.json). Headlines:
 The dev-container numbers do NOT decide the ADR-002 gate — the criterion is
 defined from the co-located host. But note the shape of the risk: D1 latency
 is distance-to-Cloudflare-bound, not distance-to-substrate-bound, so
-co-location with the substrate does not by itself buy a lower floor. If the
-VM run also lands above 150 ms p50 for the 1-call commit, the ADR's agreed
-revert-to-SQLite criteria fire and the decision goes back to the owner with
-numbers on the table.
+co-location with the substrate does not by itself buy a lower floor. Both
+runs landed above 150 ms p50 for the 1-call commit; the criteria fired and
+the owner confirmed the reversion — see [RESULTS.md](./RESULTS.md).
