@@ -27,8 +27,8 @@ CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... \
 ```
 
 Requires Node ≥ 18 (built-in fetch) and a token scoped to Account → D1 →
-Edit only. Results contain no tokens, account ids, or database ids — safe to
-commit after review. No model tokens are spent; D1 free-tier usage only.
+Edit only. Results contain no tokens, account ids, or database UUIDs (only
+the scratch database's name) — safe to commit after review. No model tokens are spent; D1 free-tier usage only.
 
 ## Preliminary results (dev container, ~2026-07-14)
 
@@ -36,7 +36,7 @@ See [results-dev-container.json](./results-dev-container.json). Headlines:
 
 - Everything is RTT-dominated: single write ≈ turn-commit-1-call ≈ read
   ≈ **260–280 ms p50** from this host; D1 processing time is negligible.
-- Batching is the whole game: 1-call commit 268 ms vs 3-call 788 ms p50.
+- Batching is the whole game: 1-call commit 280 ms vs 3-call 812 ms p50.
 - **Hard statement-size ceiling between 64 KB and 256 KB**
   (`SQLITE_TOOBIG` — consistent with D1's documented 100 KB per-statement
   limit). Doc 09 requirement: cap/chunk event payloads (~64 KB safe inline).

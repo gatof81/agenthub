@@ -10,8 +10,9 @@
 //
 // Talks to the D1 HTTP API (same access path a co-located Node backend would
 // use). Uses the scratch database `agenthub-s03-scratch` — NEVER a production
-// database; tables are dropped at the end. No tokens, ids, or hostnames are
-// written to the results file (safe to share after review).
+// database; tables are dropped at the end. No tokens, account ids, or database
+// UUIDs are written to the results file — only the scratch database's *name*
+// appears (safe to share after review).
 //
 // What it measures against the simulated Phase-1 schema
 // (messages / run_events / usage_records):

@@ -4,8 +4,9 @@
 host (co-located with the substrate) — [results-vm100.json](./results-vm100.json).
 Preliminary run from a non-representative host:
 [results-dev-container.json](./results-dev-container.json) (same shape, same
-conclusions). Scratch database `agenthub-s03-scratch`; tables dropped; no
-account/database identifiers in the result files.
+conclusions). Scratch database `agenthub-s03-scratch`; tables dropped; no tokens, account
+ids, or database UUIDs in the result files (only the scratch database's name
+appears).
 
 ## Verdict: the ADR-002 revert criterion fired
 
