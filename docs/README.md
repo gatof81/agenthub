@@ -61,7 +61,7 @@ Hub↔frontend streaming transport, Hub user/auth model.
 
 | Spike | Question it settles | Status |
 | --- | --- | --- |
-| S-01 | Headless runner probe on pinned CLI 2.1.207: freeze-without-permission-flags, per-turn `--resume` latency, mid-tool-call cancellation via process-group kill, cost/`session_id` result fields, `tool_use` event shape | package prepared in PR-4; execution coordinated by owner (spends tokens) |
+| S-01 | Headless runner probe on pinned CLI 2.1.207: freeze-without-permission-flags, per-turn `--resume` latency, mid-tool-call cancellation via process-group kill, cost/`session_id` result fields, `tool_use` event shape | package prepared in logical PR-4 (upcoming); execution coordinated by owner (spends tokens) |
 | S-02 | Claude state continuity across container recreate | **resolved upstream** — shared-terminal #371/#378, re-asserted by its CI smoke test |
 | S-03 | D1 turn-commit latency, value-size limits, quota math against a scratch database | **required** — gates ADR-002 acceptance (revert criteria defined there); owner-coordinated (needs scratch D1 + scoped token) |
 
