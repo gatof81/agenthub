@@ -1,6 +1,6 @@
 # ADR-003 — Claude CLI runner integration
 
-Status: proposed
+Status: accepted (owner sign-off 2026-07-14)
 Date: 2026-07-14
 
 Evidence: [S-01 results](../spikes/S-01/RESULTS.md) (CLI 2.1.207) ·

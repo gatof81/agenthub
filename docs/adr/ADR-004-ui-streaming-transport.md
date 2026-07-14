@@ -1,6 +1,6 @@
 # ADR-004 — Hub ↔ frontend streaming transport
 
-Status: proposed
+Status: accepted (owner sign-off 2026-07-14)
 Date: 2026-07-14
 
 Scope: how the browser receives live run events and assistant deltas
