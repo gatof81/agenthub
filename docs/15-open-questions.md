@@ -4,16 +4,16 @@
 
 Classification: `MVP-blocking` (must close before the affected increment) ·
 `important` (shapes design; close before doc 07) · `future` (later phase) ·
-`UX` · `security` · `infra`. Where a provisional decision is stated, it proceeds
-unless vetoed — except **Q-02, which requires explicit sign-off**.
+`UX` · `security` · `infra`. Where a provisional decision is stated, it
+proceeds unless vetoed.
 
-| ID | Question | Class | Provisional decision |
+| ID | Question | Class | Decision state |
 | --- | --- | --- | --- |
 | Q-01 | Runner process model | MVP-blocking | One `claude -p --resume` process per turn |
-| Q-02 | Runner default permission posture | MVP-blocking · security | **None — sign-off required** |
+| Q-02 | Runner default permission posture | MVP-blocking · security | **Resolved (owner sign-off 2026-07-14): curated allowlist** |
 | Q-03 | Turn semantics & queuing | MVP-blocking | 1 message = 1 run; queue during a run |
 | Q-04 | Seam auth: service token vs user JWT | MVP-blocking · security | Provisionally resolved by ADR-001: dedicated substrate account, existing JWT auth |
-| Q-05 | Hub deployment & exposure | important · infra | Co-located with the substrate, seam over localhost |
+| Q-05 | Hub deployment & exposure | important · infra | **Resolved (owner, 2026-07-14): shared-terminal shape — see ADR-002** |
 | Q-06 | Frontend framework | UX · future | Decide at doc 11, not before |
 | Q-07 | Hub users & auth model | important | Single-user first; don't preclude delegation to substrate auth |
 | Q-08 | Zombie accumulation vs `PidsLimit` | infra · upstream | Verify upstream; propose smoke phase + `Init: true` if confirmed |
@@ -48,10 +48,11 @@ flags (risk R-03; S-01 confirms). Something must be passed. Options:
 3. Curated allowlist per **autonomy level** (the product's own levels 0–3 mapped
    to flag sets) — the eventual end state; more design surface up front.
 
-**No provisional decision — this is a security posture call requiring explicit
-owner sign-off.** Recommendation to consider: option 1 for the MVP with a
-documented path to option 3; never option 2 while egress is open and secrets can
-be present in workspaces.
+**Resolved (owner sign-off 2026-07-14): option 1 — curated `--allowedTools`
+allowlist for the MVP**, with the documented path to option 3 (autonomy-level
+flag sets) at doc-07 time. Option 2 stays off the table while egress is open
+and workspaces can hold secrets. The concrete allowlist contents are a doc-08
+deliverable, informed by S-01's `tool_use` corpus.
 
 ## Q-03 — Turn semantics `MVP-blocking`
 
@@ -83,9 +84,14 @@ the substrate grows first-class service tokens.
 
 Separate repos ≠ separate hosts. Co-locating the Hub on the substrate host and
 talking over localhost avoids exposing the seam publicly and keeps latency nil.
-How is the Hub's own UI exposed (same Cloudflare tunnel, new hostname)?
-**Provisional:** co-located, seam on localhost; exposure decided with doc 12/14.
-No real deployment identifiers in this repo (public-repo hygiene).
+**Resolved (owner, 2026-07-14), recorded in
+[ADR-002](./adr/ADR-002-hub-persistence.md):** the Hub mirrors
+shared-terminal's topology — long-lived Node backend co-located on the
+substrate host behind the Cloudflare tunnel, frontend on Cloudflare Pages,
+seam over localhost, Hub-owned D1 for persistence. A Workers-based backend was
+considered and set aside (long-lived streams + process state would demand
+Durable Objects and a public seam). Hostname/exposure details stay out of this
+repo (public-repo hygiene, R-09).
 
 ## Q-06 — Frontend framework `UX` `future`
 

@@ -37,12 +37,11 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 
 From [15-open-questions.md](./15-open-questions.md):
 
-- **Q-02** — default permission posture of the headless runner. Security decision;
-  requires explicit sign-off. Everything else carries a provisional decision that
-  proceeds unless vetoed.
-
-ADR-001 was accepted 2026-07-13; its contract draft is ready to go to the
-shared-terminal repo as a proposal.
+No decision is blocking right now. Q-02 (runner permission posture) was
+resolved 2026-07-14: curated allowlist. ADR-001 was accepted 2026-07-13; its
+contract draft is ready to go to the shared-terminal repo as a proposal.
+Owner-coordinated next actions: propose the exec contract upstream; schedule
+spikes S-01 (API key) and S-03 (scratch D1) — both spend-capped.
 
 ## Architecture decision records
 
@@ -52,7 +51,7 @@ decision and is superseded):
 | ADR | Topic | Status |
 | --- | --- | --- |
 | [ADR-001](./adr/ADR-001-shared-terminal-exec-seam.md) | Integration seam with shared-terminal: exec-over-HTTP contract (transport, auth, framing, cancellation, reconnection, correlation, versioning — and the "ask for nothing new" option) | **accepted** — contract draft at [contracts/shared-terminal-exec-api.md](./contracts/shared-terminal-exec-api.md) |
-| ADR-002 | Hub-owned persistence (SQLite local vs own D1 vs Postgres; provisional lean: SQLite) | planned |
+| [ADR-002](./adr/ADR-002-hub-persistence.md) | Hub-owned persistence: own D1 chosen (owner platform directive; SQLite documented as revert path); also records the deployment shape (co-located Node backend + Pages frontend, resolves Q-05) | **proposed** — acceptance gated on S-03 |
 
 Candidates identified for later steps (written at doc 07 time): Claude CLI runner
 integration (per-turn `-p --resume`, policy→flags, cancel mapping — gated on S-01),
@@ -64,7 +63,7 @@ Hub↔frontend streaming transport, Hub user/auth model.
 | --- | --- | --- |
 | S-01 | Headless runner probe on pinned CLI 2.1.207: freeze-without-permission-flags, per-turn `--resume` latency, mid-tool-call cancellation via process-group kill, cost/`session_id` result fields, `tool_use` event shape | package prepared in PR-4; execution coordinated by owner (spends tokens) |
 | S-02 | Claude state continuity across container recreate | **resolved upstream** — shared-terminal #371/#378, re-asserted by its CI smoke test |
-| S-03 | D1 write cost/latency/size limits | conditional — only if ADR-002 leans D1 |
+| S-03 | D1 turn-commit latency, value-size limits, quota math against a scratch database | **required** — gates ADR-002 acceptance (revert criteria defined there); owner-coordinated (needs scratch D1 + scoped token) |
 
 ## Work plan
 
@@ -99,6 +98,10 @@ Hub↔frontend streaming transport, Hub user/auth model.
 
 ## Changelog
 
+- **2026-07-14** — PR-3: ADR-002 (Hub-owned D1, gated on S-03; deployment shape
+  recorded, Q-05 resolved). Q-02 resolved: curated allowlist. Risks R-14/R-15
+  revived. PR-2 merged earlier the same round: ADR-001 accepted, exec contract
+  PROPOSAL ready for upstream.
 - **2026-07-13** — PR-1: foundational docs against substrate `36be2f2`. Discovery-era
   drafts (written 2026-07-12 against `7a551f0`, when the Hub was planned inside the
   shared-terminal repo) were curated into these documents; the separate-repos decision
