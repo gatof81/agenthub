@@ -9,16 +9,16 @@ proceeds unless vetoed.
 
 | ID | Question | Class | Decision state |
 | --- | --- | --- | --- |
-| Q-01 | Runner process model | MVP-blocking | One `claude -p --resume` process per turn |
+| Q-01 | Runner process model | MVP-blocking | **Resolved (S-01, 2026-07-14): per-turn validated** — ~0.6 s to first event, stable session id across resumes |
 | Q-02 | Runner default permission posture | MVP-blocking · security | **Resolved (owner sign-off 2026-07-14): curated allowlist** |
 | Q-03 | Turn semantics & queuing | MVP-blocking | 1 message = 1 run; queue during a run |
 | Q-04 | Seam auth: service token vs user JWT | MVP-blocking · security | Provisionally resolved by ADR-001: dedicated substrate account, existing JWT auth |
 | Q-05 | Hub deployment & exposure | important · infra | **Resolved (owner, 2026-07-14): shared-terminal shape — see ADR-002** |
 | Q-06 | Frontend framework | UX · future | Open — framework only; deployment target (Cloudflare Pages) fixed by ADR-002 |
 | Q-07 | Hub users & auth model | important | Single-user first; don't preclude delegation to substrate auth |
-| Q-08 | Zombie accumulation vs `PidsLimit` | infra · upstream | Verify upstream; propose smoke phase + `Init: true` if confirmed |
+| Q-08 | Zombie accumulation vs `PidsLimit` | infra · upstream | **Confirmed by S-01**: 1 zombie per killed run, PID 1 reaps nothing; reported on shared-terminal#381 |
 | Q-09 | Backend stack | important | TypeScript/Node |
-| Q-10 | Claude auth inside the runtime | important · security | Decide before Increment 2 |
+| Q-10 | Claude auth inside the runtime | important · security | **Resolved (owner + S-01, 2026-07-14): subscription OAuth** — works headless via env var, cost fields populated |
 
 ---
 
@@ -31,7 +31,9 @@ process per conversation?
 run), cancellation is just process-group kill, crash recovery is "no process, no
 run", and continuity is the CLI's own `--resume` (substrate-guaranteed, see
 [02 §1](./02-substrate-analysis.md)). Cost: per-turn startup latency — **S-01
-measures it**; if it's multi-second, revisit.
+measured it (2026-07-14): ~570–580 ms to first event, 3.7–4.5 s total for a
+trivial turn (n=3), session id stable across resumes** —
+[S-01 results](./spikes/S-01/RESULTS.md). **Resolved: per-turn.**
 
 ## Q-02 — Runner default permission posture `MVP-blocking` `security`
 
@@ -118,10 +120,14 @@ orphans. If cancelled runs leave zombies, do they accumulate against
 `killExecProcessGroup` is zombie-aware for *liveness checks*, but reaping is the
 parent's job; orphaned zombies re-parent to PID 1 and stay.
 
-**Action:** verify upstream (S-01 can observe `/proc` after cancellations as a
-side measurement). If confirmed, propose in the substrate repo: an extra
-smoke-test phase + evaluate `Init: true`. Until then, treat as residual risk of
-R-04.
+**Confirmed by S-01 (2026-07-14):** each group-killed run leaves exactly one
+unreaped `claude` zombie under PID 1; a harness bug in the first attempt
+additionally proved orphans zombify permanently (8/8). Ceiling ≈ 1000
+cancelled runs per container lifetime. Reported upstream on
+[shared-terminal#381](https://github.com/gatof81/shared-terminal/issues/381)
+(suggested: smoke-test phase + `Init: true`). Until fixed upstream, remains
+the residual of R-04 — the Hub tracks cancel counts per session as a cheap
+guard. Evidence: [S-01 results](./spikes/S-01/RESULTS.md).
 
 ## Q-09 — Backend stack `important`
 
@@ -139,5 +145,11 @@ caps) vs OAuth/subscription state persisted under `.st/claude-state`
 (subscription pricing, but browser-interactive setup and credentials-on-disk in
 plaintext on the host). Interacts with R-06 (spend control) and the substrate's
 plaintext-state constraint ([02 §4.1](./02-substrate-analysis.md)).
-**Decide before Increment 2** (first real-Claude increment). S-01 runs on a
-spend-capped API key regardless.
+**Resolved (owner directive + S-01 validation, 2026-07-14): subscription
+OAuth.** S-01 ran headless with `CLAUDE_CODE_OAUTH_TOKEN` as a plain env var:
+no onboarding blocker on a fresh state dir, and result events still populate
+`total_cost_usd`/`usage` (notional dollars), so `UsageRecord` (A3) works
+unchanged. Residuals: the token is a credential in container env (threat-model
+input for doc 10); spend control is subscription rate limits, not per-key
+caps, so R-06's per-run caps carry the load; killed runs emit no result event
+→ their usage is recorded as unknown ([S-01 results](./spikes/S-01/RESULTS.md)).

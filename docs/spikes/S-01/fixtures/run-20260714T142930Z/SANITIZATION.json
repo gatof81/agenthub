@@ -1,0 +1,13 @@
+{
+ "sessions_replaced": 5,
+ "uuids_replaced": 43,
+ "message_ids_replaced": 12,
+ "request_ids_replaced": 12,
+ "tool_use_ids_replaced": 5,
+ "fields_dropped": [
+  "apiKeySource",
+  "cwd"
+ ],
+ "note": "placeholder maps are intentionally NOT written out",
+ "signatures_replaced": 3
+}

@@ -37,11 +37,13 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 
 From [15-open-questions.md](./15-open-questions.md):
 
-No decision is blocking right now. Q-02 (runner permission posture) was
-resolved 2026-07-14: curated allowlist. ADR-001 was accepted 2026-07-13; its
-contract draft is ready to go to the shared-terminal repo as a proposal.
-Owner-coordinated next actions: propose the exec contract upstream; schedule
-spikes S-01 (API key) and S-03 (scratch D1) — both spend-capped.
+No decision is blocking right now. Q-01/Q-02/Q-04/Q-05/Q-10 are resolved (see
+doc 15). Q-08 is **confirmed, not resolved**: one zombie per killed run,
+residual tracked in R-04, upstream fix pending on
+[shared-terminal#381](https://github.com/gatof81/shared-terminal/issues/381) —
+the same issue that carries the accepted ADR-001 exec contract proposal.
+S-01 executed 2026-07-14. Owner-coordinated next action: schedule spike S-03
+(scratch D1 + scoped token) to close ADR-002.
 
 ## Architecture decision records
 
@@ -61,7 +63,7 @@ Hub↔frontend streaming transport, Hub user/auth model.
 
 | Spike | Question it settles | Status |
 | --- | --- | --- |
-| S-01 | Headless runner probe on pinned CLI 2.1.207: freeze-without-permission-flags, per-turn `--resume` latency, mid-tool-call cancellation via process-group kill, cost/`session_id` result fields, `tool_use` event shape | **package ready** (`spikes/S-01/`, runbook at `docs/spikes/S-01/`) — execution owner-scheduled (spends tokens) |
+| S-01 | Headless runner probe on pinned CLI 2.1.207: freeze-without-permission-flags, per-turn `--resume` latency, mid-tool-call cancellation via process-group kill, cost/`session_id` result fields, `tool_use` event shape | **EXECUTED 2026-07-14** — all questions answered; see [spikes/S-01/RESULTS.md](./spikes/S-01/RESULTS.md). Headlines: no freeze but silent auto-denial; per-turn resume ≈ 0.6 s; 1 zombie per cancelled run (Q-08 confirmed); **Bash-tool children survive group kill** (runner post-cancel policy needed) |
 | S-02 | Claude state continuity across container recreate | **resolved upstream** — shared-terminal #371/#378, re-asserted by its CI smoke test |
 | S-03 | D1 turn-commit latency, value-size limits, quota math against a scratch database | **required** — gates ADR-002 acceptance (revert criteria defined there); owner-coordinated (needs scratch D1 + scoped token) |
 
@@ -101,6 +103,9 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-14** — S-01 EXECUTED (GitHub #6): sanitized fixtures + RESULTS.
+  Q-01/Q-10 closed; Q-08 confirmed (upstream #381 pending); R-03 re-scoped
+  (silent denial, not freeze). Auth: subscription OAuth validated headless.
 - **2026-07-14** — PR-4 (GitHub #5): S-01 spike package (probe script, kill/zombie
   instrumentation, sanitizer, runbook). Exec contract proposed upstream:
   shared-terminal#381.
