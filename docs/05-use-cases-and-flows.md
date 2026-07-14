@@ -36,9 +36,14 @@ stateDiagram-v2
     queued --> cancelled: user cancels queued message
 ```
 
-Reserved for autonomy levels ≥ 2 (Phase 2+, UX-07): an `awaiting_approval`
-state between `streaming` and its terminal states — reserved now so mobile
-approvals extend the machine instead of redesigning it.
+### Reserved state: `awaiting_approval` (Phase 2+, not in the MVP)
+
+For autonomy levels ≥ 2 (UX-07), Phase 2+ inserts `awaiting_approval` between
+`streaming` and its terminal states (entered on an approval-requiring tool
+call; exits: approve → back to `streaming`, deny/timeout → `cancelled`). The
+name and insertion point are reserved **now** so mobile approvals extend the
+machine instead of redesigning it; the diagram above stays MVP-normative and
+deliberately does not show the state — nothing in Phase 1 may implement it.
 
 ## UC-01 — Create a project (and its session), then conversations
 
