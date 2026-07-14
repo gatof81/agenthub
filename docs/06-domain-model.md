@@ -119,7 +119,7 @@ per A2 and the anti-over-architecture rule, nothing is double-written.
 | I-5 | Every terminal run has exactly one `UsageRecord`, even if its values are unknown | FR-18 |
 | I-6 | `Conversation.agentId` never changes in Phase 1 | FR-02 boundary |
 | I-7 | `policySnapshot` is non-empty on every run — a run without an explicit allowlist must be unrepresentable | FR-11, SEC-01/02 |
-| I-8 | Snapshots (`capsSnapshot`, `policySnapshot`, `cliVersion`) are immutable once the run leaves `queued` | SEC-08 audit trail |
+| I-8 | `capsSnapshot`/`policySnapshot` are immutable once the run leaves `queued`; `cliVersion`/`model` are **write-once** when the init event records them and immutable after | SEC-08 audit trail |
 
 ## 4. Ports (domain boundaries)
 
