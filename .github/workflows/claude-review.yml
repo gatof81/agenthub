@@ -46,7 +46,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: >
             --model claude-sonnet-4-6
-            --max-turns 30
+            --max-turns 40
             --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr checks:*),Bash(git log:*),Bash(git blame:*),Bash(git show:*),Read,Grep,Glob"
           prompt: |
             REPO: ${{ github.repository }}
