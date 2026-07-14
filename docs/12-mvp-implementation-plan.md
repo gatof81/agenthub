@@ -77,7 +77,7 @@ events.
 
 ## Increment 3 — hardening
 
-**Goal:** survive the failure modes (03 §2.10, UC-06/07/08).
+**Goal:** survive the failure modes (03 §2 item 10; UC-06/07/08).
 
 1. **Cancellation + post-cancel sweep**: kill mapping, `HUB_RUN_ID` env-marker
    sweep of escaped Bash-tool children (FR-21, ADR-003), outcome authoritative
@@ -118,7 +118,7 @@ ADRs, risk mitigations), and the increments above satisfy the *build* side:
 | Main contracts defined | 08 + exec contract (done) |
 | Architecture reviewed | 07 (done) |
 | Test & migration strategy | 09 migrations + doc 13 |
-| Phase-1 backlog exists | §Backlog, doc (next: 14 + backlog doc) |
+| Phase-1 backlog exists | the standalone Phase-1 backlog (planned after doc 14) |
 | R-01..R-16 mitigations accepted | 16, closed/accepted per doc |
 
 ## What this plan deliberately excludes
