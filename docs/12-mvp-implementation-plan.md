@@ -60,8 +60,9 @@ allowlist is decided (08 §5), Q-10 auth is subscription OAuth.
 
 1. **Real `SubstrateExecPort`**: HTTP against the live exec API
    (`contracts/shared-terminal-exec-api.md`) — exec stream, status, kill;
-   `X-Request-Id` capture (OPS-04); session lifecycle (create from template
-   with agentSeed carrying project instructions, start/stop — FR-30, ADR-005).
+   `X-Request-Id` capture (OPS-04); session lifecycle (create from template;
+   the substrate's `agentSeed` bootstrap step [02 §1] writes settings/CLAUDE.md
+   from the project's `instructions` field [ADR-005]; start/stop — FR-30).
 2. **Real `claude-cli` `RuntimeAdapter`** (ADR-003): command construction
    (stdin prompt, mandatory allowlist, `--resume`), env wiring
    (`CLAUDE_CODE_OAUTH_TOKEN` + `HUB_RUN_ID`, SEC-07), stream-json parsing to
