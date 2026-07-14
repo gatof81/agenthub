@@ -14,7 +14,7 @@ proceeds unless vetoed.
 | Q-03 | Turn semantics & queuing | MVP-blocking | 1 message = 1 run; queue during a run |
 | Q-04 | Seam auth: service token vs user JWT | MVP-blocking · security | Provisionally resolved by ADR-001: dedicated substrate account, existing JWT auth |
 | Q-05 | Hub deployment & exposure | important · infra | **Resolved (owner, 2026-07-14): shared-terminal shape — see ADR-002** |
-| Q-06 | Frontend framework | UX · future | Open — framework only; deployment target (Cloudflare Pages) fixed by ADR-002 |
+| Q-06 | Frontend framework | UX | **Resolved (owner, 2026-07-14): React + Vite** (Angular considered) — see doc 11 §1; target Cloudflare Pages fixed by ADR-002 |
 | Q-07 | Hub users & auth model | important | Single-user first; don't preclude delegation to substrate auth |
 | Q-08 | Zombie accumulation vs `PidsLimit` | infra · upstream | **RESOLVED upstream (2026-07-14)**: `Init: true` shipped (shared-terminal#387), smoke Phase 9 pins it |
 | Q-09 | Backend stack | important | **Resolved with doc 07 (2026-07-14): TypeScript/Node** — challenge window closed, no failing constraint produced |
@@ -100,10 +100,13 @@ repo (public-repo hygiene, R-09).
 ## Q-06 — Frontend framework `UX` `future`
 
 Greenfield decision — shared-terminal's "no framework" rule does not apply here.
-Deliberately **not decided now**; decided in the UX phase (doc 11) with actual
-UI requirements on the table. One input is already fixed:
-[ADR-002](./adr/ADR-002-hub-persistence.md) locks the deployment target to
-Cloudflare Pages — doc 11 chooses the framework, not where it deploys.
+**Resolved (owner, 2026-07-14): React + Vite**, deployed static to Cloudflare
+Pages (target fixed by [ADR-002](./adr/ADR-002-hub-persistence.md)). Rationale
+and the considered alternatives (Angular latest, SvelteKit, SolidJS, vanilla)
+are in [11-ux-specification.md §1](./11-ux-specification.md): the Mac
+productivity surface (command palette, resizable panels, inspector, drag &
+drop) maps 1:1 onto mature React libraries, and React has the strongest
+AI-assisted-development support — decisive since implementation is delegated.
 
 ## Q-07 — Hub users & auth `important`
 
