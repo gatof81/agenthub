@@ -93,7 +93,7 @@ numbers are noted per item as they land, since the two drift.
 15. Second direction review: collaboration model (18) + amendments — **merged (GitHub #22)**; owner approved docs 01–18 (gates passed, GitHub #23 records it).
 16. **Increment 1 — fake-runtime spine, complete**: backend B1-01..09 + B1-11 + BX-01 (GitHub #26), frontend B1-10 (GitHub #27), command palette B1-12 (GitHub #28).
 17. **Increment 2 — real substrate + real Claude, COMPLETE**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29); B2-02 real session provisioning (GitHub #30); B2-03 real `claude-cli` adapter + B2-04 real-vs-fake contract test (GitHub #31); B2-05 composition-root wiring + token hygiene (GitHub #32) + agentSeed wire fix and **live end-to-end acceptance passed on the deployment host** (GitHub #33). Two-level sidebar + contrast pass on owner UX feedback (GitHub #34).
-18. **Increment 3 — hardening, in progress**: B3-01 cancellation (kill-outcome race fix + FR-21 post-cancel sweep, live-verified, GitHub #35); B3-02 boot-reconciliation hardening (provisioning heal, boot sweeps, idempotence, GitHub #36). Next: B3-03 SSE resilience.
+18. **Increment 3 — hardening, in progress**: B3-01 cancellation (kill-outcome race fix + FR-21 post-cancel sweep, live-verified, GitHub #35); B3-02 boot-reconciliation hardening (provisioning heal, boot sweeps, idempotence, live-verified, GitHub #36); B3-03 SSE resilience (stall watchdog + proactive wake + heartbeat, first frontend tests, GitHub #37). Next: B3-04 backup pipeline.
 
 ## Quality gates
 
@@ -116,6 +116,17 @@ in progress (doc 17).
 | MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | **passed** (owner, 2026-07-15) |
 
 ## Changelog
+
+- **2026-07-15** — **B3-03 SSE resilience**: the client gains a stall
+  watchdog — a phone that suspends the tab freezes the socket without a
+  clean close, so the read never errors and the stream would hang forever;
+  any byte (data or the server's ~25 s heartbeat) resets the watchdog, and
+  a missed window aborts and reconnects. Proactive reconnect on
+  tab-foreground (`visibilitychange`) and network `online` skips the wait.
+  A backend test pins that idle streams keep emitting heartbeat comments.
+  Adds the **first frontend test suite** (vitest, pure — injected
+  fetch/timers/wake-target, no DOM) and wires `npm test` into the frontend
+  CI job.
 
 - **2026-07-15** — **B3-02 boot-reconciliation hardening**: projects
   caught mid-provisioning by a crash heal to `error` at boot (the

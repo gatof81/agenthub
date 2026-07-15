@@ -167,6 +167,39 @@ describe('SSE stream (ADR-004)', () => {
     await reconnect.close();
   });
 
+  it('emits heartbeat comments on an idle stream — the keep-alive backgrounding recovery relies on (B3-03, 08 §3)', async () => {
+    const h = makeApiHarness(undefined, { heartbeatMs: 30 });
+    const { server, base } = await listen(h);
+    servers.push(server);
+    const project = h.orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+    await h.orch.idle();
+    const conv = h.orch.createConversation({ projectId: project.id });
+
+    // read raw bytes (SseClient strips comments) from an otherwise-silent stream
+    const ac = new AbortController();
+    const res = await fetch(`${base}/api/conversations/${conv.id}/events`, {
+      headers: { Authorization: `Bearer ${TEST_TOKEN}` },
+      signal: ac.signal,
+    });
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let raw = '';
+    const deadline = Date.now() + 2000;
+    try {
+      while (Date.now() < deadline) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        raw += decoder.decode(value, { stream: true });
+        if ((raw.match(/: hb/g) ?? []).length >= 2) break; // periodic, not just once
+      }
+    } finally {
+      ac.abort();
+      reader.cancel().catch(() => {});
+    }
+    expect(raw).toContain(': connected');
+    expect((raw.match(/: hb/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+
   it('a client that missed everything rebuilds the full projection from index -1', async () => {
     const h = makeApiHarness();
     const { server, base } = await listen(h);
