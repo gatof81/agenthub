@@ -46,7 +46,7 @@ exec API live upstream, Q-02/Q-10 decided.
 | B2-02 | Real session provisioning (template → create → agentSeed → start/stop) | FR-30, ADR-005, 02 §1/§3 | port provisions a session from a template with instructions seeded, bootstrap-failure and quota paths typed (conformance suite, offline); the end-to-end "project provisions a real session" flow is exercised when B2-05 wires the real port into the composition root |
 | B2-03 | Real `claude-cli` `RuntimeAdapter` (stdin prompt, allowlist, `--resume`, env) | ADR-003, SEC-07, Q-02 | real turn produces the same RunEvent shapes |
 | B2-04 | Real-vs-fake adapter contract test | R-12, 13 §2 | both produce identical RunEvent streams from S-01 fixtures |
-| B2-05 | OAuth token wiring + `HUB_RUN_ID` marker | SEC-07, ADR-003 | token never persisted/logged (13 §5); marker present in exec env |
+| B2-05 | OAuth token wiring + `HUB_RUN_ID` marker; real port + adapter wired into the composition root | SEC-07, ADR-003, 07 §2 | token never persisted/logged (13 §5); marker present in exec env; **a project provisions a real session end-to-end** (the acceptance deferred from B2-02) |
 
 **Increment-2 done:** a real project runs a real Claude turn end-to-end, real
 cost in the summary, `--resume` continuity, activity from live `tool_use`.
