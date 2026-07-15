@@ -79,6 +79,18 @@ export type AdapterItem =
   | { kind: 'started'; execId: string; pgid: number; requestId: string }
   | { kind: 'event'; type: RunEventType; payload: unknown }
   | { kind: 'init'; cliVersion: string; model: string; runtimeSessionId: string }
+  /**
+   * Per-assistant-message token usage (B3-06). Surfaced mid-stream so the
+   * orchestrator's lagging budget estimate (ADR-003, R-06) can trip before
+   * the terminal result event. The estimate lags by up to one model call.
+   */
+  | {
+      kind: 'usage';
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadTokens: number;
+      cacheCreationTokens: number;
+    }
   | {
       kind: 'result';
       resultText: string;

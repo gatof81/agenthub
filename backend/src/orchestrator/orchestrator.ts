@@ -7,6 +7,11 @@
  * the substrate ONLY for session lifecycle (07 §2 arrows).
  */
 
+import {
+  DEFAULT_TOKEN_PRICES,
+  estimateCostUsd,
+  type TokenPrices,
+} from '../config/budget.js';
 import { systemClock, type Clock } from '../domain/ids.js';
 import {
   NOOP_NOTIFIER,
@@ -53,6 +58,10 @@ export interface OrchestratorDeps {
   clock?: Clock;
   /** extra env for every run (e.g. the OAuth token in Increment 2) */
   runEnv?: Record<string, string>;
+  /** token prices for the lagging budget estimate (B3-06); defaults applied by config */
+  tokenPrices?: TokenPrices;
+  /** wall-clock backstop grace over caps.timeoutMs before the Hub kills a hung run (FR-25) */
+  timeoutGraceMs?: number;
   /** live-delivery sink (ADR-004); losing notifications loses nothing (NFR-07) */
   notify?: HubNotifier;
 }
@@ -63,6 +72,9 @@ const KILL_GRACE_MS = 5000;
 
 /** Post-cancel sweep exec wall-clock cap (FR-21). */
 const SWEEP_MAX_MS = 15_000;
+
+/** Hub wall-clock backstop over caps.timeoutMs before killing a hung run (FR-25). */
+const DEFAULT_TIMEOUT_GRACE_MS = 30_000;
 
 /**
  * Runs inside the session container as `bash -c <script> hub_sweep <runId>`.
@@ -97,10 +109,15 @@ export class Orchestrator {
   private readonly agents: ReadonlyMap<string, Agent>;
   private readonly now: Clock;
   private readonly runEnv: Record<string, string>;
+  private readonly tokenPrices: TokenPrices;
+  private readonly timeoutGraceMs: number;
   private readonly notify: HubNotifier;
 
   private readonly inFlight = new Map<string, Promise<void>>();
   private readonly cancelRequested = new Set<string>();
+  /** runs the Hub timed out (FR-25 backstop) or budget-tripped (R-06), for terminal classification (B3-06). */
+  private readonly timedOut = new Set<string>();
+  private readonly budgetTripped = new Set<string>();
   /**
    * In-flight kill round-trips (B3-01). The seam kills the process group
    * and the stream can emit its `exit(killed)` and END before the kill
@@ -118,6 +135,8 @@ export class Orchestrator {
     this.agents = deps.agents;
     this.now = deps.clock ?? systemClock;
     this.runEnv = deps.runEnv ?? {};
+    this.tokenPrices = deps.tokenPrices ?? DEFAULT_TOKEN_PRICES;
+    this.timeoutGraceMs = deps.timeoutGraceMs ?? DEFAULT_TIMEOUT_GRACE_MS;
     this.notify = deps.notify ?? NOOP_NOTIFIER;
   }
 
@@ -411,7 +430,31 @@ export class Orchestrator {
     let resultMeta: Extract<AdapterItem, { kind: 'result' }> | null = null;
     let exitMeta: Extract<AdapterItem, { kind: 'exit' }> | null = null;
     let runtimeSessionId = conversation.runtimeSessionId;
+    let execId: string | null = null;
+    let estimatedCostUsd = 0;
     const stderr: string[] = [];
+
+    // kill the exec once (timeout backstop or budget trip); reason is 'killed'
+    // on the stream, and the timedOut/budgetTripped set disambiguates it from
+    // a user cancel in resolveTerminal (B3-06)
+    const killExec = (): void => {
+      if (execId === null || this.pendingKills.has(run.id)) return;
+      const pending = this.adapter.kill(sessionId, execId, KILL_GRACE_MS);
+      this.pendingKills.set(
+        run.id,
+        pending.then((r) => r.outcome).catch(() => undefined),
+      );
+      void pending.catch(() => {});
+    };
+
+    // Hub wall-clock backstop (FR-25): the seam already caps the exec at
+    // caps.timeoutMs, but if the stream hangs the Hub must still terminate.
+    // Fires past the seam's own cap so the seam is primary, the Hub the net.
+    const timeoutTimer = setTimeout(() => {
+      this.timedOut.add(run.id);
+      killExec();
+    }, run.capsSnapshot.timeoutMs + this.timeoutGraceMs);
+    timeoutTimer.unref?.();
 
     const ingest = (type: NewRunEvent['type'], payload: unknown): void => {
       seq += 1;
@@ -430,6 +473,7 @@ export class Orchestrator {
       for await (const item of this.adapter.runTurn(sessionId, turn)) {
         switch (item.kind) {
           case 'started':
+            execId = item.execId;
             this.store.transitionRun(run.id, 'starting', 'streaming', {
               execId: item.execId,
               pgid: item.pgid,
@@ -464,6 +508,18 @@ export class Orchestrator {
           case 'event':
             ingest(item.type, item.payload);
             break;
+          case 'usage':
+            // lagging budget estimate (ADR-003, R-06): accumulate per-message
+            // token cost; crossing the cap trips a kill → budget_exceeded
+            estimatedCostUsd += estimateCostUsd(item, this.tokenPrices);
+            if (
+              estimatedCostUsd > run.capsSnapshot.budgetUsd &&
+              !this.budgetTripped.has(run.id)
+            ) {
+              this.budgetTripped.add(run.id);
+              killExec();
+            }
+            break;
           case 'stderr':
             if (stderr.length < STDERR_EXCERPT_MAX) stderr.push(item.data);
             break;
@@ -483,29 +539,72 @@ export class Orchestrator {
     } catch (err) {
       const current = this.store.getRun(run.id)!;
       if (current.state === 'starting' || current.state === 'streaming') {
+        // seam 409/429 (container down / caps) is exec_refused and retryable
+        // context; anything else unreachable is seam_unavailable (08 §6).
+        // Duck-typed on `status` so the orchestrator keeps no substrate import.
+        const status =
+          err && typeof err === 'object' && 'status' in err ? Number((err as { status: unknown }).status) : NaN;
+        const refused = status === 409 || status === 429;
+        const raw = err instanceof Error ? err.message : String(err);
+        // exec_refused: attach the session-state context FR-33 calls for, so a
+        // client can retry provisioning without a second API call (matches the
+        // no-session exec_refused path above; 08 §6)
+        const lastKnownState = project.sessionBinding.lastKnownState ?? 'unknown';
         this.finalize(current, current.state, 'failed', {
           usageSource: 'error-partial',
-          errorCode: 'seam_unavailable',
-          errorDetail: err instanceof Error ? err.message : String(err),
+          errorCode: refused ? 'exec_refused' : 'seam_unavailable',
+          errorDetail: refused
+            ? `seam ${status}: ${raw} — session lastKnownState=${lastKnownState} (FR-33)`
+            : raw,
           userMessageContent: message.content,
           warnings: this.excerpts(stderr),
           runtimeSessionId,
         });
       }
       return;
+    } finally {
+      clearTimeout(timeoutTimer);
     }
 
     const current = this.store.getRun(run.id)!;
     const from = current.state;
     if (from !== 'streaming' && from !== 'starting') return; // already resolved elsewhere
 
+    // a Hub timeout or budget trip also kills (exit reason 'killed'), so
+    // these must be classified BEFORE the user-cancel branch (B3-06)
+    const timedOut = this.timedOut.has(run.id) || exitMeta?.reason === 'timeout';
+    const budgetTripped = this.budgetTripped.has(run.id);
+    this.timedOut.delete(run.id);
+    this.budgetTripped.delete(run.id);
     const cancelled =
-      this.cancelRequested.has(run.id) || exitMeta?.reason === 'killed';
+      !timedOut &&
+      !budgetTripped &&
+      (this.cancelRequested.has(run.id) || exitMeta?.reason === 'killed');
     this.cancelRequested.delete(run.id);
     // the kill round-trip may still be in flight when the stream ends —
     // await it so the outcome is never lost (B3-01 race)
     const killOutcome = await this.pendingKills.get(run.id);
     this.pendingKills.delete(run.id);
+
+    if (timedOut || budgetTripped) {
+      // killed → possible escaped children (FR-21 sweep); usage unknown (FR-18)
+      const warnings = this.excerpts(stderr);
+      const swept = await this.sweep(sessionId, run.id);
+      if (swept.warning) warnings.push(swept.warning);
+      this.finalize(current, from, 'failed', {
+        usageSource: 'cancelled-unknown',
+        errorCode: timedOut ? 'run_timeout' : 'budget_exceeded',
+        errorDetail: timedOut
+          ? `wall-clock cap of ${run.capsSnapshot.timeoutMs} ms hit (FR-17)`
+          : `budget cap of $${run.capsSnapshot.budgetUsd} crossed by the lagging estimate (ADR-003)`,
+        ...(killOutcome ? { killOutcome } : {}),
+        ...(swept.result ? { sweepResult: swept.result } : {}),
+        userMessageContent: message.content,
+        warnings,
+        runtimeSessionId,
+      });
+      return;
+    }
 
     if (cancelled) {
       // FR-21: sweep for Bash-tool children that escaped the process
