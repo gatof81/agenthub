@@ -1,6 +1,6 @@
 /**
  * Seam authentication (Q-04, ADR-001, SEC-06): the Hub logs into the
- * substrate as its dedicated account via the existing `POST /auth/login`
+ * substrate as its dedicated account via the existing `POST /api/auth/login`
  * and rides the httpOnly `st_token` JWT cookie on every seam call. The
  * token exists only in the Set-Cookie header (the login body never carries
  * it), is cached in memory, and is never logged (SEC-04).
@@ -55,7 +55,9 @@ export class CookieSeamAuth implements SeamAuth {
   }
 
   private async login(): Promise<string> {
-    const res = await this.fetchImpl(`${this.opts.baseUrl}/auth/login`, {
+    // the substrate mounts its whole router under /api (index.ts app.use("/api", ...)),
+    // auth routes included — the login path is /api/auth/login, not /auth/login
+    const res = await this.fetchImpl(`${this.opts.baseUrl}/api/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: this.opts.username, password: this.opts.password }),

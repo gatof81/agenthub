@@ -1,8 +1,9 @@
 /**
- * Real SubstrateExecPort (B2-01): thin HTTP client over the seam's exec API
- * (canonical contract: shared-terminal docs/EXEC_API.md, tracked in
- * docs/contracts/shared-terminal-exec-api.md). Scope is exec/status/kill —
- * session provisioning is B2-02.
+ * Real SubstrateExecPort: thin HTTP client over the seam. B2-01 covers
+ * exec/status/kill (canonical contract: shared-terminal docs/EXEC_API.md,
+ * tracked in docs/contracts/shared-terminal-exec-api.md); B2-02 adds
+ * session provisioning (template → create → agentSeed → bootstrap wait →
+ * start/stop) against the substrate's session routes.
  *
  * Contract facts this client encodes:
  * - NDJSON chunks are not line-aligned: lines are reassembled here.
@@ -21,6 +22,8 @@
  *   fail fast before dispatch (contract delta table).
  */
 
+import { randomBytes } from 'node:crypto';
+import { setTimeout as sleep } from 'node:timers/promises';
 import type {
   ExecRequest,
   ExecStatus,
@@ -60,6 +63,21 @@ export class SeamProtocolError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'SeamProtocolError';
+  }
+}
+
+/**
+ * Session provisioning failed or timed out (UC-01 error branch). Carries the
+ * substrate's captured bootstrap log (tail-capped) as diagnostic detail —
+ * surfaced on the project, never logged with payloads (13 §5).
+ */
+export class SeamProvisioningError extends Error {
+  constructor(
+    message: string,
+    readonly bootstrapLog: string | null,
+  ) {
+    super(message);
+    this.name = 'SeamProvisioningError';
   }
 }
 
@@ -194,7 +212,12 @@ export interface RealExecPortOptions {
   baseUrl: string;
   auth: SeamAuth;
   fetchImpl?: typeof fetch;
+  /** Bootstrap-wait pacing (B2-02); defaults: poll 1 s, give up after 180 s. */
+  provisioning?: { pollIntervalMs?: number; timeoutMs?: number };
 }
+
+/** Cap the bootstrap-log tail carried on a provisioning error. */
+const BOOTSTRAP_LOG_TAIL_BYTES = 2048;
 
 export class RealSubstrateExecPort implements SubstrateExecPort {
   private readonly fetchImpl: typeof fetch;
@@ -203,16 +226,115 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
     this.fetchImpl = opts.fetchImpl ?? fetch;
   }
 
-  createSession(_templateId: string, _seed: SessionSeed): Promise<{ sessionId: string }> {
-    return Promise.reject(
-      new Error('RealSubstrateExecPort.createSession lands with B2-02 (session provisioning)'),
+  /**
+   * UC-01 provisioning (B2-02): templates are client-side presets upstream
+   * (`GET /templates/:id` returns the full config; `POST /sessions` takes
+   * the materialized `config`), so the port resolves the template, folds
+   * the agentSeed in (seed fields override the template's per-field), and
+   * waits for the async bootstrap to finish before reporting the session.
+   *
+   * Bootstrap-completion signal, chosen to avoid a WebSocket dependency:
+   * upstream persists `bootstrap_log` when the runner finishes — success
+   * or failure (`bootstrap.ts` persistLog on both branches) — and flips
+   * `status` to `failed` on hard-fail. So: `status === "failed"` ⇒ error
+   * (with the log as diagnostic); non-null bootstrap-log ⇒ ready. `null`
+   * cannot mean "never ran" here because a seeded create always runs the
+   * bootstrap (the create response says `bootstrapping: true`).
+   */
+  async createSession(templateId: string, seed: SessionSeed): Promise<{ sessionId: string }> {
+    const tplRes = await this.request(
+      'GET',
+      `/api/templates/${encodeURIComponent(templateId)}`,
     );
+    if (!tplRes.ok) throw await SeamHttpError.from(tplRes, 'createSession: template');
+    const template = (await tplRes.json()) as { config?: Record<string, unknown> };
+
+    const templateSeed = (template.config?.agentSeed ?? {}) as Record<string, unknown>;
+    const agentSeed: Record<string, unknown> = {
+      ...templateSeed,
+      ...(seed.settings !== undefined ? { settings: seed.settings } : {}),
+      ...(seed.claudeMd !== undefined ? { claudeMd: seed.claudeMd } : {}),
+    };
+    const config: Record<string, unknown> = {
+      ...(template.config ?? {}),
+      ...(Object.keys(agentSeed).length > 0 ? { agentSeed } : {}),
+    };
+
+    // substrate-side display name only — the Hub tracks sessions by id
+    const name = `hub-${randomBytes(4).toString('hex')}`;
+    const res = await this.request('POST', '/api/sessions', { name, config });
+    if (!res.ok) throw await SeamHttpError.from(res, 'createSession');
+    const created = (await res.json()) as { sessionId: string; bootstrapping?: boolean };
+    if (created.bootstrapping === true) await this.awaitBootstrap(created.sessionId);
+    return { sessionId: created.sessionId };
   }
 
-  stopSession(_sessionId: string): Promise<void> {
-    return Promise.reject(
-      new Error('RealSubstrateExecPort.stopSession lands with B2-02 (session provisioning)'),
-    );
+  /** Archive path (FR-30): tolerant of a session that is already gone. */
+  async stopSession(sessionId: string): Promise<void> {
+    const res = await this.request('POST', `/api/sessions/${sessionId}/stop`);
+    if (res.status === 404) return;
+    if (!res.ok) throw await SeamHttpError.from(res, 'stopSession');
+  }
+
+  private async awaitBootstrap(sessionId: string): Promise<void> {
+    const pollIntervalMs = this.opts.provisioning?.pollIntervalMs ?? 1000;
+    const timeoutMs = this.opts.provisioning?.timeoutMs ?? 180_000;
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const metaRes = await this.request('GET', `/api/sessions/${sessionId}`);
+      if (!metaRes.ok) throw await SeamHttpError.from(metaRes, 'createSession: bootstrap poll');
+      const meta = (await metaRes.json()) as { status: string };
+      if (meta.status === 'failed') {
+        throw new SeamProvisioningError(
+          `session ${sessionId} failed during bootstrap`,
+          await this.bootstrapLogTail(sessionId),
+        );
+      }
+      const logRes = await this.request('GET', `/api/sessions/${sessionId}/bootstrap-log`);
+      if (logRes.ok) {
+        const { log } = (await logRes.json()) as { log: string | null };
+        if (log !== null) {
+          // Upstream persists the log BEFORE flipping status on the failure
+          // path (bootstrap.ts finishWithFail: "Persist BEFORE flipping
+          // status…"), so a log-first read can race the failed flip. Give
+          // the flip one poll interval to land, then classify. Residual:
+          // if upstream's own status UPDATE fails (its CRITICAL branch),
+          // the row stays `running` forever and no client can tell — that
+          // window is upstream's, not ours.
+          await sleep(pollIntervalMs);
+          const confirmRes = await this.request('GET', `/api/sessions/${sessionId}`);
+          if (!confirmRes.ok) {
+            throw await SeamHttpError.from(confirmRes, 'createSession: bootstrap confirm');
+          }
+          const confirmed = (await confirmRes.json()) as { status: string };
+          if (confirmed.status === 'failed') {
+            throw new SeamProvisioningError(
+              `session ${sessionId} failed during bootstrap`,
+              log.slice(-BOOTSTRAP_LOG_TAIL_BYTES),
+            );
+          }
+          return;
+        }
+      }
+      if (Date.now() >= deadline) {
+        throw new SeamProvisioningError(
+          `session ${sessionId} bootstrap did not finish within ${timeoutMs} ms`,
+          null,
+        );
+      }
+      await sleep(pollIntervalMs);
+    }
+  }
+
+  private async bootstrapLogTail(sessionId: string): Promise<string | null> {
+    try {
+      const res = await this.request('GET', `/api/sessions/${sessionId}/bootstrap-log`);
+      if (!res.ok) return null;
+      const { log } = (await res.json()) as { log: string | null };
+      return log === null ? null : log.slice(-BOOTSTRAP_LOG_TAIL_BYTES);
+    } catch {
+      return null;
+    }
   }
 
   async *exec(sessionId: string, req: ExecRequest): AsyncIterable<SeamEvent> {

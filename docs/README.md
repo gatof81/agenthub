@@ -92,7 +92,7 @@ numbers are noted per item as they land, since the two drift.
 14. Phase-1 backlog (17) + quality-gate review — **merged (GitHub #21)**.
 15. Second direction review: collaboration model (18) + amendments — **merged (GitHub #22)**; owner approved docs 01–18 (gates passed, GitHub #23 records it).
 16. **Increment 1 — fake-runtime spine, complete**: backend B1-01..09 + B1-11 + BX-01 (GitHub #26), frontend B1-10 (GitHub #27), command palette B1-12 (GitHub #28).
-17. **Increment 2 — real substrate + real Claude, in progress**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29). Next: B2-02 session provisioning.
+17. **Increment 2 — real substrate + real Claude, in progress**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29); B2-02 real session provisioning (GitHub #30). Next: B2-03 real `claude-cli` adapter.
 
 ## Quality gates
 
@@ -115,6 +115,16 @@ in progress (doc 17).
 | MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | **passed** (owner, 2026-07-15) |
 
 ## Changelog
+
+- **2026-07-15** — **B2-02 session provisioning**: the real port now does
+  UC-01 end-to-end — template materialized client-side (upstream presets),
+  `agentSeed` folded in (seed overrides per-field), async-bootstrap wait
+  via the bootstrap-log readiness signal (no WebSocket dependency),
+  hard-fail surfaced as a typed provisioning error with a tail-capped log,
+  quota 429 mapped, tolerant stop. Fixed in passing: the seam login path
+  is `/api/auth/login` (the whole upstream router mounts under `/api`) —
+  B2-01 had `/auth/login` and its double mirrored the mistake; both
+  corrected against the verified mount. Conformance suite grows to 34.
 
 - **2026-07-15** — **Increment 2 started**: B2-01 real `SubstrateExecPort`
   (HTTP exec/status/kill, NDJSON reassembly, JWT-cookie auth with one

@@ -13,6 +13,7 @@ import {
   RealSubstrateExecPort,
   SeamHttpError,
   SeamProtocolError,
+  SeamProvisioningError,
   SeamValidationError,
 } from '../src/substrate/real.js';
 import { CookieSeamAuth, SeamAuthError } from '../src/substrate/seamAuth.js';
@@ -276,6 +277,165 @@ describe('status and kill mapping', () => {
   });
 });
 
+describe('session provisioning (B2-02: template → create → agentSeed → bootstrap wait)', () => {
+  const fastPort = (): RealSubstrateExecPort =>
+    new RealSubstrateExecPort({
+      baseUrl: double.baseUrl,
+      auth: new CookieSeamAuth({
+        baseUrl: double.baseUrl,
+        username: double.username,
+        password: double.password,
+      }),
+      provisioning: { pollIntervalMs: 1, timeoutMs: 250 },
+    });
+
+  it('materializes the template config, folds the seed in, and waits for bootstrap', async () => {
+    double.templateResponses.push({
+      body: {
+        id: 'tpl-dev',
+        name: 'dev template',
+        config: { cpuLimit: 2, agentSeed: { settings: { theme: 'tpl' } } },
+      },
+    });
+    double.createResponses.push({
+      status: 201,
+      body: { sessionId: 'sess_new', status: 'running', bootstrapping: true },
+    });
+    double.metaResponses.push(
+      { body: { sessionId: 'sess_new', status: 'running' } },
+      { body: { sessionId: 'sess_new', status: 'running' } },
+    );
+    double.bootstrapLogResponses.push({ body: { log: null } }, { body: { log: 'seeded ok\n' } });
+
+    const { sessionId } = await fastPort().createSession('tpl-dev', {
+      claudeMd: '# instructions',
+    });
+    expect(sessionId).toBe('sess_new');
+    expect(double.templateCalls).toEqual(['tpl-dev']);
+    const sent = double.createCalls[0] as {
+      name: string;
+      config: { cpuLimit: number; agentSeed: Record<string, unknown> };
+    };
+    expect(sent.name).toMatch(/^hub-[0-9a-f]{8}$/);
+    expect(sent.config.cpuLimit).toBe(2); // template config preserved
+    expect(sent.config.agentSeed).toEqual({
+      settings: { theme: 'tpl' }, // template field kept (seed did not set it)
+      claudeMd: '# instructions', // seed field folded in
+    });
+    expect(double.bootstrapLogCalls.length).toBe(2); // polled until the log landed
+  });
+
+  it('seed fields override the template agentSeed per-field', async () => {
+    double.templateResponses.push({
+      body: { config: { agentSeed: { settings: { old: true }, claudeMd: 'template md' } } },
+    });
+    double.createResponses.push({
+      status: 201,
+      body: { sessionId: 'sess_o', status: 'running' }, // no bootstrapping flag
+    });
+    await fastPort().createSession('tpl', {
+      settings: { allowedTools: ['Read'] },
+      claudeMd: 'seeded md',
+    });
+    const sent = double.createCalls[0] as { config: { agentSeed: unknown } };
+    expect(sent.config.agentSeed).toEqual({
+      settings: { allowedTools: ['Read'] },
+      claudeMd: 'seeded md',
+    });
+  });
+
+  it('skips the bootstrap wait when the create is not bootstrapping', async () => {
+    double.templateResponses.push({ body: { config: {} } });
+    double.createResponses.push({ status: 201, body: { sessionId: 'sess_b', status: 'running' } });
+    const { sessionId } = await fastPort().createSession('tpl', {});
+    expect(sessionId).toBe('sess_b');
+    expect(double.metaCalls).toHaveLength(0);
+    expect(double.bootstrapLogCalls).toHaveLength(0);
+  });
+
+  it('surfaces a bootstrap hard-fail with the log tail as SeamProvisioningError', async () => {
+    double.templateResponses.push({ body: { config: {} } });
+    double.createResponses.push({
+      status: 201,
+      body: { sessionId: 'sess_f', status: 'running', bootstrapping: true },
+    });
+    double.metaResponses.push({ body: { sessionId: 'sess_f', status: 'failed' } });
+    double.bootstrapLogResponses.push({ body: { log: 'cloning...\nagentSeed: EACCES\n' } });
+    const err = await fastPort()
+      .createSession('tpl', { claudeMd: 'x' })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SeamProvisioningError);
+    expect((err as SeamProvisioningError).bootstrapLog).toContain('agentSeed: EACCES');
+  });
+
+  it('catches the log-before-status-flip race: log lands, then status flips to failed', async () => {
+    // upstream failure order is persistLog THEN updateStatus('failed')
+    // (bootstrap.ts finishWithFail) — a log-first read must not be
+    // declared ready until the status is re-confirmed
+    double.templateResponses.push({ body: { config: {} } });
+    double.createResponses.push({
+      status: 201,
+      body: { sessionId: 'sess_race', status: 'running', bootstrapping: true },
+    });
+    double.metaResponses.push(
+      { body: { sessionId: 'sess_race', status: 'running' } }, // poll: pre-flip window
+      { body: { sessionId: 'sess_race', status: 'failed' } }, // confirm: flip landed
+    );
+    double.bootstrapLogResponses.push({ body: { log: 'agentSeed: exit 1\n' } });
+    const err = await fastPort()
+      .createSession('tpl', { claudeMd: 'x' })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SeamProvisioningError);
+    expect((err as SeamProvisioningError).bootstrapLog).toContain('agentSeed: exit 1');
+  });
+
+  it('times out when the bootstrap never finishes', async () => {
+    double.templateResponses.push({ body: { config: {} } });
+    double.createResponses.push({
+      status: 201,
+      body: { sessionId: 'sess_t', status: 'running', bootstrapping: true },
+    });
+    // defaults in the double keep answering running + log:null
+    const err = await fastPort()
+      .createSession('tpl', { claudeMd: 'x' })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SeamProvisioningError);
+    expect((err as Error).message).toContain('did not finish');
+  });
+
+  it('maps a quota 429 on create to SeamHttpError', async () => {
+    double.templateResponses.push({ body: { config: {} } });
+    double.createResponses.push({
+      status: 429,
+      body: { error: 'session budget exceeded', cap: 'maxSessions' },
+    });
+    const err = await fastPort()
+      .createSession('tpl', {})
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SeamHttpError);
+    expect((err as SeamHttpError).status).toBe(429);
+  });
+
+  it('propagates an unknown template as SeamHttpError 404', async () => {
+    double.templateResponses.push({ status: 404, body: { error: 'Template not found' } });
+    const err = await fastPort()
+      .createSession('nope', {})
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SeamHttpError);
+    expect((err as SeamHttpError).status).toBe(404);
+  });
+
+  it('stopSession posts to /stop, tolerates 404, throws on 5xx', async () => {
+    const p = fastPort();
+    await p.stopSession('sess_1');
+    expect(double.stopCalls).toEqual(['sess_1']);
+    double.stopResponses.push({ status: 404, body: { error: 'Session not found' } });
+    await expect(p.stopSession('sess_gone')).resolves.toBeUndefined();
+    double.stopResponses.push({ status: 500, body: { error: 'boom' } });
+    await expect(p.stopSession('sess_1')).rejects.toBeInstanceOf(SeamHttpError);
+  });
+});
+
 describe('parity with the fake port (doc 17 B2-01 "done when"; R-12)', () => {
   it('a normal completion yields the same event shapes from both ports', async () => {
     const fake = new FakeSubstrateExecPort();
@@ -314,5 +474,19 @@ describe('parity with the fake port (doc 17 B2-01 "done when"; R-12)', () => {
     expect(await fake.kill('fs', 'nope', 5000)).toEqual({ outcome: 'already-exited' });
     double.killResponses.push({ status: 404, body: { error: 'unknown exec' } });
     expect(await port.kill('rs', 'nope', 5000)).toEqual({ outcome: 'already-exited' });
+  });
+
+  it('createSession resolves to {sessionId} and stopSession to void from both ports', async () => {
+    const fake = new FakeSubstrateExecPort();
+    const seed = { settings: { allowedTools: ['Read'] }, claudeMd: 'md' };
+    const fakeCreated = await fake.createSession('tpl', seed);
+    expect(fakeCreated.sessionId).toMatch(/\S/);
+    await expect(fake.stopSession(fakeCreated.sessionId)).resolves.toBeUndefined();
+
+    double.templateResponses.push({ body: { config: {} } });
+    double.createResponses.push({ status: 201, body: { sessionId: 'sess_p', status: 'running' } });
+    const realCreated = await port.createSession('tpl', seed);
+    expect(realCreated.sessionId).toMatch(/\S/);
+    await expect(port.stopSession(realCreated.sessionId)).resolves.toBeUndefined();
   });
 });

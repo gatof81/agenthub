@@ -1,6 +1,6 @@
 # 02 — Substrate Analysis: shared-terminal
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-13
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-15
 **Verified against:** [gatof81/shared-terminal](https://github.com/gatof81/shared-terminal) `main` @ `36be2f2`.
 Every claim below cites a file (and line where useful) at that commit. Re-verify after the substrate moves.
 
@@ -54,6 +54,12 @@ not break it.
 
 Route modules at `backend/src/routes/`: `auth.ts`, `sessions.ts`, `templates.ts`,
 `groups.ts`, `invites.ts`, `admin.ts`. Auth is a JWT cookie (`backend/src/auth.ts`).
+
+**All HTTP routes below are served under the `/api` mount** — auth included
+(`index.ts` `app.use("/api", …)`, re-verified at `6291397` when B2-01 encoded
+`/auth/login` without the prefix and hit exactly this trap); paths in the
+table are relative to it (external form: `/api/auth/login`, `/api/sessions`,
+…). WebSocket and port-proxy surfaces are outside the mount.
 
 | Area | Endpoints (HTTP) |
 | --- | --- |
