@@ -88,6 +88,51 @@ rule, not a preference, for two security reasons:
   project; pair-bound knowledge contains the contamination where it
   happened.
 
+### Execution topology: sessions are stable, reusable resources
+
+Where the composition physically runs. Three terms the corpus must never
+conflate (normative table in [06 §1](./06-domain-model.md)): the **substrate
+session** (the persistent shared-terminal environment — container, workspace,
+repository — owned by the Project), the **runtime session** (a runtime's
+continuity transcript, e.g. the CLI's `--resume` handle; many coexist per
+substrate session), and the **agent role** (reusable config; no session of
+its own).
+
+Ownership and lifecycle:
+
+- **Conversations and Tasks request work; they never own the environment.**
+  The Project owns the main substrate session (ADR-005); a conversation is
+  an interaction surface, a Task is work. Session-per-conversation was
+  rejected in ADR-005 and stays rejected (§10).
+- **Substrate sessions are long-lived and reused.** Creating one is the
+  exception, never the default on a new conversation or Task — it requires a
+  concrete operational cause: incompatible parallel work, an isolated
+  branch/worktree, a dangerous experiment, a different runtime, a temporary
+  workspace, a hard-isolation need, or the main session being busy.
+- **Default execution topology: the role goes to the project.** "Run a
+  security review of project X" executes the Security Reviewer *template*
+  inside **X's** substrate session — direct repository access, no session
+  duplication, project isolation preserved — under a runtime session
+  isolated from every other project's context. The dynamic chain is:
+  intent → project identification → specialty selection (Phase-3 router) →
+  existing session(s) → structured results (Work Products) → one final
+  answer (Phase-4 supervisor).
+- **Run/Step environment selection is reserved, not built.** Today execution
+  derives the environment from the project. Later phases may let a Run or
+  Step explicitly select another environment (a worktree session, a
+  role-specific session) — an additive change to `Run`, not a remodel.
+- **The logical exclusion unit is the workspace.** I-2's "one active run per
+  project" is the Phase-1 realization, where project : substrate session :
+  workspace are 1:1:1; if that ever relaxes (Q-11 escape hatches), the lock
+  follows the workspace.
+
+**Role-specific substrate sessions** (a persistent "security" environment
+with its own tooling) remain a *future, exceptional* topology, not the
+default. If one is ever used, its transcripts must be **disposable or
+partitioned per project** — never a single `--resume` continuity
+accumulating multiple projects' content, which would breach the
+knowledge-isolation rule above (confidentiality + R-05 blast radius).
+
 ## 3. The Coordinator, decomposed
 
 The intuition: the user should express intent, and the system should figure
@@ -245,3 +290,5 @@ Recorded so they are not re-proposed without new evidence (R-17):
 | `PermanentAgent` as a distinct agent kind | All agents are already persistent identities; "permanent" is accumulated project context, not a lifecycle | §2: project memory indexed by *(project, agent)*, Phase 2+ |
 | Generic `WorkProduct` entity in Phase 1 | One producer, zero consumers — generalization without a second case | §4: `RunSummary` is the seed; the entity lands with Phase 4's first consumer |
 | `ProjectAgent` as a stored entity / per-project role forks | Config duplication that drifts (N project copies of the QA template diverging); `PermanentAgent` through the back door | §2: the *(project, role)* pair is a derived identity; knowledge binds to the pair, templates stay shared and stateless |
+| A new substrate session per conversation or Task | Rejected by ADR-005 (container economics, shared-workspace semantics); re-recorded here so it never returns via Tasks | §2 execution topology: Project owns the environment; conversations/Tasks request work against it |
+| Permanent role × project session combinations ("project-X QA" sessions) | Combinatorial session explosion; duplicated context; drifting environments | §2: role templates execute inside the project's session by default; role-specific sessions stay exceptional with disposable/partitioned transcripts |
