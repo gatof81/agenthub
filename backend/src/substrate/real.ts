@@ -169,7 +169,9 @@ function parseSeamEvent(line: string): SeamEvent | null {
         v: 1,
         type: 'exit',
         exitCode: obj.exitCode === null || obj.exitCode === undefined ? null : Number(obj.exitCode),
-        ...(typeof obj.reason === 'string' ? { reason: obj.reason } : {}),
+        // always present on the wire (exec.ts:255 `?? "exited"`); default
+        // defensively to the same value rather than fabricate a variant
+        reason: typeof obj.reason === 'string' ? obj.reason : 'exited',
       };
     case 'error':
       return {

@@ -446,7 +446,8 @@ describe('parity with the fake port (doc 17 B2-01 "done when"; R-12)', () => {
       lines: [
         JSON.stringify({ v: 1, type: 'output', stream: 'stdout', data: 'line-1\n' }),
         JSON.stringify({ v: 1, type: 'output', stream: 'stdout', data: 'line-2\n' }),
-        JSON.stringify({ v: 1, type: 'exit', exitCode: 0 }),
+        // reason always present on the wire (exec.ts:255 — `?? "exited"`)
+        JSON.stringify({ v: 1, type: 'exit', exitCode: 0, reason: 'exited' }),
       ],
     });
     const realEvents = await collect(port.exec('rs', REQ));
@@ -458,8 +459,8 @@ describe('parity with the fake port (doc 17 B2-01 "done when"; R-12)', () => {
         .map((e) => e.data)
         .join('');
     expect(stdout(realEvents)).toBe(stdout(fakeEvents));
-    expect(realEvents.at(-1)).toMatchObject({ type: 'exit', exitCode: 0 });
-    expect(fakeEvents.at(-1)).toMatchObject({ type: 'exit', exitCode: 0 });
+    expect(realEvents.at(-1)).toEqual({ v: 1, type: 'exit', exitCode: 0, reason: 'exited' });
+    expect(fakeEvents.at(-1)).toEqual({ v: 1, type: 'exit', exitCode: 0, reason: 'exited' });
   });
 
   it('status of an unknown execId answers unknown from both ports', async () => {

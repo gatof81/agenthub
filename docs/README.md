@@ -92,7 +92,7 @@ numbers are noted per item as they land, since the two drift.
 14. Phase-1 backlog (17) + quality-gate review — **merged (GitHub #21)**.
 15. Second direction review: collaboration model (18) + amendments — **merged (GitHub #22)**; owner approved docs 01–18 (gates passed, GitHub #23 records it).
 16. **Increment 1 — fake-runtime spine, complete**: backend B1-01..09 + B1-11 + BX-01 (GitHub #26), frontend B1-10 (GitHub #27), command palette B1-12 (GitHub #28).
-17. **Increment 2 — real substrate + real Claude, in progress**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29); B2-02 real session provisioning (GitHub #30). Next: B2-03 real `claude-cli` adapter.
+17. **Increment 2 — real substrate + real Claude, in progress**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29); B2-02 real session provisioning (GitHub #30); B2-03 real `claude-cli` adapter + B2-04 real-vs-fake contract test (GitHub #31). Next: B2-05 composition-root wiring + live end-to-end.
 
 ## Quality gates
 
@@ -115,6 +115,16 @@ in progress (doc 17).
 | MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | **passed** (owner, 2026-07-15) |
 
 ## Changelog
+
+- **2026-07-15** — **B2-03 + B2-04**: real `claude-cli` adapter (ADR-003
+  command construction with the S-01 traps guarded: variadic allowlist ⇒
+  stdin prompt, empty `--resume` omitted, empty policy rejected at the
+  boundary per I-7) sharing the fake's mapping loop by construction; the
+  real-vs-fake contract test pins identical AdapterItem streams across all
+  S-01 fixtures, whole and chunk-split, plus one full-real-stack run
+  (adapter → real port → contract double). Fake-port fidelity fix the
+  contract test surfaced: natural exits now carry `reason:"exited"` like
+  the wire always does.
 
 - **2026-07-15** — **B2-02 session provisioning**: the real port now does
   UC-01 end-to-end — template materialized client-side (upstream presets),
