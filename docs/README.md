@@ -1,6 +1,6 @@
 # Agent Hub — documentation
 
-Specification workspace for Agent Hub. **No product code lands until the quality gates below pass.**
+Specification workspace for Agent Hub. **The specification is complete** (docs 01–17, ADR-001..005, spikes S-01/S-03); the quality gates below are satisfied by drafted-and-merged artifacts, pending the owner's approval. No product code lands until that approval.
 
 All repo artifacts are in English. Substrate facts are verified against
 [shared-terminal](https://github.com/gatof81/shared-terminal) at commit `36be2f2` unless noted;
@@ -31,10 +31,10 @@ gates. The work plan below tracks per-PR/build progress separately.
 | [14-observability-and-operations.md](./14-observability-and-operations.md) | draft — review | 07 |
 | [15-open-questions.md](./15-open-questions.md) | draft — review | — |
 | [16-risk-register.md](./16-risk-register.md) | draft — review | — |
+| [17-phase1-backlog.md](./17-phase1-backlog.md) | draft — review | 12 |
 | [adr/](./adr/README.md) | ADR-001..005 all accepted | see adr/README.md |
 
-**Reading order for this review round:** 14 (earlier rounds: 01 → 02 → 03
-→ 15 → 16 → ADRs → spike results → 04 → 05).
+**Specification complete.** Suggested full read-through order: 01 → 02 → 03 → 15 → 16 → ADR-001..005 → spike results → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 17.
 
 ## Decisions requested now
 
@@ -45,7 +45,7 @@ No decision is blocking right now. Q-01/Q-02/Q-04/Q-05/Q-08/Q-10 are resolved
 (#387) shipped and deployed; **Increment 2 is unblocked** and R-08 is closed).
 S-01 and S-03 both executed 2026-07-14; ADR-001..005 are accepted.
 Owner housekeeping: the scratch D1 `agenthub-s03-scratch` can be deleted.
-Next work-plan step: the Phase-1 backlog + quality-gate review — the final specification step.
+The specification is complete. The remaining act is the owner's approval of the drafts, which flips the quality gates from *satisfied-pending-approval* to *passed* and unblocks implementation (starting at Increment 1, doc 17).
 
 ## Architecture decision records
 
@@ -87,24 +87,35 @@ numbers are noted per item as they land, since the two drift.
 10. Security threat model (10) — **merged (GitHub #16)**.
 11. UX specification (11) — **merged (GitHub #17)**; Q-06 resolved: React + Vite.
 12. MVP implementation plan (12) — **merged (GitHub #18)**; fake-runtime increment first.
-13. Testing strategy (13) — **merged (GitHub #19)** · observability (14) — **drafted (GitHub #20), in review**.
-14. Phase-1 backlog + quality-gate review → implementation may start.
+13. Testing strategy (13) and observability (14) — **merged (#19, #20)**.
+14. Phase-1 backlog (17) + quality-gate review — **drafted (GitHub #21)**; on approval, implementation may start.
 
-## Quality gates (implementation may not start before all pass)
+## Quality gates
 
-- Product brief approved (01)
-- MVP scope approved (03)
-- Architecture reviewed (07)
-- Domain model validated (06)
-- Initial threat model (10)
-- Main contracts defined (08 + exec contract, live upstream)
-- Critical flows defined (05)
-- Test & migration strategy (13)
-- Phase-1 backlog exists
-- ADR-001..005 resolved; later ADRs at least drafted
-- Mitigations accepted for every MVP-phase risk in 16 marked open
+All gates are **satisfied by drafted-and-merged artifacts, pending the owner's
+approval** (see the maturity note under the index). On approval each flips to
+*passed* and implementation may start.
+
+| Gate | Artifact | State |
+| --- | --- | --- |
+| Product brief approved | 01 | drafted, pending approval |
+| MVP scope approved | 03 | drafted, pending approval |
+| Architecture reviewed | 07 | drafted, pending approval |
+| Domain model validated | 06 | drafted, pending approval |
+| Initial threat model | 10 | drafted, pending approval |
+| Main contracts defined | 08 + exec contract (live upstream) | done |
+| Critical flows defined | 05 | drafted, pending approval |
+| Test & migration strategy | 13 | drafted, pending approval |
+| Phase-1 backlog exists | 17 | drafted, pending approval |
+| ADR-001..005 resolved; later ADRs at least drafted | all five accepted | done |
+| MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | drafted, pending approval |
 
 ## Changelog
+
+- **2026-07-15** — Doc 17 (Phase-1 backlog: Increment-1/2/3 work items,
+  each traceable to FR/module/UC) drafted (GitHub #21). **Specification
+  complete** — docs 01–17, ADR-001..005, spikes S-01/S-03 all merged; quality
+  gates satisfied pending owner approval. Doc 14 merged.
 
 - **2026-07-14** — Doc 14 (observability & operations: correlation-id
   logging, backup-freshness alert, operator runbooks) drafted (GitHub #20).
