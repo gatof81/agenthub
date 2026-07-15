@@ -5,7 +5,18 @@
  * root, keeping the 07 §2 dependency arrows lint-enforceable.
  */
 
-import type { Caps, KillOutcome, RunEventType } from './types.js';
+import type {
+  Caps,
+  KillOutcome,
+  ProjectStatus,
+  RunErrorCode,
+  RunEvent,
+  RunEventType,
+  RunState,
+  RunSummary,
+  SweepResult,
+  UsageRecord,
+} from './types.js';
 
 // — SubstrateExecPort (ADR-001, contracts/shared-terminal-exec-api.md) —
 
@@ -40,6 +51,8 @@ export interface SessionSeed {
 export interface SubstrateExecPort {
   /** UC-01: provision the project's substrate session from a template. */
   createSession(templateId: string, seed: SessionSeed): Promise<{ sessionId: string }>;
+  /** Archiving a project stops its session (08 §1 PATCH semantics, FR-30). */
+  stopSession(sessionId: string): Promise<void>;
   exec(sessionId: string, req: ExecRequest): AsyncIterable<SeamEvent>;
   status(sessionId: string, execId: string): Promise<ExecStatus>;
   kill(sessionId: string, execId: string, graceMs: number): Promise<{ outcome: KillOutcome }>;
@@ -85,3 +98,40 @@ export interface RuntimeAdapter {
   kill(sessionId: string, execId: string, graceMs: number): Promise<{ outcome: KillOutcome }>;
   status(sessionId: string, execId: string): Promise<ExecStatus>;
 }
+
+// — HubNotifier (ADR-004 delivery projection; the store stays the truth) —
+
+export interface RunStateNotification {
+  runId: string;
+  state: RunState;
+  errorCode?: RunErrorCode | null;
+  killOutcome?: KillOutcome | null;
+  sweepResult?: SweepResult | null;
+}
+
+/** A persisted replayable run_event row with its conversation-wide index. */
+export interface IndexedRunEvent {
+  index: number;
+  event: RunEvent;
+}
+
+/**
+ * One-way, in-process notifications the orchestrator emits so the SSE layer
+ * (ADR-004) can deliver live projections. Losing a notification loses
+ * nothing: every payload is recomputable from the store (NFR-07).
+ */
+export interface HubNotifier {
+  runState(conversationId: string, n: RunStateNotification): void;
+  replayable(conversationId: string, runMessageId: string, rows: IndexedRunEvent[]): void;
+  usage(conversationId: string, usage: UsageRecord): void;
+  summary(conversationId: string, summary: RunSummary): void;
+  projectState(projectId: string, status: ProjectStatus): void;
+}
+
+export const NOOP_NOTIFIER: HubNotifier = {
+  runState: () => {},
+  replayable: () => {},
+  usage: () => {},
+  summary: () => {},
+  projectState: () => {},
+};

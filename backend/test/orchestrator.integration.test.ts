@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { Agent } from '../src/domain/types.js';
+import type { Agent, Project } from '../src/domain/types.js';
 import { deriveActivity } from '../src/domain/projections.js';
 import { Orchestrator, OrchestratorError } from '../src/orchestrator/orchestrator.js';
 import { FakeRuntimeAdapter } from '../src/runtime/fakeAdapter.js';
@@ -29,6 +29,8 @@ interface Harness {
   store: HubStore;
   port: FakeSubstrateExecPort;
   orch: Orchestrator;
+  /** create a project and await provisioning (UC-01 fake = instant) */
+  readyProject: () => Promise<Project>;
 }
 
 function makeHarness(store: HubStore, gate?: () => Promise<void>): Harness {
@@ -39,14 +41,19 @@ function makeHarness(store: HubStore, gate?: () => Promise<void>): Harness {
     execPort: port,
     agents: new Map([[DEV_AGENT.id, DEV_AGENT]]),
   });
-  return { store, port, orch };
+  const readyProject = async (): Promise<Project> => {
+    const p = orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+    await orch.idle();
+    return store.getProject(p.id)!;
+  };
+  return { store, port, orch, readyProject };
 }
 
 function suite(name: string, makeStore: () => HubStore): void {
   describe(`spine on fake runtime — ${name}`, () => {
     it('project → conversation → send → stream → activity → summary (UC-01/02)', async () => {
-      const { store, port, orch } = makeHarness(makeStore());
-      const project = await orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const { store, port, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject();
       expect(project.status).toBe('ready'); // fake session provisions instantly
       expect(project.sessionBinding.sessionId).toBe('fakesess_1');
       // agentSeed carried agent instructions (FR-30)
@@ -95,8 +102,8 @@ function suite(name: string, makeStore: () => HubStore): void {
     });
 
     it('second turn passes --resume with the captured runtime session (FR-24)', async () => {
-      const { port, orch } = makeHarness(makeStore());
-      const project = await orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const { port, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject();
       const conv = orch.createConversation({ projectId: project.id });
       port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
       orch.send(conv.id, 'first');
@@ -115,8 +122,8 @@ function suite(name: string, makeStore: () => HubStore): void {
     });
 
     it('tool_use activity projects from the toolshape fixture (A2, FR-14)', async () => {
-      const { store, port, orch } = makeHarness(makeStore());
-      const project = await orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const { store, port, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject();
       const conv = orch.createConversation({ projectId: project.id });
       port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.toolshape) });
       const { run } = orch.send(conv.id, 'use some tools');
@@ -130,8 +137,8 @@ function suite(name: string, makeStore: () => HubStore): void {
     });
 
     it('queued message dispatches after the active run completes — FIFO across conversations (UC-03, I-2)', async () => {
-      const { store, port, orch } = makeHarness(makeStore());
-      const project = await orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const { store, port, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject();
       const c1 = orch.createConversation({ projectId: project.id, title: 'a' });
       const c2 = orch.createConversation({ projectId: project.id, title: 'b' });
       port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
@@ -161,8 +168,8 @@ function suite(name: string, makeStore: () => HubStore): void {
         }
         return Promise.resolve();
       };
-      const { store, port, orch } = makeHarness(makeStore(), gate);
-      const project = await orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const { store, port, orch, readyProject } = makeHarness(makeStore(), gate);
+      const project = await readyProject();
       const conv = orch.createConversation({ projectId: project.id });
       port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.cancel) });
       const { run } = orch.send(conv.id, 'long task');
@@ -184,8 +191,8 @@ function suite(name: string, makeStore: () => HubStore): void {
     });
 
     it('cancelling a queued run cancels it and the queue moves on (UC-03 step 4)', async () => {
-      const { store, port, orch } = makeHarness(makeStore());
-      const project = await orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const { store, port, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject();
       const conv = orch.createConversation({ projectId: project.id });
       port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
       port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
@@ -215,8 +222,8 @@ function suite(name: string, makeStore: () => HubStore): void {
     });
 
     it('re-running the same fixture ingestion is idempotent at the store (13 §4)', async () => {
-      const { store, port, orch } = makeHarness(makeStore());
-      const project = await orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const { store, port, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject();
       const conv = orch.createConversation({ projectId: project.id });
       port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
       const { run } = orch.send(conv.id, 'hello');

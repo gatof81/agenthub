@@ -1,0 +1,26 @@
+# Agent Hub — example agent configuration (SEC-10).
+#
+# Real agent definitions live in the DEPLOYMENT config (gitignored /
+# outside the repo): instructions carry personal project context and are
+# treated as sensitive. Copy this file, adjust, and point AGENTS_CONFIG at
+# your copy.
+#
+# Every agent is a professional-role template (01 §1, 18 §2): stateless,
+# reusable across projects; accumulated knowledge never binds to it.
+
+agents:
+  - id: dev
+    name: Developer
+    instructions: |
+      You are a senior software engineer. Work carefully inside the project
+      workspace, run tests before declaring work done, and keep commits
+      clean.
+    # The curated Phase-1 allowlist (Q-02, 08 §5). Never empty (I-7):
+    # web tools and Task are deliberately excluded (R-05).
+    allowedTools: [Read, Grep, Glob, Write, Edit, Bash]
+    sessionTemplateId: default
+    runtime: claude-cli
+    defaultCaps:
+      maxTurns: 30
+      budgetUsd: 2.0
+      timeoutMs: 600000

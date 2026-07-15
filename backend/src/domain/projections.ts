@@ -105,6 +105,33 @@ export function deriveRunSummary(inputs: SummaryInputs): RunSummary {
   };
 }
 
+/**
+ * SSE wire events derivable from ONE replayable run_event row (08 §3).
+ * Used identically by the live path and the Last-Event-ID replay path so
+ * both produce the same projection (ADR-004).
+ */
+export type SseWireEvent =
+  | { event: 'message.delta'; data: { runId: string; messageId: string; text: string } }
+  | {
+      event: 'activity.item';
+      data: { runId: string; kind: 'command' | 'file' | 'denial'; detail: string };
+    };
+
+export function sseFromRunEvent(messageId: string, ev: RunEvent): SseWireEvent[] {
+  if (ev.type === 'output') {
+    const p = ev.payload as OutputPayload;
+    if (p?.blockType === 'text' && typeof p.text === 'string' && p.text.length > 0) {
+      return [{ event: 'message.delta', data: { runId: ev.runId, messageId, text: p.text } }];
+    }
+    return [];
+  }
+  const items = deriveActivity([ev]).items;
+  return items.map((i) => ({
+    event: 'activity.item' as const,
+    data: { runId: ev.runId, kind: i.kind, detail: i.detail },
+  }));
+}
+
 interface OutputPayload {
   blockType?: string;
   text?: string;

@@ -8,11 +8,13 @@
  */
 
 import { systemClock, type Clock } from '../domain/ids.js';
-import type {
-  AdapterItem,
-  RuntimeAdapter,
-  SubstrateExecPort,
-  TurnRequest,
+import {
+  NOOP_NOTIFIER,
+  type AdapterItem,
+  type HubNotifier,
+  type RuntimeAdapter,
+  type SubstrateExecPort,
+  type TurnRequest,
 } from '../domain/ports.js';
 import {
   assembleAssistantText,
@@ -50,6 +52,8 @@ export interface OrchestratorDeps {
   clock?: Clock;
   /** extra env for every run (e.g. the OAuth token in Increment 2) */
   runEnv?: Record<string, string>;
+  /** live-delivery sink (ADR-004); losing notifications loses nothing (NFR-07) */
+  notify?: HubNotifier;
 }
 
 const STDERR_EXCERPT_MAX = 500;
@@ -63,6 +67,7 @@ export class Orchestrator {
   private readonly agents: ReadonlyMap<string, Agent>;
   private readonly now: Clock;
   private readonly runEnv: Record<string, string>;
+  private readonly notify: HubNotifier;
 
   private readonly inFlight = new Map<string, Promise<void>>();
   private readonly cancelRequested = new Set<string>();
@@ -75,31 +80,65 @@ export class Orchestrator {
     this.agents = deps.agents;
     this.now = deps.clock ?? systemClock;
     this.runEnv = deps.runEnv ?? {};
+    this.notify = deps.notify ?? NOOP_NOTIFIER;
   }
 
   // — UC-01: create project + provision its substrate session —
 
-  async createProject(input: {
+  /**
+   * Returns immediately with the `provisioning` project (the API's 202,
+   * 08 §1); provisioning continues asynchronously and resolves to
+   * ready | error (UC-01), observable via project.state / GET.
+   */
+  createProject(input: {
     name: string;
     defaultAgentId: string;
     instructions?: string | null;
-  }): Promise<Project> {
+  }): Project {
     const agent = this.mustAgent(input.defaultAgentId);
     const project = this.store.createProject(input);
+    const key = `provision_${project.id}`;
+    const promise = this.provision(project.id, agent, input.instructions ?? '').finally(() => {
+      this.inFlight.delete(key);
+    });
+    this.inFlight.set(key, promise);
+    return project;
+  }
+
+  private async provision(projectId: string, agent: Agent, instructions: string): Promise<void> {
     try {
       const { sessionId } = await this.execPort.createSession(agent.sessionTemplateId, {
         settings: { allowedTools: agent.allowedTools },
-        claudeMd: [agent.instructions, input.instructions ?? ''].filter(Boolean).join('\n\n'),
+        claudeMd: [agent.instructions, instructions].filter(Boolean).join('\n\n'),
       });
-      this.store.setProjectSession(project.id, {
+      this.store.setProjectSession(projectId, {
         sessionId,
         templateId: agent.sessionTemplateId,
         lastKnownState: 'ready',
       });
-      return this.store.updateProject(project.id, { status: 'ready' });
+      this.store.updateProject(projectId, { status: 'ready' });
+      this.notify.projectState(projectId, 'ready');
     } catch {
-      return this.store.updateProject(project.id, { status: 'error' });
+      this.store.updateProject(projectId, { status: 'error' });
+      this.notify.projectState(projectId, 'error');
     }
+  }
+
+  /** PATCH archive semantics: archiving stops the session (08 §1, FR-30). */
+  async archiveProject(projectId: string): Promise<Project> {
+    const project = this.store.getProject(projectId);
+    if (!project) throw new OrchestratorError('not_found', `project ${projectId}`);
+    if (project.sessionBinding.sessionId) {
+      try {
+        await this.execPort.stopSession(project.sessionBinding.sessionId);
+        this.store.setProjectSession(projectId, { lastKnownState: 'stopped' });
+      } catch {
+        // the substrate remains the authority on session state (06 §2)
+      }
+    }
+    const updated = this.store.updateProject(projectId, { status: 'archived' });
+    this.notify.projectState(projectId, 'archived');
+    return updated;
   }
 
   createConversation(input: {
@@ -137,6 +176,7 @@ export class Orchestrator {
       caps: agent.defaultCaps,
       policy: agent.allowedTools,
     });
+    this.notify.runState(conversationId, { runId: result.run.id, state: 'queued' });
     this.pump(conversation.projectId);
     const run = this.store.getRun(result.run.id) ?? result.run;
     return { message: result.message, run };
@@ -146,6 +186,7 @@ export class Orchestrator {
   pump(projectId: string): void {
     const run = this.store.dispatchNextRun(projectId);
     if (!run) return;
+    this.notify.runState(run.conversationId, { runId: run.id, state: 'starting' });
     const promise = this.executeRun(run)
       .catch(() => {
         // executeRun finalizes its own failures; a throw here is a bug guard
@@ -204,6 +245,7 @@ export class Orchestrator {
     // tx 1 per run: stage every in-flight run to interrupted
     for (const run of this.store.listRunsByState(['starting', 'streaming'])) {
       this.store.transitionRun(run.id, run.state, 'interrupted');
+      this.notify.runState(run.conversationId, { runId: run.id, state: 'interrupted' });
     }
     // network probe between the two transactions; tx 2 resolves
     for (const run of this.store.listRunsByState(['interrupted'])) {
@@ -302,9 +344,15 @@ export class Orchestrator {
 
     const ingest = (type: NewRunEvent['type'], payload: unknown): void => {
       seq += 1;
-      this.store.ingestEvents(run.id, [
-        { id: `ev_${run.id}_${seq}`, seq, type, payload, ts: this.now() },
-      ]);
+      const event = { id: `ev_${run.id}_${seq}`, seq, type, payload, ts: this.now() };
+      const { inserted } = this.store.ingestEvents(run.id, [event]);
+      if (inserted === 1 && (type === 'output' || type === 'tool_use' || type === 'permission_denial')) {
+        // the cursor was just bumped for this row — its index is cursor-1
+        const index = this.store.getSseCursor(conversation.id) - 1;
+        this.notify.replayable(conversation.id, run.messageId, [
+          { index, event: { ...event, runId: run.id } },
+        ]);
+      }
     };
 
     try {
@@ -316,6 +364,7 @@ export class Orchestrator {
               pgid: item.pgid,
               seamRequestId: item.requestId,
             });
+            this.notify.runState(conversation.id, { runId: run.id, state: 'streaming' });
             ingest('started', {
               execId: item.execId,
               pgid: item.pgid,
@@ -464,7 +513,7 @@ export class Orchestrator {
       runtimeSessionId: opts.runtimeSessionId,
       endedAt,
     });
-    this.store.finalizeRun({
+    const finalRun = this.store.finalizeRun({
       runId: run.id,
       from,
       to,
@@ -475,6 +524,17 @@ export class Orchestrator {
       ...(opts.errorDetail ? { errorDetail: opts.errorDetail } : {}),
       ...(opts.killOutcome ? { killOutcome: opts.killOutcome } : {}),
     });
+    // terminal projections, after the transaction (08 §3)
+    this.notify.runState(run.conversationId, {
+      runId: run.id,
+      state: finalRun.state,
+      errorCode: finalRun.errorCode,
+      killOutcome: finalRun.killOutcome,
+      sweepResult: finalRun.sweepResult,
+    });
+    const usageRecord = this.store.getUsage(run.id);
+    if (usageRecord) this.notify.usage(run.conversationId, usageRecord);
+    this.notify.summary(run.conversationId, summary);
   }
 
   private excerpts(stderr: string[]): string[] {

@@ -36,6 +36,8 @@ interface ExecState {
 export interface FakeExecPortOptions {
   /** awaited between seam events; lets tests pace/cancel mid-stream. */
   gate?: () => Promise<void>;
+  /** fallback when the queue is empty (e.g. dev-server fixture cycling). */
+  fixtureProvider?: () => ExecFixture;
 }
 
 export class FakeSubstrateExecPort implements SubstrateExecPort {
@@ -44,12 +46,20 @@ export class FakeSubstrateExecPort implements SubstrateExecPort {
   private readonly queue: ExecFixture[] = [];
   private readonly execs = new Map<string, ExecState>();
   private readonly gate: () => Promise<void>;
+  private readonly fixtureProvider: (() => ExecFixture) | undefined;
   /** every exec request the port received, for assertions */
   readonly execRequests: Array<{ sessionId: string; req: ExecRequest }> = [];
   readonly seededSessions: Array<{ templateId: string; seed: SessionSeed }> = [];
+  readonly stoppedSessions: string[] = [];
 
   constructor(opts: FakeExecPortOptions = {}) {
     this.gate = opts.gate ?? (() => Promise.resolve());
+    this.fixtureProvider = opts.fixtureProvider;
+  }
+
+  stopSession(sessionId: string): Promise<void> {
+    this.stoppedSessions.push(sessionId);
+    return Promise.resolve();
   }
 
   /** Tests enqueue the fixture each subsequent exec will replay. */
@@ -64,7 +74,7 @@ export class FakeSubstrateExecPort implements SubstrateExecPort {
   }
 
   async *exec(sessionId: string, req: ExecRequest): AsyncIterable<SeamEvent> {
-    const fixture = this.queue.shift();
+    const fixture = this.queue.shift() ?? this.fixtureProvider?.();
     if (!fixture) throw new Error('FakeSubstrateExecPort: no fixture enqueued');
     this.execCounter += 1;
     const execId = `fakeexec_${this.execCounter}`;
