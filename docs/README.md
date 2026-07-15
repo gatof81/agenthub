@@ -8,8 +8,10 @@ re-verify before relying on them after that repo moves.
 
 ## Document index
 
-The only doc not yet started (14) is listed so the index shows the whole shape.
-Unwritten docs are intentionally not linked (link check runs in CI).
+All specification documents are now drafted; every index row links to its doc.
+**Status** is the document's maturity, not its PR state: `draft — review` means
+written and merged to `main`, pending the owner's approval for the quality
+gates. The work plan below tracks per-PR/build progress separately.
 
 | Doc | Status | Depends on |
 | --- | --- | --- |
@@ -26,12 +28,12 @@ Unwritten docs are intentionally not linked (link check runs in CI).
 | [11-ux-specification.md](./11-ux-specification.md) | merged | 05 (frontend framework decided here) |
 | [12-mvp-implementation-plan.md](./12-mvp-implementation-plan.md) | draft — review | 07–11 |
 | [13-testing-strategy.md](./13-testing-strategy.md) | draft — review | 04, 08–12 |
-| `14-observability-and-operations.md` | not started | 07 |
+| [14-observability-and-operations.md](./14-observability-and-operations.md) | draft — review | 07 |
 | [15-open-questions.md](./15-open-questions.md) | draft — review | — |
 | [16-risk-register.md](./16-risk-register.md) | draft — review | — |
 | [adr/](./adr/README.md) | ADR-001..005 all accepted | see adr/README.md |
 
-**Reading order for this review round:** 13 (earlier rounds: 01 → 02 → 03
+**Reading order for this review round:** 14 (earlier rounds: 01 → 02 → 03
 → 15 → 16 → ADRs → spike results → 04 → 05).
 
 ## Decisions requested now
@@ -43,7 +45,7 @@ No decision is blocking right now. Q-01/Q-02/Q-04/Q-05/Q-08/Q-10 are resolved
 (#387) shipped and deployed; **Increment 2 is unblocked** and R-08 is closed).
 S-01 and S-03 both executed 2026-07-14; ADR-001..005 are accepted.
 Owner housekeeping: the scratch D1 `agenthub-s03-scratch` can be deleted.
-Next work-plan step: observability (14), then the Phase-1 backlog.
+Next work-plan step: the Phase-1 backlog + quality-gate review — the final specification step.
 
 ## Architecture decision records
 
@@ -85,7 +87,7 @@ numbers are noted per item as they land, since the two drift.
 10. Security threat model (10) — **merged (GitHub #16)**.
 11. UX specification (11) — **merged (GitHub #17)**; Q-06 resolved: React + Vite.
 12. MVP implementation plan (12) — **merged (GitHub #18)**; fake-runtime increment first.
-13. Testing strategy (13) — **drafted (GitHub #19), in review** · observability (14).
+13. Testing strategy (13) — **merged (GitHub #19)** · observability (14) — **drafted (GitHub #20), in review**.
 14. Phase-1 backlog + quality-gate review → implementation may start.
 
 ## Quality gates (implementation may not start before all pass)
@@ -103,6 +105,10 @@ numbers are noted per item as they land, since the two drift.
 - Mitigations accepted for every MVP-phase risk in 16 marked open
 
 ## Changelog
+
+- **2026-07-14** — Doc 14 (observability & operations: correlation-id
+  logging, backup-freshness alert, operator runbooks) drafted (GitHub #20).
+  Doc 13 merged.
 
 - **2026-07-14** — Doc 13 (testing strategy: fixture-driven offline CI,
   contract-test spine, security-derived tests from threat model) drafted
