@@ -29,6 +29,7 @@ Goal: the full spine offline and deterministic (12 §Increment 1).
 | B1-09 | SSE projection + `Last-Event-ID` replay | 08 §3, ADR-004, NFR-07 | reconnect-with-gap test green (13 §4) |
 | B1-10 | React + Vite frontend slice (project → conversation → send → stream → activity → summary → cancel) | 11, UX-01..06 | Mac layout drives the fake end-to-end; iPhone single-column renders the same data |
 | B1-11 | Module-boundary lint | 07 §2, R-10 | dependency-arrow violations fail CI |
+| B1-12 | Command palette (create project/conversation, send, cancel, jump, toggle panels; action set settled against 08 §1 per 11 §8) | 11 §4, UX-07 | palette actions drive the same flows as the pointer UI against the fake backend |
 
 **Increment-1 done:** create project (fake session) → send → fixture-driven
 run streams → activity + summary → cancel, entirely offline, deterministic in
