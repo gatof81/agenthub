@@ -127,6 +127,10 @@ in progress (doc 17).
   marker, TERM→KILLs escaped Bash-tool children, and the result lands in
   the same terminal transaction (`Run.sweepResult` + SSE notification);
   sweep failure degrades to a summary warning — the cancel stands.
+  **Live-verified on the deployment host**: a cancel mid-Bash-tool-call
+  recorded `killOutcome: terminated` (lost pre-fix) and the sweep found
+  and killed the two escaped processes (tool shell + its 120 s `node`
+  child — the exact S-01 escape), zero survivors.
 
 - **2026-07-15** — **Two-level sidebar IA + contrast pass** (owner UX
   feedback on the B1-10 UI): projects home vs in-project context with a
