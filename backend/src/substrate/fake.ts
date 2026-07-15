@@ -38,6 +38,13 @@ export interface FakeExecPortOptions {
   gate?: () => Promise<void>;
   /** fallback when the queue is empty (e.g. dev-server fixture cycling). */
   fixtureProvider?: () => ExecFixture;
+  /**
+   * Awaited before the kill RESPONSE returns — the process dies first
+   * (state.killed is already set), reproducing the real seam's
+   * kill-outcome race where the stream's exit(killed) beats the kill
+   * round-trip (B3-01).
+   */
+  killResponseGate?: () => Promise<void>;
 }
 
 export class FakeSubstrateExecPort implements SubstrateExecPort {
@@ -47,6 +54,7 @@ export class FakeSubstrateExecPort implements SubstrateExecPort {
   private readonly execs = new Map<string, ExecState>();
   private readonly gate: () => Promise<void>;
   private readonly fixtureProvider: (() => ExecFixture) | undefined;
+  private readonly killResponseGate: (() => Promise<void>) | undefined;
   /** every exec request the port received, for assertions */
   readonly execRequests: Array<{ sessionId: string; req: ExecRequest }> = [];
   readonly seededSessions: Array<{ templateId: string; seed: SessionSeed }> = [];
@@ -55,6 +63,7 @@ export class FakeSubstrateExecPort implements SubstrateExecPort {
   constructor(opts: FakeExecPortOptions = {}) {
     this.gate = opts.gate ?? (() => Promise.resolve());
     this.fixtureProvider = opts.fixtureProvider;
+    this.killResponseGate = opts.killResponseGate;
   }
 
   stopSession(sessionId: string): Promise<void> {
@@ -126,10 +135,15 @@ export class FakeSubstrateExecPort implements SubstrateExecPort {
     );
   }
 
-  kill(_sessionId: string, execId: string, _graceMs: number): Promise<{ outcome: KillOutcome }> {
+  async kill(
+    _sessionId: string,
+    execId: string,
+    _graceMs: number,
+  ): Promise<{ outcome: KillOutcome }> {
     const state = this.execs.get(execId);
-    if (!state || state.exited) return Promise.resolve({ outcome: 'already-exited' });
+    if (!state || state.exited) return { outcome: 'already-exited' };
     state.killed = true;
-    return Promise.resolve({ outcome: 'terminated' });
+    await this.killResponseGate?.();
+    return { outcome: 'terminated' };
   }
 }

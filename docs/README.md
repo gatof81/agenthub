@@ -92,7 +92,8 @@ numbers are noted per item as they land, since the two drift.
 14. Phase-1 backlog (17) + quality-gate review — **merged (GitHub #21)**.
 15. Second direction review: collaboration model (18) + amendments — **merged (GitHub #22)**; owner approved docs 01–18 (gates passed, GitHub #23 records it).
 16. **Increment 1 — fake-runtime spine, complete**: backend B1-01..09 + B1-11 + BX-01 (GitHub #26), frontend B1-10 (GitHub #27), command palette B1-12 (GitHub #28).
-17. **Increment 2 — real substrate + real Claude, COMPLETE**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29); B2-02 real session provisioning (GitHub #30); B2-03 real `claude-cli` adapter + B2-04 real-vs-fake contract test (GitHub #31); B2-05 composition-root wiring + token hygiene (GitHub #32) + agentSeed wire fix and **live end-to-end acceptance passed on the deployment host** (GitHub #33). **Next: Increment 3 (hardening, B3-01..07).**
+17. **Increment 2 — real substrate + real Claude, COMPLETE**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29); B2-02 real session provisioning (GitHub #30); B2-03 real `claude-cli` adapter + B2-04 real-vs-fake contract test (GitHub #31); B2-05 composition-root wiring + token hygiene (GitHub #32) + agentSeed wire fix and **live end-to-end acceptance passed on the deployment host** (GitHub #33). Two-level sidebar + contrast pass on owner UX feedback (GitHub #34).
+18. **Increment 3 — hardening, in progress**: B3-01 cancellation (kill-outcome race fix + FR-21 post-cancel sweep, GitHub #35). Next: B3-02 boot-reconciliation crash-point tests.
 
 ## Quality gates
 
@@ -115,6 +116,17 @@ in progress (doc 17).
 | MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | **passed** (owner, 2026-07-15) |
 
 ## Changelog
+
+- **2026-07-15** — **B3-01 cancellation hardening** (Increment 3 starts):
+  the kill-outcome race found by the live acceptance is closed — terminal
+  resolution now AWAITS the in-flight kill round-trip instead of reading
+  an outcome map the response may not have reached (reproduced offline
+  with a kill-response gate on the fake port; that test fails without the
+  fix). FR-21 post-cancel sweep implemented per ADR-003: a bounded
+  follow-up exec scans process environs for the run's `HUB_RUN_ID`
+  marker, TERM→KILLs escaped Bash-tool children, and the result lands in
+  the same terminal transaction (`Run.sweepResult` + SSE notification);
+  sweep failure degrades to a summary warning — the cancel stands.
 
 - **2026-07-15** — **Two-level sidebar IA + contrast pass** (owner UX
   feedback on the B1-10 UI): projects home vs in-project context with a
