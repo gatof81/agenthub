@@ -9,6 +9,9 @@ re-verify before relying on them after that repo moves.
 ## Document index
 
 All specification documents are now drafted; every index row links to its doc.
+**Status** is the document's maturity, not its PR state: `draft — review` means
+written and merged to `main`, pending the owner's approval for the quality
+gates. The work plan below tracks per-PR/build progress separately.
 
 | Doc | Status | Depends on |
 | --- | --- | --- |
