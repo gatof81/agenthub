@@ -30,8 +30,10 @@ export default tseslint.config(
       ],
     },
     rules: {
-      // The 07 §2 arrows, verbatim: api→orch, api→store, orch→rt, orch→store,
-      // rt→sub, bk→store; config feeds api/orch/rt/sub; domain depends on nothing.
+      // The 07 §2 arrows plus universal leaf access:
+      // api→orch, api→store, orch→rt, orch→store, rt→sub, bk→store; config
+      // feeds api/orch/rt/sub; every module may import domain (and config,
+      // where listed); domain depends on nothing.
       'boundaries/element-types': [
         'error',
         {
