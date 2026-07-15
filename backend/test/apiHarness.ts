@@ -31,7 +31,10 @@ export interface ApiHarness {
   broadcaster: Broadcaster;
 }
 
-export function makeApiHarness(gate?: () => Promise<void>): ApiHarness {
+export function makeApiHarness(
+  gate?: () => Promise<void>,
+  opts: { heartbeatMs?: number } = {},
+): ApiHarness {
   const store = new MemoryHubStore();
   const port = new FakeSubstrateExecPort(gate ? { gate } : {});
   const broadcaster = new Broadcaster();
@@ -48,7 +51,7 @@ export function makeApiHarness(gate?: () => Promise<void>): ApiHarness {
     agents: new Map([[DEV_AGENT.id, DEV_AGENT]]),
     broadcaster,
     authToken: TEST_TOKEN,
-    heartbeatMs: 3600_000, // effectively off in tests
+    heartbeatMs: opts.heartbeatMs ?? 3600_000, // effectively off in tests by default
   });
   return { app, store, port, orch, broadcaster };
 }

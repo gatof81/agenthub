@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "react": "^19.2.7",
@@ -17,7 +18,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "typescript": "^7.0.2",
-    "vite": "^8.1.4"
+    "vite": "^8.1.4",
+    "vitest": "^3.2.7"
   },
   "private": true,
   "type": "module"
