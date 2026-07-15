@@ -28,6 +28,7 @@ import type {
   Project,
   Run,
   RunErrorCode,
+  SweepResult,
   TerminalRunState,
   UsageSource,
 } from '../domain/types.js';
@@ -60,6 +61,35 @@ const STDERR_EXCERPT_MAX = 500;
 const STDERR_EXCERPTS_MAX = 5;
 const KILL_GRACE_MS = 5000;
 
+/** Post-cancel sweep exec wall-clock cap (FR-21). */
+const SWEEP_MAX_MS = 15_000;
+
+/**
+ * Runs inside the session container as `bash -c <script> hub_sweep <runId>`.
+ * Lists pids whose environ carries the exact HUB_RUN_ID marker, TERMs them,
+ * waits, KILLs the stubborn, and reports `HUB_SWEEP|<found>|<post-term>|<final>`
+ * (space-separated pid lists). Self-excluded via $$; the sweep exec itself
+ * carries no HUB_RUN_ID env.
+ */
+const SWEEP_SCRIPT = `
+MARK="HUB_RUN_ID=$1"
+list() {
+  for e in /proc/[0-9]*/environ; do
+    p="\${e#/proc/}"; p="\${p%/environ}"
+    [ "$p" = "$$" ] && continue
+    if tr "\\0" "\\n" < "$e" 2>/dev/null | grep -qxF "$MARK"; then printf "%s " "$p"; fi
+  done
+}
+FOUND="$(list)"
+for p in $FOUND; do kill -TERM "$p" 2>/dev/null || true; done
+[ -n "$FOUND" ] && sleep 2
+REMAIN="$(list)"
+for p in $REMAIN; do kill -KILL "$p" 2>/dev/null || true; done
+[ -n "$REMAIN" ] && sleep 1
+FINAL="$(list)"
+echo "HUB_SWEEP|\${FOUND% }|\${REMAIN% }|\${FINAL% }"
+`;
+
 export class Orchestrator {
   private readonly store: HubStore;
   private readonly adapter: RuntimeAdapter;
@@ -71,7 +101,15 @@ export class Orchestrator {
 
   private readonly inFlight = new Map<string, Promise<void>>();
   private readonly cancelRequested = new Set<string>();
-  private readonly killOutcomes = new Map<string, KillOutcome>();
+  /**
+   * In-flight kill round-trips (B3-01). The seam kills the process group
+   * and the stream can emit its `exit(killed)` and END before the kill
+   * HTTP response returns — reading a plain outcome map at stream end
+   * loses the outcome (found by the Increment-2 live acceptance; the
+   * fake's synchronous kill never loses that race). Terminal resolution
+   * AWAITS the pending promise instead.
+   */
+  private readonly pendingKills = new Map<string, Promise<KillOutcome | undefined>>();
 
   constructor(deps: OrchestratorDeps) {
     this.store = deps.store;
@@ -227,12 +265,18 @@ export class Orchestrator {
       if (run.execId) {
         const conversation = this.store.getConversation(run.conversationId)!;
         const project = this.store.getProject(conversation.projectId)!;
-        const { outcome } = await this.adapter.kill(
+        const pending = this.adapter.kill(
           project.sessionBinding.sessionId!,
           run.execId,
           KILL_GRACE_MS,
         );
-        this.killOutcomes.set(runId, outcome);
+        // registered BEFORE awaiting so terminal resolution can await it
+        // even when the stream ends first (kill-outcome race, B3-01)
+        this.pendingKills.set(
+          runId,
+          pending.then((r) => r.outcome).catch(() => undefined),
+        );
+        await pending; // kill API errors still surface to the caller
       }
       return;
     }
@@ -371,9 +415,13 @@ export class Orchestrator {
               requestId: item.requestId,
             });
             // a cancel that arrived while starting lands now that we have an id
-            if (this.cancelRequested.has(run.id) && !this.killOutcomes.has(run.id)) {
-              const { outcome } = await this.adapter.kill(sessionId, item.execId, KILL_GRACE_MS);
-              this.killOutcomes.set(run.id, outcome);
+            if (this.cancelRequested.has(run.id) && !this.pendingKills.has(run.id)) {
+              const pending = this.adapter.kill(sessionId, item.execId, KILL_GRACE_MS);
+              this.pendingKills.set(
+                run.id,
+                pending.then((r) => r.outcome).catch(() => undefined),
+              );
+              await pending.catch(() => {}); // stream teardown reports the state
             }
             break;
           case 'init':
@@ -427,16 +475,25 @@ export class Orchestrator {
     const cancelled =
       this.cancelRequested.has(run.id) || exitMeta?.reason === 'killed';
     this.cancelRequested.delete(run.id);
-    const killOutcome = this.killOutcomes.get(run.id);
-    this.killOutcomes.delete(run.id);
+    // the kill round-trip may still be in flight when the stream ends —
+    // await it so the outcome is never lost (B3-01 race)
+    const killOutcome = await this.pendingKills.get(run.id);
+    this.pendingKills.delete(run.id);
 
     if (cancelled) {
+      // FR-21: sweep for Bash-tool children that escaped the process
+      // group (S-01) before sealing the run, so sweepResult lands in the
+      // same terminal transaction
+      const warnings = this.excerpts(stderr);
+      const swept = await this.sweep(sessionId, run.id);
+      if (swept.warning) warnings.push(swept.warning);
       // killed runs emit no result event → usage unknown (FR-18, S-01)
       this.finalize(current, from, 'cancelled', {
         usageSource: 'cancelled-unknown',
         ...(killOutcome ? { killOutcome } : {}),
+        ...(swept.result ? { sweepResult: swept.result } : {}),
         userMessageContent: message.content,
-        warnings: this.excerpts(stderr),
+        warnings,
         runtimeSessionId,
       });
       return;
@@ -496,6 +553,7 @@ export class Orchestrator {
       errorCode?: RunErrorCode;
       errorDetail?: string;
       killOutcome?: KillOutcome;
+      sweepResult?: SweepResult;
       userMessageContent: string;
       warnings: string[];
       runtimeSessionId: string | null;
@@ -523,6 +581,7 @@ export class Orchestrator {
       ...(opts.errorCode ? { errorCode: opts.errorCode } : {}),
       ...(opts.errorDetail ? { errorDetail: opts.errorDetail } : {}),
       ...(opts.killOutcome ? { killOutcome: opts.killOutcome } : {}),
+      ...(opts.sweepResult ? { sweepResult: opts.sweepResult } : {}),
     });
     // terminal projections, after the transaction (08 §3)
     this.notify.runState(run.conversationId, {
@@ -535,6 +594,53 @@ export class Orchestrator {
     const usageRecord = this.store.getUsage(run.id);
     if (usageRecord) this.notify.usage(run.conversationId, usageRecord);
     this.notify.summary(run.conversationId, summary);
+  }
+
+  /**
+   * FR-21 / ADR-003: a short follow-up exec in the same session scans
+   * every process's environ for the run's HUB_RUN_ID marker (inherited by
+   * all descendants, including Bash-tool children that escaped the process
+   * group), TERM→KILLs survivors, and reports pids. Uses the raw exec
+   * port (this is plumbing, not a runtime turn) and carries NO env of its
+   * own. Failure degrades to a warning — the cancel itself already stands.
+   */
+  private async sweep(
+    sessionId: string,
+    runId: string,
+  ): Promise<{ result?: SweepResult; warning?: string }> {
+    try {
+      let stdout = '';
+      const exec = this.execPort.exec(sessionId, {
+        // runId rides as a positional parameter — never shell-interpreted
+        argv: ['bash', '-c', SWEEP_SCRIPT, 'hub_sweep', runId],
+        maxDurationMs: SWEEP_MAX_MS,
+      });
+      for await (const event of exec) {
+        if (event.type === 'output' && event.stream === 'stdout') stdout += event.data;
+        if (event.type === 'error') {
+          return { warning: `post-cancel sweep failed: ${event.message}` };
+        }
+      }
+      const report = stdout
+        .split('\n')
+        .reverse()
+        .find((l) => l.startsWith('HUB_SWEEP|'));
+      if (!report) return { warning: 'post-cancel sweep produced no report' };
+      const [, foundRaw = '', , finalRaw = ''] = report.split('|');
+      const found = foundRaw.split(' ').filter(Boolean);
+      const survivors = finalRaw.split(' ').filter(Boolean);
+      return {
+        result: {
+          matched: found.length,
+          killed: found.filter((pid) => !survivors.includes(pid)),
+          survivors,
+        },
+      };
+    } catch (err) {
+      return {
+        warning: `post-cancel sweep failed: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
   }
 
   private excerpts(stderr: string[]): string[] {

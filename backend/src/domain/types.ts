@@ -106,7 +106,7 @@ export interface Message {
 
 /** Post-cancel sweep outcome (FR-21, ADR-003). */
 export interface SweepResult {
-  scanned: number;
+  matched: number;
   killed: string[];
   survivors: string[];
 }

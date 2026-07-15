@@ -57,7 +57,7 @@ Goal: survive the failure modes (12 §Increment 3, UC-06/07/08).
 
 | ID | Item | Traces | Done when |
 | --- | --- | --- | --- |
-| B3-01 | Cancellation + post-cancel sweep (`HUB_RUN_ID` scan) | FR-20/21, ADR-003 | escaping Bash-tool child is swept; outcome authoritative over `reason`; **fix the kill-outcome race found by the Increment-2 live acceptance** (the kill round-trip can resolve after the stream's `exit(killed)` ends the run, so `killOutcome` is read before it is recorded — state lands `cancelled` correctly, the diagnostic field is lost; the fake's synchronous kill always wins that race, which is why offline tests can't see it) |
+| B3-01 | Cancellation + post-cancel sweep (`HUB_RUN_ID` scan) | FR-20/21, ADR-003 | escaping Bash-tool child is swept; outcome authoritative over `reason`; fix the kill-outcome race found by the Increment-2 live acceptance (kill round-trip vs stream end — the fake's synchronous kill masks it) — **met 2026-07-15, live-verified on the deployment host**: cancel mid-Bash-tool-call recorded `killOutcome: terminated` and the sweep found the two escaped processes (tool shell + its 120 s `node` child — the exact S-01 scenario), killed both, zero survivors |
 | B3-02 | Boot reconciliation (two-transaction) + queue rebuild | FR-23, UC-06, 09 §3 | crash-point tests heal to a legal state |
 | B3-03 | SSE resilience (reconnect + REST recovery, mobile backgrounding) | 11 §5, NFR-07 | backgrounding reconnect is normal, not an error |
 | B3-04 | Backup pipeline (`VACUUM INTO` → R2) + freshness gauge | OPS-01/02, R-16 | automated restore drill green (13 §4); freshness on `/api/health` |

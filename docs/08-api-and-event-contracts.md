@@ -103,7 +103,7 @@ that misses everything can rebuild from `GET /api/runs/:id`,
   marker) — validated against the seam's env rules before dispatch.
 - Post-cancel sweep: follow-up exec scanning `/proc/*/environ` for
   `HUB_RUN_ID=<runId>`; TERM→poll→KILL survivors; report
-  `{scanned, killed[], survivors[]}` into `Run.sweepResult`.
+  `{matched, killed[], survivors[]}` into `Run.sweepResult`.
 - Exec `maxDurationMs` = run wall-clock cap; kill `graceMs` = 5000.
 
 ## 5. Initial agent allowlist (Q-02 deliverable)
