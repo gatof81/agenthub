@@ -4,10 +4,11 @@
  * components collapse to the iPhone single-column flow via CSS (UX-07).
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, clearToken, getToken, setToken, type Conversation, type Project } from './lib/api.js';
 import { Sidebar } from './components/Sidebar.js';
-import { Thread } from './components/Thread.js';
+import { Thread, type ThreadCommands } from './components/Thread.js';
+import { CommandPalette, type PaletteCommand } from './components/CommandPalette.js';
 
 function TokenGate({ onReady }: { onReady: () => void }): React.JSX.Element {
   const [value, setValue] = useState('');
@@ -49,6 +50,8 @@ export function App(): React.JSX.Element {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [threadCommands, setThreadCommands] = useState<ThreadCommands | null>(null);
 
   const refreshProjects = useCallback(async () => {
     const { projects } = await api.listProjects();
@@ -93,6 +96,77 @@ export function App(): React.JSX.Element {
     setSelectedConversation(conversation);
   }, [selectedProject]);
 
+  // ⌘K / Ctrl+K opens the command palette (11 §4, B1-12)
+  useEffect(() => {
+    if (!authed) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [authed]);
+
+  // the palette drives the same handlers as the pointer UI — no parallel paths
+  const paletteCommands = useMemo<PaletteCommand[]>(() => {
+    const cmds: PaletteCommand[] = [];
+    if (threadCommands) {
+      if (threadCommands.sendDraft)
+        cmds.push({ id: 'send', label: 'Send draft message', run: threadCommands.sendDraft });
+      if (threadCommands.cancelRun)
+        cmds.push({ id: 'cancel', label: 'Cancel active run', run: threadCommands.cancelRun });
+      cmds.push({ id: 'compose', label: 'Focus composer', run: threadCommands.focusComposer });
+      cmds.push({
+        id: 'inspector',
+        label: 'Toggle activity panel',
+        run: threadCommands.toggleInspector,
+      });
+    }
+    cmds.push({
+      id: 'new-project',
+      label: 'New project…',
+      input: { placeholder: 'Project name', run: (name) => void createProject(name) },
+    });
+    if (selectedProject?.status === 'ready') {
+      cmds.push({
+        id: 'new-conversation',
+        label: 'New conversation',
+        hint: selectedProject.name,
+        run: () => void createConversation(),
+      });
+    }
+    for (const p of projects) {
+      if (p.id === selectedProject?.id) continue;
+      cmds.push({
+        id: `jump-p-${p.id}`,
+        label: `Jump to project: ${p.name}`,
+        hint: p.status !== 'ready' ? p.status : undefined,
+        run: () => void openProject(p),
+      });
+    }
+    for (const c of conversations) {
+      if (c.id === selectedConversation?.id) continue;
+      cmds.push({
+        id: `jump-c-${c.id}`,
+        label: `Jump to conversation: ${c.title}`,
+        hint: selectedProject?.name,
+        run: () => setSelectedConversation(c),
+      });
+    }
+    return cmds;
+  }, [
+    threadCommands,
+    projects,
+    conversations,
+    selectedProject,
+    selectedConversation,
+    createProject,
+    createConversation,
+    openProject,
+  ]);
+
   if (!authed) return <TokenGate onReady={() => setAuthed(true)} />;
 
   return (
@@ -113,6 +187,7 @@ export function App(): React.JSX.Element {
           conversation={selectedConversation}
           projectStatus={selectedProject?.status ?? 'ready'}
           onBack={() => setSelectedConversation(null)}
+          registerCommands={setThreadCommands}
         />
       ) : (
         <main className="empty-state">
@@ -127,6 +202,11 @@ export function App(): React.JSX.Element {
           </p>
         </main>
       )}
+      <CommandPalette
+        open={paletteOpen}
+        commands={paletteCommands}
+        onClose={() => setPaletteOpen(false)}
+      />
     </div>
   );
 }

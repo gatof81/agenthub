@@ -69,6 +69,7 @@ export function Sidebar(props: Props): React.JSX.Element {
           </ul>
         </>
       )}
+      <p className="palette-hint muted">⌘K / Ctrl+K — commands</p>
     </nav>
   );
 }

@@ -148,8 +148,10 @@ evolution of one surface, never a Phase-1 deliverable.
 
 ## 8. Open UX questions (non-blocking)
 
-- Exact command-palette action set — settled during implementation against the
-  API surface (08 §1), not pre-enumerated here.
+- ~~Exact command-palette action set~~ — **settled by B1-12 (2026-07-15)**, as
+  planned, during implementation against the API surface (08 §1): send draft ·
+  cancel active run · focus composer · toggle activity panel · new project ·
+  new conversation · jump to project · jump to conversation.
 - Push-notification channel design — deferred with approvals (Phase 2+); the
   model already emits the right events (SSE `run.state`), only a push sink is
   missing (noted in the backlog).

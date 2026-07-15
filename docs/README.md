@@ -1,6 +1,6 @@
 # Agent Hub — documentation
 
-Specification workspace for Agent Hub. **The specification is complete and approved** (docs 01–18 approved by the owner on 2026-07-15; ADR-001..005 accepted; spikes S-01/S-03 executed; doc 18 is a non-normative vision companion). **All quality gates below have passed — implementation may start** (Increment 1, [17-phase1-backlog.md](./17-phase1-backlog.md)).
+Specification workspace for Agent Hub. **The specification is complete and approved** (docs 01–18 approved by the owner on 2026-07-15; ADR-001..005 accepted; spikes S-01/S-03 executed; doc 18 is a non-normative vision companion). **All quality gates below have passed. Increment 1 is complete** (B1-01..B1-12, [17-phase1-backlog.md](./17-phase1-backlog.md)); next is Increment 2 (real substrate + real Claude, B2-01..05).
 
 All repo artifacts are in English. Substrate facts are verified against
 [shared-terminal](https://github.com/gatof81/shared-terminal) at commit `36be2f2` unless noted;
@@ -46,7 +46,7 @@ No decision is blocking. Q-01/Q-02/Q-04/Q-05/Q-08/Q-10 are resolved
 S-01 and S-03 both executed 2026-07-14; ADR-001..005 are accepted.
 Owner housekeeping: the scratch D1 `agenthub-s03-scratch` can be deleted.
 **The owner approved docs 01–18 on 2026-07-15** — all quality gates are
-*passed* and implementation is unblocked (starting at Increment 1, doc 17).
+*passed*; implementation is underway (Increment 1 complete, doc 17).
 
 ## Architecture decision records
 
@@ -90,12 +90,14 @@ numbers are noted per item as they land, since the two drift.
 12. MVP implementation plan (12) — **merged (GitHub #18)**; fake-runtime increment first.
 13. Testing strategy (13) and observability (14) — **merged (#19, #20)**.
 14. Phase-1 backlog (17) + quality-gate review — **merged (GitHub #21)**.
-15. Second direction review: collaboration model (18) + amendments — **merged (GitHub #22)**; owner approved docs 01–18 (gates passed, this PR records it). **Next: Increment 1 (doc 17).**
+15. Second direction review: collaboration model (18) + amendments — **merged (GitHub #22)**; owner approved docs 01–18 (gates passed, GitHub #23 records it).
+16. **Increment 1 — fake-runtime spine, complete**: backend B1-01..09 + B1-11 + BX-01 (GitHub #26), frontend B1-10 (GitHub #27), command palette B1-12 (GitHub #28). **Next: Increment 2 (B2-01..05, doc 17).**
 
 ## Quality gates
 
 **All gates passed** — the owner approved the drafts (docs 01–18) on
-2026-07-15. Implementation may start (Increment 1, doc 17).
+2026-07-15. Implementation is underway: Increment 1 complete, Increment 2
+next (doc 17).
 
 | Gate | Artifact | State |
 | --- | --- | --- |
@@ -112,6 +114,14 @@ numbers are noted per item as they land, since the two drift.
 | MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | **passed** (owner, 2026-07-15) |
 
 ## Changelog
+
+- **2026-07-15** — **Increment 1 complete** (B1-01..B1-12): offline
+  backend spine — store/domain/orchestrator/fakes/API/SSE + module-boundary
+  lint (GitHub #26); React + Vite frontend, Mac three-pane + iPhone
+  single-column (GitHub #27); command palette, closing 11 §8's action-set
+  question (GitHub #28). Full spine runs offline and deterministic in CI
+  with no credentials present (13 §6). **Increment 2 (real substrate +
+  real Claude, B2-01..05) is next.**
 
 - **2026-07-15** — **Execution topology clarified** (owner's
   session-ownership question, analyzed — the spec already matched: ADR-005
