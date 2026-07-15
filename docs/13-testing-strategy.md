@@ -1,6 +1,6 @@
 # 13 — Testing Strategy (Phase 1)
 
-**Status:** draft — review · **Last updated:** 2026-07-14
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-14
 
 How Phase 1 is verified. The strategy follows from three properties already
 decided: ports have fakes as first-class peers (06 §4, A1), the S-01 fixtures

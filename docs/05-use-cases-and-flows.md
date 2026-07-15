@@ -1,6 +1,6 @@
 # 05 — Use Cases and Flows (Phase 1)
 
-**Status:** draft — review · **Last updated:** 2026-07-14
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-14
 
 Flows for the Phase-1 MVP, traceable to [04-requirements.md](./04-requirements.md).
 Participants: **UI** (frontend) · **Hub** (backend: API, run orchestrator,

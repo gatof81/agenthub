@@ -1,6 +1,6 @@
 # Agent Hub — documentation
 
-Specification workspace for Agent Hub. **The specification is complete** (docs 01–17, ADR-001..005, spikes S-01/S-03; doc 18 is a non-normative vision companion); the quality gates below are satisfied by drafted-and-merged artifacts, pending the owner's approval. No product code lands until that approval.
+Specification workspace for Agent Hub. **The specification is complete and approved** (docs 01–18 approved by the owner on 2026-07-15; ADR-001..005 accepted; spikes S-01/S-03 executed; doc 18 is a non-normative vision companion). **All quality gates below have passed — implementation may start** (Increment 1, [17-phase1-backlog.md](./17-phase1-backlog.md)).
 
 All repo artifacts are in English. Substrate facts are verified against
 [shared-terminal](https://github.com/gatof81/shared-terminal) at commit `36be2f2` unless noted;
@@ -8,45 +8,45 @@ re-verify before relying on them after that repo moves.
 
 ## Document index
 
-All specification documents are now drafted; every index row links to its doc.
-**Status** is the document's maturity, not its PR state: `draft — review` means
-written and merged to `main`, pending the owner's approval for the quality
-gates. The work plan below tracks per-PR/build progress separately.
+All specification documents are drafted and **approved** (owner, 2026-07-15);
+every index row links to its doc. **Status** is the document's maturity, not
+its PR state. The work plan below tracks per-PR/build progress separately.
 
 | Doc | Status | Depends on |
 | --- | --- | --- |
-| [01-product-brief.md](./01-product-brief.md) | draft — review | — |
-| [02-substrate-analysis.md](./02-substrate-analysis.md) | draft — review | — |
-| [03-scope-and-phases.md](./03-scope-and-phases.md) | draft — review | 01 |
-| [04-requirements.md](./04-requirements.md) | draft — review | 01, 03 approved |
-| [05-use-cases-and-flows.md](./05-use-cases-and-flows.md) | draft — review | 04 |
-| [06-domain-model.md](./06-domain-model.md) | draft — review | 04, 05 |
-| [07-architecture.md](./07-architecture.md) | draft — review | 06, ADR-001..004 |
-| [08-api-and-event-contracts.md](./08-api-and-event-contracts.md) | draft — review | 07, spike S-01 |
-| [09-persistence.md](./09-persistence.md) | draft — review | 06, ADR-002 |
-| [10-security-threat-model.md](./10-security-threat-model.md) | draft — review | 07, 16 |
-| [11-ux-specification.md](./11-ux-specification.md) | merged | 05 (frontend framework decided here) |
-| [12-mvp-implementation-plan.md](./12-mvp-implementation-plan.md) | draft — review | 07–11 |
-| [13-testing-strategy.md](./13-testing-strategy.md) | draft — review | 04, 08–12 |
-| [14-observability-and-operations.md](./14-observability-and-operations.md) | draft — review | 07 |
-| [15-open-questions.md](./15-open-questions.md) | draft — review | — |
-| [16-risk-register.md](./16-risk-register.md) | draft — review | — |
-| [17-phase1-backlog.md](./17-phase1-backlog.md) | draft — review | 12 |
-| [18-agent-collaboration-model.md](./18-agent-collaboration-model.md) | vision — non-normative (not gate-relevant) | 01, 03 |
+| [01-product-brief.md](./01-product-brief.md) | approved | — |
+| [02-substrate-analysis.md](./02-substrate-analysis.md) | approved | — |
+| [03-scope-and-phases.md](./03-scope-and-phases.md) | approved | 01 |
+| [04-requirements.md](./04-requirements.md) | approved | 01, 03 approved |
+| [05-use-cases-and-flows.md](./05-use-cases-and-flows.md) | approved | 04 |
+| [06-domain-model.md](./06-domain-model.md) | approved | 04, 05 |
+| [07-architecture.md](./07-architecture.md) | approved | 06, ADR-001..004 |
+| [08-api-and-event-contracts.md](./08-api-and-event-contracts.md) | approved | 07, spike S-01 |
+| [09-persistence.md](./09-persistence.md) | approved | 06, ADR-002 |
+| [10-security-threat-model.md](./10-security-threat-model.md) | approved | 07, 16 |
+| [11-ux-specification.md](./11-ux-specification.md) | approved | 05 (frontend framework decided here) |
+| [12-mvp-implementation-plan.md](./12-mvp-implementation-plan.md) | approved | 07–11 |
+| [13-testing-strategy.md](./13-testing-strategy.md) | approved | 04, 08–12 |
+| [14-observability-and-operations.md](./14-observability-and-operations.md) | approved | 07 |
+| [15-open-questions.md](./15-open-questions.md) | approved | — |
+| [16-risk-register.md](./16-risk-register.md) | approved | — |
+| [17-phase1-backlog.md](./17-phase1-backlog.md) | approved | 12 |
+| [18-agent-collaboration-model.md](./18-agent-collaboration-model.md) | approved — vision, non-normative (not gate-relevant) | 01, 03 |
 | [adr/](./adr/README.md) | ADR-001..005 all accepted | see adr/README.md |
 
-**Specification complete.** Suggested full read-through order: 01 → 02 → 03 → 18 → 15 → 16 → ADR-001..005 → spike results → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 17.
+**Specification complete and approved.** Suggested full read-through order: 01 → 02 → 03 → 18 → 15 → 16 → ADR-001..005 → spike results → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 17.
 
 ## Decisions requested now
 
 From [15-open-questions.md](./15-open-questions.md):
 
-No decision is blocking right now. Q-01/Q-02/Q-04/Q-05/Q-08/Q-10 are resolved
+No decision is blocking. Q-01/Q-02/Q-04/Q-05/Q-08/Q-10 are resolved
 (see doc 15 — Q-08 closed upstream 2026-07-14: exec API #385 and `Init: true`
 (#387) shipped and deployed; **Increment 2 is unblocked** and R-08 is closed).
 S-01 and S-03 both executed 2026-07-14; ADR-001..005 are accepted.
 Owner housekeeping: the scratch D1 `agenthub-s03-scratch` can be deleted.
-The specification is complete. The remaining act is the owner's approval of the drafts, which flips the quality gates from *satisfied-pending-approval* to *passed* and unblocks implementation (starting at Increment 1, doc 17).
+**The owner approved docs 01–18 on 2026-07-15** — all quality gates are
+*passed* and implementation is unblocked (starting at Increment 1, doc 17).
 
 ## Architecture decision records
 
@@ -89,29 +89,34 @@ numbers are noted per item as they land, since the two drift.
 11. UX specification (11) — **merged (GitHub #17)**; Q-06 resolved: React + Vite.
 12. MVP implementation plan (12) — **merged (GitHub #18)**; fake-runtime increment first.
 13. Testing strategy (13) and observability (14) — **merged (#19, #20)**.
-14. Phase-1 backlog (17) + quality-gate review — **drafted (GitHub #21)**; on approval, implementation may start.
+14. Phase-1 backlog (17) + quality-gate review — **merged (GitHub #21)**.
+15. Second direction review: collaboration model (18) + amendments — **merged (GitHub #22)**; owner approved docs 01–18 (gates passed, this PR records it). **Next: Increment 1 (doc 17).**
 
 ## Quality gates
 
-All gates are **satisfied by drafted-and-merged artifacts, pending the owner's
-approval** (see the maturity note under the index). On approval each flips to
-*passed* and implementation may start.
+**All gates passed** — the owner approved the drafts (docs 01–18) on
+2026-07-15. Implementation may start (Increment 1, doc 17).
 
 | Gate | Artifact | State |
 | --- | --- | --- |
-| Product brief approved | 01 | drafted, pending approval |
-| MVP scope approved | 03 | drafted, pending approval |
-| Architecture reviewed | 07 | drafted, pending approval |
-| Domain model validated | 06 | drafted, pending approval |
-| Initial threat model | 10 | drafted, pending approval |
-| Main contracts defined | 08 + exec contract (live upstream) | done |
-| Critical flows defined | 05 | drafted, pending approval |
-| Test & migration strategy | 13 | drafted, pending approval |
-| Phase-1 backlog exists | 17 | drafted, pending approval |
-| ADR-001..005 resolved; later ADRs at least drafted | all five accepted | done |
-| MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | drafted, pending approval |
+| Product brief approved | 01 | **passed** (owner, 2026-07-15) |
+| MVP scope approved | 03 | **passed** (owner, 2026-07-15) |
+| Architecture reviewed | 07 | **passed** (owner, 2026-07-15) |
+| Domain model validated | 06 | **passed** (owner, 2026-07-15) |
+| Initial threat model | 10 | **passed** (owner, 2026-07-15) |
+| Main contracts defined | 08 + exec contract (live upstream) | **passed** |
+| Critical flows defined | 05 | **passed** (owner, 2026-07-15) |
+| Test & migration strategy | 13 | **passed** (owner, 2026-07-15) |
+| Phase-1 backlog exists | 17 | **passed** (owner, 2026-07-15) |
+| ADR-001..005 resolved; later ADRs at least drafted | all five accepted | **passed** |
+| MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | **passed** (owner, 2026-07-15) |
 
 ## Changelog
+
+- **2026-07-15** — **Owner approved docs 01–18** (after the second direction
+  review merged, GitHub #22). All 11 quality gates flip to **passed**; doc
+  statuses flip to *approved*. **The specification phase is closed;
+  implementation starts at Increment 1 (doc 17).**
 
 - **2026-07-15** — **Second direction review** (owner's 12-idea conceptual
   revision, analyzed critically): half were already adopted by the 07-14

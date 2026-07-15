@@ -1,6 +1,6 @@
 # 18 — Agent Collaboration Model (vision)
 
-**Status:** vision — non-normative · **Last updated:** 2026-07-15
+**Status:** vision — non-normative (approved by owner, 2026-07-15) · **Last updated:** 2026-07-15
 
 How agents will collaborate as the phases unfold. This document is the
 **canonical home for the collaboration direction** — the place where the

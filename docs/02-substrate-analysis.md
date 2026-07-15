@@ -1,6 +1,6 @@
 # 02 — Substrate Analysis: shared-terminal
 
-**Status:** draft — review · **Last updated:** 2026-07-13
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-13
 **Verified against:** [gatof81/shared-terminal](https://github.com/gatof81/shared-terminal) `main` @ `36be2f2`.
 Every claim below cites a file (and line where useful) at that commit. Re-verify after the substrate moves.
 

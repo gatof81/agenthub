@@ -1,6 +1,6 @@
 # 07 — Architecture (Phase 1)
 
-**Status:** draft — review · **Last updated:** 2026-07-15
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-15
 
 How the Phase-1 system is put together: context, modules, runtime behavior,
 deployment, and the decisions that bind them. Domain names from

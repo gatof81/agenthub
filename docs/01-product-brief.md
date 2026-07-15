@@ -1,6 +1,6 @@
 # 01 — Product Brief
 
-**Status:** draft — review · **Last updated:** 2026-07-15
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-15
 
 > Curated from the kickoff specification. The original long-form brief (Spanish) has
 > not been supplied to this repo yet; if it surfaces, it is the source of truth for

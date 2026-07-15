@@ -1,6 +1,6 @@
 # 06 — Domain Model (Phase 1)
 
-**Status:** draft — review · **Last updated:** 2026-07-14
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-14
 
 The entities, relationships, and invariants behind
 [04-requirements.md](./04-requirements.md) and the flows in

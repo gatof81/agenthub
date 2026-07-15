@@ -1,6 +1,6 @@
 # 08 — API & Event Contracts (Phase 1)
 
-**Status:** draft — review · **Last updated:** 2026-07-14
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-14
 
 The Hub's own wire contracts: HTTP API, SSE projection, persisted `RunEvent`
 schema, the runner's command contract, the initial agent allowlist, and the
