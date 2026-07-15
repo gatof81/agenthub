@@ -9,7 +9,7 @@ import { R2SinkError, R2SnapshotSink } from '../src/backup/r2Sink.js';
 
 const OPTS = {
   endpoint: 'https://acct.r2.cloudflarestorage.com',
-  bucket: 'agenthub',
+  bucket: 'test-bucket',
   accessKeyId: 'AKIA-test',
   secretAccessKey: 'secret-test',
 };
@@ -30,7 +30,7 @@ describe('R2SnapshotSink', () => {
 
     await sink.put('snapshots/x.sqlite.gz', new Uint8Array([1, 2, 3]));
     expect(calls[0]!.method).toBe('PUT');
-    expect(calls[0]!.url).toBe('https://acct.r2.cloudflarestorage.com/agenthub/snapshots/x.sqlite.gz');
+    expect(calls[0]!.url).toBe('https://acct.r2.cloudflarestorage.com/test-bucket/snapshots/x.sqlite.gz');
     // SigV4 signing headers are present (aws4fetch)
     expect(calls[0]!.headers.get('authorization')).toMatch(/^AWS4-HMAC-SHA256 /);
     expect(calls[0]!.headers.get('x-amz-content-sha256')).toBeTruthy();

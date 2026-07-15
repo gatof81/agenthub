@@ -145,9 +145,12 @@ async function main(): Promise<void> {
 
   // clean-shutdown snapshot (09 §5) + graceful stop
   const shutdown = (): void => {
-    backupService?.stop();
-    void backupService?.snapshotOnce().finally(() => process.exit(0));
-    if (!backupService) process.exit(0);
+    if (!backupService) {
+      process.exit(0);
+      return;
+    }
+    backupService.stop();
+    void backupService.snapshotOnce().finally(() => process.exit(0));
   };
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
