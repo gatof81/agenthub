@@ -58,7 +58,7 @@ Goal: survive the failure modes (12 §Increment 3, UC-06/07/08).
 | ID | Item | Traces | Done when |
 | --- | --- | --- | --- |
 | B3-01 | Cancellation + post-cancel sweep (`HUB_RUN_ID` scan) | FR-20/21, ADR-003 | escaping Bash-tool child is swept; outcome authoritative over `reason`; fix the kill-outcome race found by the Increment-2 live acceptance (kill round-trip vs stream end — the fake's synchronous kill masks it) — **met 2026-07-15, live-verified on the deployment host**: cancel mid-Bash-tool-call recorded `killOutcome: terminated` and the sweep found the two escaped processes (tool shell + its 120 s `node` child — the exact S-01 scenario), killed both, zero survivors |
-| B3-02 | Boot reconciliation (two-transaction) + queue rebuild | FR-23, UC-06, 09 §3 | crash-point tests heal to a legal state |
+| B3-02 | Boot reconciliation (two-transaction) + queue rebuild | FR-23, UC-06, 09 §3 | crash-point tests heal to a legal state — **met 2026-07-15**: B1 built the probe skeleton; B3-02 adds mid-provisioning projects healing to `error` (UC-01 failure path), the FR-21 sweep on both boot kill paths (running→kill and the unknown/orphan branch), sweep-failure degradation, and a reconcile-idempotence test |
 | B3-03 | SSE resilience (reconnect + REST recovery, mobile backgrounding) | 11 §5, NFR-07 | backgrounding reconnect is normal, not an error |
 | B3-04 | Backup pipeline (`VACUUM INTO` → R2) + freshness gauge | OPS-01/02, R-16 | automated restore drill green (13 §4); freshness on `/api/health` |
 | B3-05 | Restore drill (production, once before exit) | OPS-03 | a prod snapshot restores into scratch and takes a turn |

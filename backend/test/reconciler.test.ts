@@ -134,9 +134,71 @@ describe('boot reconciliation (UC-06)', () => {
       caps: DEV_AGENT.defaultCaps,
       policy: DEV_AGENT.allowedTools,
     });
+    s.port.enqueueFixture({ streamLines: ['HUB_SWEEP|||'] }); // unknown-branch sweep (B3-02)
     s.port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
     await s.orch.reconcile();
     await s.orch.idle();
     expect(s.store.getRun(queued.id)!.state).toBe('completed');
+  });
+});
+
+describe('boot reconciliation hardening (B3-02)', () => {
+  it('a project caught mid-provisioning heals to error (UC-01 failure path)', async () => {
+    const s = seedInterrupted(false);
+    const stuck = s.store.createProject({ name: 'stuck', defaultAgentId: 'dev' });
+    expect(s.store.getProject(stuck.id)!.status).toBe('provisioning');
+    s.port.statusAnswer = { state: 'unknown' };
+    await s.orch.reconcile();
+    expect(s.store.getProject(stuck.id)!.status).toBe('error');
+    // healthy projects untouched
+    expect(s.store.getProject(s.projectId)!.status).toBe('ready');
+  });
+
+  it('the running→kill branch sweeps for escaped children (FR-21 applies at boot too)', async () => {
+    const s = seedInterrupted(false);
+    s.port.statusAnswer = { state: 'running' };
+    s.port.enqueueFixture({ streamLines: ['HUB_SWEEP|55 56|56|'] }); // the sweep exec
+    await s.orch.reconcile();
+    const run = s.store.getRun(s.runId)!;
+    expect(run.state).toBe('cancelled');
+    expect(run.sweepResult).toEqual({ matched: 2, killed: ['55', '56'], survivors: [] });
+    const sweepExec = s.port.execRequests.at(-1)!;
+    expect(sweepExec.req.argv[3]).toBe('hub_sweep');
+    expect(sweepExec.req.argv[4]).toBe(s.runId);
+  });
+
+  it('the unknown branch sweeps too — the one orphan mitigation available', async () => {
+    const s = seedInterrupted(false);
+    s.port.statusAnswer = { state: 'unknown' };
+    s.port.enqueueFixture({ streamLines: ['HUB_SWEEP|77|77|77'] }); // stubborn orphan
+    await s.orch.reconcile();
+    const run = s.store.getRun(s.runId)!;
+    expect(run.state).toBe('failed');
+    expect(run.sweepResult).toEqual({ matched: 1, killed: [], survivors: ['77'] });
+  });
+
+  it('sweep failure at boot degrades to a warning; the resolution stands', async () => {
+    const s = seedInterrupted(false);
+    s.port.statusAnswer = { state: 'running' };
+    // no sweep fixture → the sweep exec throws inside the port
+    await s.orch.reconcile();
+    const run = s.store.getRun(s.runId)!;
+    expect(run.state).toBe('cancelled');
+    expect(run.sweepResult).toBeNull();
+    const summary = s.store.getSummary(s.runId)!;
+    expect(summary.warnings.some((w) => w.includes('post-cancel sweep'))).toBe(true);
+  });
+
+  it('reconcile is idempotent: a second pass changes nothing and issues no execs', async () => {
+    const s = seedInterrupted(false);
+    s.port.statusAnswer = { state: 'exited', exitCode: 0 };
+    await s.orch.reconcile();
+    await s.orch.idle();
+    const before = JSON.stringify(s.store.getRun(s.runId));
+    const execsBefore = s.port.execRequests.length;
+    await s.orch.reconcile();
+    await s.orch.idle();
+    expect(JSON.stringify(s.store.getRun(s.runId))).toBe(before);
+    expect(s.port.execRequests.length).toBe(execsBefore);
   });
 });

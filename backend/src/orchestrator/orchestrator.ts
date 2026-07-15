@@ -286,6 +286,16 @@ export class Orchestrator {
   // — UC-06: boot reconciliation (two transactions per run) —
 
   async reconcile(): Promise<void> {
+    // projects caught mid-provisioning by the crash heal to `error` (B3-02):
+    // the provision promise died with the process and nothing else can
+    // resolve them; UC-01's failure path already defines the way forward
+    // (retry recreates the session, FR-33/25)
+    for (const project of this.store.listProjects()) {
+      if (project.status === 'provisioning') {
+        this.store.updateProject(project.id, { status: 'error' });
+        this.notify.projectState(project.id, 'error');
+      }
+    }
     // tx 1 per run: stage every in-flight run to interrupted
     for (const run of this.store.listRunsByState(['starting', 'streaming'])) {
       this.store.transitionRun(run.id, run.state, 'interrupted');
@@ -323,22 +333,39 @@ export class Orchestrator {
           runtimeSessionId: conversation.runtimeSessionId,
         });
       } else if (probe.state === 'running') {
-        // no re-attach in v1 → kill, then cancelled
+        // no re-attach in v1 → kill, then cancelled; the pre-crash run may
+        // have escaped Bash-tool children, so the FR-21 sweep applies here
+        // exactly as it does to a live cancel (B3-02)
         const { outcome } = await this.adapter.kill(sessionId!, run.execId!, KILL_GRACE_MS);
+        const warnings: string[] = [];
+        const swept = await this.sweep(sessionId!, run.id);
+        if (swept.warning) warnings.push(swept.warning);
         this.finalize(run, 'interrupted', 'cancelled', {
           usageSource: 'cancelled-unknown',
           killOutcome: outcome,
+          ...(swept.result ? { sweepResult: swept.result } : {}),
           userMessageContent: message.content,
-          warnings: [],
+          warnings,
           runtimeSessionId: conversation.runtimeSessionId,
         });
       } else {
+        // unknown = registry lost or never existed; if the session is still
+        // bound, the marker sweep is the one orphan-mitigation available —
+        // it kills whatever the crashed run left behind (B3-02)
+        const warnings: string[] = [];
+        let sweepResult: SweepResult | undefined;
+        if (sessionId) {
+          const swept = await this.sweep(sessionId, run.id);
+          if (swept.warning) warnings.push(swept.warning);
+          sweepResult = swept.result;
+        }
         this.finalize(run, 'interrupted', 'failed', {
           usageSource: 'error-partial',
           errorCode: 'internal',
           errorDetail: 'exec state unknown after restart; orphan possible (UC-06)',
+          ...(sweepResult ? { sweepResult } : {}),
           userMessageContent: message.content,
-          warnings: [],
+          warnings,
           runtimeSessionId: conversation.runtimeSessionId,
         });
       }
