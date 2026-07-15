@@ -25,15 +25,31 @@ interface LiveRun {
   error?: string;
 }
 
+/** Contextual actions the thread exposes to the command palette (11 §4, B1-12). */
+export interface ThreadCommands {
+  focusComposer: () => void;
+  /** null while unavailable (empty draft, run active, or project not ready). */
+  sendDraft: (() => void) | null;
+  /** null unless a run is active. */
+  cancelRun: (() => void) | null;
+  toggleInspector: () => void;
+}
+
 interface Props {
   conversation: Conversation;
   projectStatus: Project['status'];
   onBack: () => void;
+  registerCommands: (commands: ThreadCommands | null) => void;
 }
 
 const TERMINAL: RunState[] = ['completed', 'completed_with_denials', 'cancelled', 'failed'];
 
-export function Thread({ conversation, projectStatus, onBack }: Props): React.JSX.Element {
+export function Thread({
+  conversation,
+  projectStatus,
+  onBack,
+  registerCommands,
+}: Props): React.JSX.Element {
   const [messages, setMessages] = useState<Message[]>([]);
   const [liveRun, setLiveRun] = useState<LiveRun | null>(null);
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
@@ -41,6 +57,7 @@ export function Thread({ conversation, projectStatus, onBack }: Props): React.JS
   const [draft, setDraft] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
 
   const refetch = useCallback(async () => {
     const detail = await api.getConversation(conversation.id);
@@ -112,6 +129,23 @@ export function Thread({ conversation, projectStatus, onBack }: Props): React.JS
 
   const active = liveRun !== null && !TERMINAL.includes(liveRun.state);
 
+  // palette registration (B1-12): stable wrappers over refs so re-registration
+  // happens only when availability flips, not on every keystroke
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  const cancelRef = useRef(cancel);
+  cancelRef.current = cancel;
+  const canSend = draft.trim() !== '' && !active && projectStatus === 'ready';
+  useEffect(() => {
+    registerCommands({
+      focusComposer: () => composerRef.current?.focus(),
+      sendDraft: canSend ? () => void sendRef.current() : null,
+      cancelRun: active ? () => cancelRef.current() : null,
+      toggleInspector: () => setInspectorOpen((v) => !v),
+    });
+    return () => registerCommands(null);
+  }, [registerCommands, canSend, active]);
+
   return (
     <>
       <main className="thread">
@@ -143,6 +177,7 @@ export function Thread({ conversation, projectStatus, onBack }: Props): React.JS
         <footer className="composer">
           {sendError && <p className="error">{sendError} — message restored, try again.</p>}
           <textarea
+            ref={composerRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {

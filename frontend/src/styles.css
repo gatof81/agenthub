@@ -151,6 +151,56 @@ button.mini { background: var(--panel-2); color: var(--text); padding: 3px 9px; 
 .inspector .denials { color: var(--warn); }
 .summary { background: var(--panel-2); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
 
+/* — command palette (11 §4, B1-12) — */
+.palette-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+  z-index: 10;
+}
+.palette {
+  width: min(560px, 92vw);
+  background: var(--panel);
+  border: 1px solid #2a2f39;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+.palette input {
+  width: 100%;
+  background: var(--panel-2);
+  border: 0;
+  border-bottom: 1px solid #2a2f39;
+  color: var(--text);
+  padding: 12px 14px;
+  font: inherit;
+  outline: none;
+}
+.palette ul { list-style: none; margin: 0; padding: 6px; max-height: 320px; overflow-y: auto; }
+.palette li button {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 7px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+}
+.palette li button.active { background: var(--accent); color: #fff; }
+.palette .hint { color: var(--muted); font-size: 12px; }
+.palette li button.active .hint { color: #dfe8ff; }
+.palette .empty, .palette-note { padding: 12px 14px; margin: 0; }
+.palette .empty { color: var(--muted); }
+.palette-hint { font-size: 12px; }
+
 .muted { color: var(--muted); }
 .error { color: var(--danger); }
 .empty-state { display: grid; place-items: center; color: var(--muted); }
@@ -177,6 +227,7 @@ button.mini { background: var(--panel-2); color: var(--text); padding: 3px 9px; 
 @media (max-width: 768px) {
   .app { grid-template-columns: 1fr; }
   .sidebar { border-right: 0; }
+  .palette-hint { display: none; } /* keyboard shortcut is a Mac affordance */
   .app.has-conversation .sidebar { display: none; }
   .thread .back {
     display: block;
