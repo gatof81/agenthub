@@ -246,7 +246,8 @@ export class MemoryHubStore implements HubStore {
     }
     const next = projectRuns.find((r) => r.state === 'queued');
     if (!next) return undefined;
-    if (next.state !== 'queued') throw new StaleStateError(next.id, 'queued');
+    // find+mutate is atomic in single-threaded JS — the in-memory analog of
+    // the SQLite guarded `UPDATE … WHERE state = 'queued'`.
     next.state = 'starting';
     return clone(next);
   }
