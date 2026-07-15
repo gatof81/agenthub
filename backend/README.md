@@ -17,6 +17,7 @@ Current modules (Increment 1 in progress, [docs/17-phase1-backlog.md](../docs/17
 | `src/api` | HTTP + SSE gateway (08 §1/§3): auth, correlation, error taxonomy, `Last-Event-ID` replay, broadcaster |
 | `src/config` | agent config loader (FR-02, SEC-10) — real definitions live outside the repo; see `agents.example.yaml` |
 | `src/main.ts` | composition root: wires ports, runs boot reconciliation, serves the API (fake runtime in Increment 1) |
+| `src/backup` | **planned, Increment 3** (OPS-01..03): element pre-registered in the boundary lint; `ApiDeps.lastSnapshotAt` is its placeholder on `/api/health` |
 
 ## Commands
 
