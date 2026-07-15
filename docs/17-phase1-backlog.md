@@ -43,7 +43,7 @@ exec API live upstream, Q-02/Q-10 decided.
 | ID | Item | Traces | Done when |
 | --- | --- | --- | --- |
 | B2-01 | Real `SubstrateExecPort` (HTTP: exec/status/kill, `X-Request-Id` capture) | ADR-001 contract, OPS-04 | conformance suite matches the fake's wire expectations |
-| B2-02 | Real session provisioning (template → create → agentSeed → start/stop) | FR-30, ADR-005, 02 §1/§3 | project provisions a real session; instructions seeded |
+| B2-02 | Real session provisioning (template → create → agentSeed → start/stop) | FR-30, ADR-005, 02 §1/§3 | port provisions a session from a template with instructions seeded, bootstrap-failure and quota paths typed (conformance suite, offline); the end-to-end "project provisions a real session" flow is exercised when B2-05 wires the real port into the composition root |
 | B2-03 | Real `claude-cli` `RuntimeAdapter` (stdin prompt, allowlist, `--resume`, env) | ADR-003, SEC-07, Q-02 | real turn produces the same RunEvent shapes |
 | B2-04 | Real-vs-fake adapter contract test | R-12, 13 §2 | both produce identical RunEvent streams from S-01 fixtures |
 | B2-05 | OAuth token wiring + `HUB_RUN_ID` marker | SEC-07, ADR-003 | token never persisted/logged (13 §5); marker present in exec env |

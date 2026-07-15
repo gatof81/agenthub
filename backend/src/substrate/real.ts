@@ -293,7 +293,28 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
       const logRes = await this.request('GET', `/api/sessions/${sessionId}/bootstrap-log`);
       if (logRes.ok) {
         const { log } = (await logRes.json()) as { log: string | null };
-        if (log !== null) return;
+        if (log !== null) {
+          // Upstream persists the log BEFORE flipping status on the failure
+          // path (bootstrap.ts finishWithFail: "Persist BEFORE flipping
+          // status…"), so a log-first read can race the failed flip. Give
+          // the flip one poll interval to land, then classify. Residual:
+          // if upstream's own status UPDATE fails (its CRITICAL branch),
+          // the row stays `running` forever and no client can tell — that
+          // window is upstream's, not ours.
+          await sleep(pollIntervalMs);
+          const confirmRes = await this.request('GET', `/api/sessions/${sessionId}`);
+          if (!confirmRes.ok) {
+            throw await SeamHttpError.from(confirmRes, 'createSession: bootstrap confirm');
+          }
+          const confirmed = (await confirmRes.json()) as { status: string };
+          if (confirmed.status === 'failed') {
+            throw new SeamProvisioningError(
+              `session ${sessionId} failed during bootstrap`,
+              log.slice(-BOOTSTRAP_LOG_TAIL_BYTES),
+            );
+          }
+          return;
+        }
       }
       if (Date.now() >= deadline) {
         throw new SeamProvisioningError(

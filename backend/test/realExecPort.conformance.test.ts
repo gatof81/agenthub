@@ -368,6 +368,27 @@ describe('session provisioning (B2-02: template → create → agentSeed → boo
     expect((err as SeamProvisioningError).bootstrapLog).toContain('agentSeed: EACCES');
   });
 
+  it('catches the log-before-status-flip race: log lands, then status flips to failed', async () => {
+    // upstream failure order is persistLog THEN updateStatus('failed')
+    // (bootstrap.ts finishWithFail) — a log-first read must not be
+    // declared ready until the status is re-confirmed
+    double.templateResponses.push({ body: { config: {} } });
+    double.createResponses.push({
+      status: 201,
+      body: { sessionId: 'sess_race', status: 'running', bootstrapping: true },
+    });
+    double.metaResponses.push(
+      { body: { sessionId: 'sess_race', status: 'running' } }, // poll: pre-flip window
+      { body: { sessionId: 'sess_race', status: 'failed' } }, // confirm: flip landed
+    );
+    double.bootstrapLogResponses.push({ body: { log: 'agentSeed: exit 1\n' } });
+    const err = await fastPort()
+      .createSession('tpl', { claudeMd: 'x' })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SeamProvisioningError);
+    expect((err as SeamProvisioningError).bootstrapLog).toContain('agentSeed: exit 1');
+  });
+
   it('times out when the bootstrap never finishes', async () => {
     double.templateResponses.push({ body: { config: {} } });
     double.createResponses.push({
