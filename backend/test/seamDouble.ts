@@ -55,6 +55,17 @@ export class SeamDouble {
   readonly execCalls: RecordedCall[] = [];
   readonly statusCalls: RecordedCall[] = [];
   readonly killCalls: RecordedCall[] = [];
+  // B2-02 session-provisioning surface
+  readonly templateResponses: ScriptedResponse[] = [];
+  readonly createResponses: ScriptedResponse[] = [];
+  readonly metaResponses: ScriptedResponse[] = [];
+  readonly bootstrapLogResponses: ScriptedResponse[] = [];
+  readonly stopResponses: ScriptedResponse[] = [];
+  readonly templateCalls: string[] = [];
+  readonly createCalls: unknown[] = [];
+  readonly metaCalls: string[] = [];
+  readonly bootstrapLogCalls: string[] = [];
+  readonly stopCalls: string[] = [];
   loginCount = 0;
   username = 'hub-service';
   password = 'hub-password';
@@ -90,7 +101,8 @@ export class SeamDouble {
     const raw = await readBody(req);
     const body: unknown = raw === '' ? undefined : JSON.parse(raw);
 
-    if (req.method === 'POST' && url === '/auth/login') {
+    // upstream mounts everything under /api, auth routes included
+    if (req.method === 'POST' && url === '/api/auth/login') {
       const creds = body as { username?: string; password?: string };
       if (creds.username !== this.username || creds.password !== this.password) {
         res.writeHead(401, { 'content-type': 'application/json' });
@@ -112,6 +124,57 @@ export class SeamDouble {
     if (cookie === undefined || !this.validCookies.has(cookie)) {
       res.writeHead(401, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ error: 'unauthenticated' }));
+      return;
+    }
+
+    const template = /^\/api\/templates\/([^/]+)$/.exec(url);
+    if (req.method === 'GET' && template) {
+      this.templateCalls.push(decodeURIComponent(template[1]!));
+      const scripted = this.templateResponses.shift() ?? {
+        body: { id: template[1], name: 'tpl', config: {} },
+      };
+      res.writeHead(scripted.status ?? 200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(scripted.body ?? {}));
+      return;
+    }
+
+    if (req.method === 'POST' && url === '/api/sessions') {
+      this.createCalls.push(body);
+      const scripted = this.createResponses.shift() ?? {
+        status: 201,
+        body: { sessionId: 'sess_double1', status: 'running', bootstrapping: true },
+      };
+      res.writeHead(scripted.status ?? 201, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(scripted.body ?? {}));
+      return;
+    }
+
+    const stop = /^\/api\/sessions\/([^/]+)\/stop$/.exec(url);
+    if (req.method === 'POST' && stop) {
+      this.stopCalls.push(stop[1]!);
+      const scripted = this.stopResponses.shift() ?? { body: { sessionId: stop[1], status: 'stopped' } };
+      res.writeHead(scripted.status ?? 200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(scripted.body ?? {}));
+      return;
+    }
+
+    const bootstrapLog = /^\/api\/sessions\/([^/]+)\/bootstrap-log$/.exec(url);
+    if (req.method === 'GET' && bootstrapLog) {
+      this.bootstrapLogCalls.push(bootstrapLog[1]!);
+      const scripted = this.bootstrapLogResponses.shift() ?? { body: { log: null } };
+      res.writeHead(scripted.status ?? 200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(scripted.body ?? {}));
+      return;
+    }
+
+    const meta = /^\/api\/sessions\/([^/]+)$/.exec(url);
+    if (req.method === 'GET' && meta) {
+      this.metaCalls.push(meta[1]!);
+      const scripted = this.metaResponses.shift() ?? {
+        body: { sessionId: meta[1], status: 'running' },
+      };
+      res.writeHead(scripted.status ?? 200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(scripted.body ?? {}));
       return;
     }
 

@@ -55,7 +55,9 @@ export class CookieSeamAuth implements SeamAuth {
   }
 
   private async login(): Promise<string> {
-    const res = await this.fetchImpl(`${this.opts.baseUrl}/auth/login`, {
+    // the substrate mounts its whole router under /api (index.ts app.use("/api", ...)),
+    // auth routes included — the login path is /api/auth/login, not /auth/login
+    const res = await this.fetchImpl(`${this.opts.baseUrl}/api/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: this.opts.username, password: this.opts.password }),
