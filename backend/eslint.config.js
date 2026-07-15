@@ -19,6 +19,7 @@ export default tseslint.config(
         typescript: { alwaysTryTypes: true, project: './tsconfig.json' },
       },
       'boundaries/elements': [
+        { type: 'app', pattern: 'src/main.ts', mode: 'file' },
         { type: 'domain', pattern: 'src/domain' },
         { type: 'store', pattern: 'src/store' },
         { type: 'orchestrator', pattern: 'src/orchestrator' },
@@ -79,6 +80,19 @@ export default tseslint.config(
               allow: [{ type: 'backup' }, { type: 'domain' }, { type: 'store' }, { type: 'config' }],
             },
             { from: [{ type: 'config' }], allow: [{ type: 'config' }, { type: 'domain' }] },
+            // the composition root wires everything (and only it may)
+            {
+              from: [{ type: 'app' }],
+              allow: [
+                { type: 'api' },
+                { type: 'orchestrator' },
+                { type: 'runtime' },
+                { type: 'substrate' },
+                { type: 'store' },
+                { type: 'config' },
+                { type: 'domain' },
+              ],
+            },
           ],
         },
       ],
@@ -90,6 +104,9 @@ export default tseslint.config(
     files: ['**/*.ts'],
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      // SEC-05 / 13 §5 no-payload-logging: nothing in src logs by default;
+      // the composition root opts out explicitly for startup facts only.
+      'no-console': 'error',
     },
   },
 );
