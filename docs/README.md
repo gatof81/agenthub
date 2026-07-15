@@ -93,7 +93,7 @@ numbers are noted per item as they land, since the two drift.
 15. Second direction review: collaboration model (18) + amendments — **merged (GitHub #22)**; owner approved docs 01–18 (gates passed, GitHub #23 records it).
 16. **Increment 1 — fake-runtime spine, complete**: backend B1-01..09 + B1-11 + BX-01 (GitHub #26), frontend B1-10 (GitHub #27), command palette B1-12 (GitHub #28).
 17. **Increment 2 — real substrate + real Claude, COMPLETE**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29); B2-02 real session provisioning (GitHub #30); B2-03 real `claude-cli` adapter + B2-04 real-vs-fake contract test (GitHub #31); B2-05 composition-root wiring + token hygiene (GitHub #32) + agentSeed wire fix and **live end-to-end acceptance passed on the deployment host** (GitHub #33). Two-level sidebar + contrast pass on owner UX feedback (GitHub #34).
-18. **Increment 3 — hardening, in progress**: B3-01 cancellation (kill-outcome race fix + FR-21 post-cancel sweep, live-verified, GitHub #35); B3-02 boot-reconciliation hardening (provisioning heal, boot sweeps, idempotence, live-verified, GitHub #36); B3-03 SSE resilience (stall watchdog + proactive wake + heartbeat, first frontend tests, GitHub #37). Next: B3-04 backup pipeline.
+18. **Increment 3 — hardening, in progress**: B3-01 cancellation (kill-outcome race fix + FR-21 post-cancel sweep, live-verified, GitHub #35); B3-02 boot-reconciliation hardening (provisioning heal, boot sweeps, idempotence, live-verified, GitHub #36); B3-03 SSE resilience (stall watchdog + proactive wake + heartbeat, first frontend tests, GitHub #37); B3-04 backup pipeline (snapshot sink port, VACUUM INTO → gzip → R2/S3, freshness gauge, restore drill, GitHub #38). Next: B3-05 restore drill (live) + B3-06/07.
 
 ## Quality gates
 
@@ -116,6 +116,20 @@ in progress (doc 17).
 | MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | **passed** (owner, 2026-07-15) |
 
 ## Changelog
+
+- **2026-07-15** — **B3-04 backup pipeline**: a snapshot-sink port with two
+  implementations — a local-file sink (offline/tests) and an R2 sink over
+  the S3 API (SigV4 via aws4fetch, ADR-002's durability role). `BackupService`
+  takes a consistent `VACUUM INTO` snapshot (never a raw WAL copy),
+  gzips it, uploads it, and prunes by retention (newest N + one-per-day for
+  M days); failures log loudly and never crash — the freshness gauge goes
+  degraded on `/api/health` (OPS-02). Periodic (default 6 h) + clean-shutdown
+  snapshots; a `restore-drill.mjs` (OPS-03) downloads the newest snapshot,
+  decompresses it, and opens it as a store. `BACKUP_SINK=none|local|r2`
+  fail-fast config. Offline tests cover the service/retention/gauge, the
+  config matrix, the R2 wire shape (mock fetch), and a full VACUUM→gzip→
+  restore round-trip; CI stays credential-free. **The live R2 restore drill
+  runs once the bucket credentials land (B3-05).**
 
 - **2026-07-15** — **B3-03 SSE resilience**: the client gains a stall
   watchdog — a phone that suspends the tab freezes the socket without a

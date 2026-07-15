@@ -7,12 +7,15 @@
  * the claude-cli adapter, with the OAuth token riding each run's exec env.
  */
 
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { buildApp } from './api/app.js';
 import { Broadcaster } from './api/broadcaster.js';
+import { BackupService } from './backup/service.js';
+import { LocalSnapshotSink } from './backup/localSink.js';
+import { R2SnapshotSink } from './backup/r2Sink.js';
 import { loadAgents } from './config/agents.js';
+import { resolveBackupConfig } from './config/backup.js';
 import { resolveRuntimeConfig } from './config/runtime.js';
 import type { RuntimeAdapter, SubstrateExecPort } from './domain/ports.js';
 import { Orchestrator } from './orchestrator/orchestrator.js';
@@ -100,10 +103,59 @@ async function main(): Promise<void> {
   // boot reconciliation runs before the API accepts writes (07 §3, UC-06)
   await orchestrator.reconcile();
 
-  const app = buildApp({ store, orchestrator, agents, broadcaster, authToken });
+  // backup pipeline (B3-04): a snapshot sink + periodic VACUUM INTO → gzip →
+  // upload, with the freshness gauge surfaced on /api/health (OPS-01/02)
+  const backupConfig = resolveBackupConfig(process.env);
+  let backupService: BackupService | undefined;
+  if (backupConfig.kind !== 'none') {
+    const tmpDir = join(dbDir(dbPath), 'backup-tmp');
+    mkdirSync(tmpDir, { recursive: true });
+    const sink =
+      backupConfig.kind === 'r2'
+        ? new R2SnapshotSink(backupConfig)
+        : new LocalSnapshotSink(backupConfig.dir);
+    backupService = new BackupService({
+      snapshot: (dest) => store.snapshotTo(dest),
+      sink,
+      tmpDir,
+      intervalMs: backupConfig.intervalMs,
+    });
+    backupService.start();
+    console.log(`backup: ${backupConfig.kind} sink, every ${backupConfig.intervalMs} ms`);
+  }
+
+  const app = buildApp({
+    store,
+    orchestrator,
+    agents,
+    broadcaster,
+    authToken,
+    ...(backupService
+      ? {
+          snapshotFreshness: () => {
+            const f = backupService!.freshness();
+            return { lastSnapshotAt: f.lastSnapshotAt, degraded: f.degraded };
+          },
+        }
+      : {}),
+  });
   app.listen(port, () => {
     console.log(`agenthub backend listening on :${port} (runtime: ${runtimeConfig.kind})`);
   });
+
+  // clean-shutdown snapshot (09 §5) + graceful stop
+  const shutdown = (): void => {
+    backupService?.stop();
+    void backupService?.snapshotOnce().finally(() => process.exit(0));
+    if (!backupService) process.exit(0);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+}
+
+/** Directory of the SQLite db file — the backup temp dir lives beside it. */
+function dbDir(dbPath: string): string {
+  return dbPath === ':memory:' ? '.' : dirname(dbPath);
 }
 
 main().catch((err: unknown) => {

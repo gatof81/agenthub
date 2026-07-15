@@ -12,7 +12,23 @@ describe('HTTP API (08 §1)', () => {
     expect(open.status).toBe(200);
     expect(open.body).toEqual({ status: 'ok' });
     const authed = await request(app).get('/api/health').set(AUTH);
-    expect(authed.body).toHaveProperty('lastSnapshotAt', null);
+    // backups disabled in the harness → enabled:false, never degraded
+    expect(authed.body.backup).toEqual({ enabled: false, lastSnapshotAt: null, degraded: false });
+  });
+
+  it('health surfaces backup freshness when a gauge is wired (OPS-02)', async () => {
+    const { app } = makeApiHarness(undefined, {
+      snapshotFreshness: () => ({ lastSnapshotAt: '2026-07-15T09:00:00.000Z', degraded: false }),
+    });
+    const res = await request(app).get('/api/health').set(AUTH);
+    expect(res.body.backup).toEqual({
+      enabled: true,
+      lastSnapshotAt: '2026-07-15T09:00:00.000Z',
+      degraded: false,
+    });
+    // liveness stays unauthenticated + minimal
+    const open = await request(app).get('/api/health');
+    expect(open.body).toEqual({ status: 'ok' });
   });
 
   it('every response carries a 16-hex X-Request-Id (OPS-04)', async () => {

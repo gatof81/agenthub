@@ -33,7 +33,10 @@ export interface ApiHarness {
 
 export function makeApiHarness(
   gate?: () => Promise<void>,
-  opts: { heartbeatMs?: number } = {},
+  opts: {
+    heartbeatMs?: number;
+    snapshotFreshness?: () => { lastSnapshotAt: string | null; degraded: boolean };
+  } = {},
 ): ApiHarness {
   const store = new MemoryHubStore();
   const port = new FakeSubstrateExecPort(gate ? { gate } : {});
@@ -52,6 +55,7 @@ export function makeApiHarness(
     broadcaster,
     authToken: TEST_TOKEN,
     heartbeatMs: opts.heartbeatMs ?? 3600_000, // effectively off in tests by default
+    ...(opts.snapshotFreshness ? { snapshotFreshness: opts.snapshotFreshness } : {}),
   });
   return { app, store, port, orch, broadcaster };
 }

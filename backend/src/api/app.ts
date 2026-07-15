@@ -21,8 +21,8 @@ export interface ApiDeps {
   authToken: string;
   /** SSE heartbeat interval; tests shrink it (default 25 s, 08 §3) */
   heartbeatMs?: number;
-  /** backup freshness placeholder until OPS-01 lands (Increment 3) */
-  lastSnapshotAt?: () => string | null;
+  /** backup freshness (OPS-02, B3-04); absent when backups are disabled */
+  snapshotFreshness?: () => { lastSnapshotAt: string | null; degraded: boolean };
 }
 
 function requestId(): string {
@@ -52,9 +52,16 @@ export function buildApp(deps: ApiDeps): express.Express {
   // liveness is unauthenticated; detail requires auth (08 §1)
   app.get('/api/health', (req, res) => {
     const authed = tokenMatches(req.headers.authorization, authToken);
+    const backup = deps.snapshotFreshness?.() ?? null;
     res.json({
       status: 'ok',
-      ...(authed ? { lastSnapshotAt: deps.lastSnapshotAt?.() ?? null } : {}),
+      ...(authed
+        ? {
+            backup: backup
+              ? { enabled: true, ...backup }
+              : { enabled: false, lastSnapshotAt: null, degraded: false },
+          }
+        : {}),
     });
   });
 
