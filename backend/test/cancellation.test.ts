@@ -126,7 +126,7 @@ describe('post-cancel sweep (FR-21, ADR-003)', () => {
     const final = store.getRun(run.id)!;
     expect(final.state).toBe('cancelled');
     expect(final.sweepResult).toEqual({
-      scanned: 2,
+      matched: 2,
       killed: ['101'],
       survivors: ['102'],
     });

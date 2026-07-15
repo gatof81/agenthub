@@ -631,7 +631,7 @@ export class Orchestrator {
       const survivors = finalRaw.split(' ').filter(Boolean);
       return {
         result: {
-          scanned: found.length,
+          matched: found.length,
           killed: found.filter((pid) => !survivors.includes(pid)),
           survivors,
         },

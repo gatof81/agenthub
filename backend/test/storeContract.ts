@@ -292,12 +292,12 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
         from: 'streaming',
         to: 'cancelled',
         killOutcome: 'terminated',
-        sweepResult: { scanned: 12, killed: ['4242'], survivors: [] },
+        sweepResult: { matched: 12, killed: ['4242'], survivors: [] },
         usage: { totalCostUsd: null, numTurns: null, usage: null, source: 'cancelled-unknown' },
         summary: summaryFor(run.id, 'cancelled'),
       });
       expect(cancelled.killOutcome).toBe('terminated');
-      expect(cancelled.sweepResult).toEqual({ scanned: 12, killed: ['4242'], survivors: [] });
+      expect(cancelled.sweepResult).toEqual({ matched: 12, killed: ['4242'], survivors: [] });
       store.close();
     });
 
