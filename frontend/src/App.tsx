@@ -96,6 +96,34 @@ export function App(): React.JSX.Element {
     setSelectedConversation(conversation);
   }, [selectedProject]);
 
+  const backToProjects = useCallback(() => {
+    setSelectedProject(null);
+    setSelectedConversation(null);
+    setConversations([]);
+  }, []);
+
+  const archiveProject = useCallback(
+    async (project: Project) => {
+      // archiving stops the substrate session (FR-40) — confirm the destructive edge
+      if (!window.confirm(`Archive "${project.name}"? Its session stops and it leaves the list.`)) {
+        return;
+      }
+      await api.archiveProject(project.id);
+      if (selectedProject?.id === project.id) backToProjects();
+      await refreshProjects();
+    },
+    [selectedProject, backToProjects, refreshProjects],
+  );
+
+  const archiveConversation = useCallback(
+    async (conversation: Conversation) => {
+      await api.archiveConversation(conversation.id);
+      setConversations((prev) => prev.filter((c) => c.id !== conversation.id));
+      setSelectedConversation((cur) => (cur?.id === conversation.id ? null : cur));
+    },
+    [],
+  );
+
   // ⌘K / Ctrl+K opens the command palette (11 §4, B1-12)
   useEffect(() => {
     if (!authed) return;
@@ -138,15 +166,19 @@ export function App(): React.JSX.Element {
       });
     }
     if (selectedProject) {
+      cmds.push({ id: 'all-projects', label: 'Go to all projects', run: backToProjects });
       cmds.push({
-        id: 'all-projects',
-        label: 'Go to all projects',
-        run: () => {
-          setSelectedProject(null);
-          setSelectedConversation(null);
-          setConversations([]);
-        },
+        id: 'archive-project',
+        label: `Archive project: ${selectedProject.name}`,
+        run: () => void archiveProject(selectedProject),
       });
+      if (selectedConversation) {
+        cmds.push({
+          id: 'archive-conversation',
+          label: `Archive conversation: ${selectedConversation.title}`,
+          run: () => void archiveConversation(selectedConversation),
+        });
+      }
     }
     for (const p of projects) {
       if (p.id === selectedProject?.id) continue;
@@ -176,6 +208,9 @@ export function App(): React.JSX.Element {
     createProject,
     createConversation,
     openProject,
+    backToProjects,
+    archiveProject,
+    archiveConversation,
   ]);
 
   if (!authed) return <TokenGate onReady={() => setAuthed(true)} />;
@@ -191,11 +226,9 @@ export function App(): React.JSX.Element {
         onOpenConversation={setSelectedConversation}
         onCreateProject={(name) => void createProject(name)}
         onCreateConversation={() => void createConversation()}
-        onBackToProjects={() => {
-          setSelectedProject(null);
-          setSelectedConversation(null);
-          setConversations([]);
-        }}
+        onBackToProjects={backToProjects}
+        onArchiveProject={(p) => void archiveProject(p)}
+        onArchiveConversation={(c) => void archiveConversation(c)}
       />
       {selectedConversation ? (
         <Thread
