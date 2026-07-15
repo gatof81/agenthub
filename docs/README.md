@@ -93,7 +93,7 @@ numbers are noted per item as they land, since the two drift.
 15. Second direction review: collaboration model (18) + amendments — **merged (GitHub #22)**; owner approved docs 01–18 (gates passed, GitHub #23 records it).
 16. **Increment 1 — fake-runtime spine, complete**: backend B1-01..09 + B1-11 + BX-01 (GitHub #26), frontend B1-10 (GitHub #27), command palette B1-12 (GitHub #28).
 17. **Increment 2 — real substrate + real Claude, COMPLETE**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29); B2-02 real session provisioning (GitHub #30); B2-03 real `claude-cli` adapter + B2-04 real-vs-fake contract test (GitHub #31); B2-05 composition-root wiring + token hygiene (GitHub #32) + agentSeed wire fix and **live end-to-end acceptance passed on the deployment host** (GitHub #33). Two-level sidebar + contrast pass on owner UX feedback (GitHub #34).
-18. **Increment 3 — hardening, in progress**: B3-01 cancellation (kill-outcome race fix + FR-21 post-cancel sweep, live-verified, GitHub #35); B3-02 boot-reconciliation hardening (provisioning heal, boot sweeps, idempotence, live-verified, GitHub #36); B3-03 SSE resilience (stall watchdog + proactive wake + heartbeat, first frontend tests, GitHub #37); B3-04 backup pipeline (snapshot sink port, VACUUM INTO → gzip → R2/S3, freshness gauge, restore drill, GitHub #38); B3-06 error taxonomy + timeouts + lagging budget (GitHub #41). UX follow-ups: back-arrow + archive projects/conversations (GitHub #40). Next: B3-05 live restore drill + B3-07 observability floor.
+18. **Increment 3 — hardening, in progress**: B3-01 cancellation (kill-outcome race fix + FR-21 post-cancel sweep, live-verified, GitHub #35); B3-02 boot-reconciliation hardening (provisioning heal, boot sweeps, idempotence, live-verified, GitHub #36); B3-03 SSE resilience (stall watchdog + proactive wake + heartbeat, first frontend tests, GitHub #37); B3-04 backup pipeline (snapshot sink port, VACUUM INTO → gzip → R2/S3, freshness gauge, restore drill, GitHub #38); B3-06 error taxonomy + timeouts + lagging budget (GitHub #41); B3-07 observability floor (structured logs + correlation ids + metrics, GitHub #42). UX follow-ups: back-arrow + archive projects/conversations + distinct icons (GitHub #40). **Increment 3 nearly done — only B3-05 (live restore drill against R2) remains, pending the bucket token.**
 
 ## Quality gates
 
@@ -116,6 +116,18 @@ in progress (doc 17).
 | MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | **passed** (owner, 2026-07-15) |
 
 ## Changelog
+
+- **2026-07-15** — **B3-07 observability floor**: a structured JSON logger
+  (`observability/logger.ts`) tags every line with `ts`/`level`/`event` and
+  a per-request correlation id propagated through the async chain via
+  `AsyncLocalStorage` (echoed as `X-Request-Id`, joining to the seam's own
+  id on the run row — OPS-04). The `Logger` field type admits only
+  scalars, so logging a payload object is a **type error** — the
+  no-payload-logging rule (SEC-04/05, 13 §5) is enforced by the compiler and
+  pinned by a canary test. Process-local `CountingMetrics` (run-transition +
+  seam-error counters, live active/queued gauges, DB/WAL size) surface on
+  authenticated `/api/health`. Logger + metrics are injected ports (new
+  `observability` module, boundary-clean); `main.ts` wires the real ones.
 
 - **2026-07-15** — **B3-06 error taxonomy + timeouts + budget**: the run
   loop now enforces the caps and surfaces every 08 §6 code. A Hub

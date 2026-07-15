@@ -9,7 +9,9 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { deriveActivity, sseFromRunEvent } from '../domain/projections.js';
 import type { Agent } from '../domain/types.js';
 import { Orchestrator, OrchestratorError } from '../orchestrator/orchestrator.js';
+import { NOOP_LOGGER, type Logger } from '../domain/ports.js';
 import { NotFoundError, ValidationError, type HubStore } from '../store/types.js';
+import { withCorrelation } from '../observability/logger.js';
 import type { Broadcaster, OutboundSse } from './broadcaster.js';
 
 export interface ApiDeps {
@@ -23,6 +25,10 @@ export interface ApiDeps {
   heartbeatMs?: number;
   /** backup freshness (OPS-02, B3-04); absent when backups are disabled */
   snapshotFreshness?: () => { lastSnapshotAt: string | null; degraded: boolean };
+  /** structured logging (B3-07); no-op by default */
+  logger?: Logger;
+  /** metrics snapshot for /api/health detail (B3-07); absent → omitted */
+  metricsSnapshot?: () => Record<string, unknown>;
 }
 
 function requestId(): string {
@@ -39,14 +45,30 @@ function tokenMatches(header: string | undefined, expected: string): boolean {
 export function buildApp(deps: ApiDeps): express.Express {
   const { store, orchestrator, agents, broadcaster, authToken } = deps;
   const heartbeatMs = deps.heartbeatMs ?? 25_000;
+  const logger = deps.logger ?? NOOP_LOGGER;
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '1mb' }));
 
-  // correlation id on every response (OPS-04)
-  app.use((_req, res, next) => {
-    res.setHeader('X-Request-Id', requestId());
-    next();
+  // correlation id per request (OPS-04): generate, echo on the response, run
+  // the handler inside the ambient scope so every nested log carries it, and
+  // log request start/finish with ids/method/path/status ONLY — never bodies
+  // (SEC-04/05, 13 §5). The id joins to the seam's X-Request-Id via the run row.
+  app.use((req, res, next) => {
+    const cid = requestId();
+    res.setHeader('X-Request-Id', cid);
+    withCorrelation(cid, () => {
+      const start = Date.now();
+      res.on('finish', () => {
+        logger.info('http.request', {
+          method: req.method,
+          path: req.path,
+          status: res.statusCode,
+          durationMs: Date.now() - start,
+        });
+      });
+      next();
+    });
   });
 
   // liveness is unauthenticated; detail requires auth (08 §1)
@@ -60,6 +82,7 @@ export function buildApp(deps: ApiDeps): express.Express {
             backup: backup
               ? { enabled: true, ...backup }
               : { enabled: false, lastSnapshotAt: null, degraded: false },
+            ...(deps.metricsSnapshot ? { metrics: deps.metricsSnapshot() } : {}),
           }
         : {}),
     });

@@ -28,6 +28,7 @@ export default tseslint.config(
         { type: 'api', pattern: 'src/api' },
         { type: 'backup', pattern: 'src/backup' },
         { type: 'config', pattern: 'src/config' },
+        { type: 'observability', pattern: 'src/observability' },
       ],
     },
     rules: {
@@ -73,6 +74,7 @@ export default tseslint.config(
                 { type: 'orchestrator' },
                 { type: 'store' },
                 { type: 'config' },
+                { type: 'observability' },
               ],
             },
             {
@@ -80,6 +82,11 @@ export default tseslint.config(
               allow: [{ type: 'backup' }, { type: 'domain' }, { type: 'store' }, { type: 'config' }],
             },
             { from: [{ type: 'config' }], allow: [{ type: 'config' }, { type: 'domain' }] },
+            // observability (logger/metrics): depends on domain interfaces + store
+            {
+              from: [{ type: 'observability' }],
+              allow: [{ type: 'observability' }, { type: 'domain' }, { type: 'store' }],
+            },
             // the composition root wires everything (and only it may)
             {
               from: [{ type: 'app' }],
@@ -91,6 +98,7 @@ export default tseslint.config(
                 { type: 'store' },
                 { type: 'backup' },
                 { type: 'config' },
+                { type: 'observability' },
                 { type: 'domain' },
               ],
             },

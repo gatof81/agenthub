@@ -19,6 +19,8 @@ import { resolveBackupConfig } from './config/backup.js';
 import { resolveTokenPrices } from './config/budget.js';
 import { resolveRuntimeConfig } from './config/runtime.js';
 import type { RuntimeAdapter, SubstrateExecPort } from './domain/ports.js';
+import { JsonLogger } from './observability/logger.js';
+import { CountingMetrics } from './observability/metrics.js';
 import { Orchestrator } from './orchestrator/orchestrator.js';
 import { ClaudeCliRuntimeAdapter } from './runtime/claudeCliAdapter.js';
 import { FakeRuntimeAdapter } from './runtime/fakeAdapter.js';
@@ -92,6 +94,15 @@ async function main(): Promise<void> {
     adapter = new FakeRuntimeAdapter(fakePort);
   }
 
+  // observability (B3-07): structured logs + process-local metrics. Gauges
+  // read live from the store; the DB-size gauges point at the sqlite file.
+  const logger = new JsonLogger();
+  const metrics = new CountingMetrics({
+    activeRuns: () => store.listRunsByState(['starting', 'streaming']).length,
+    queuedRuns: () => store.listRunsByState(['queued']).length,
+    dbPath: dbPath === ':memory:' ? null : dbPath,
+  });
+
   const orchestrator = new Orchestrator({
     store,
     adapter,
@@ -100,6 +111,8 @@ async function main(): Promise<void> {
     notify: broadcaster,
     runEnv,
     tokenPrices: resolveTokenPrices(process.env), // budget estimate (B3-06)
+    logger,
+    metrics,
   });
 
   // boot reconciliation runs before the API accepts writes (07 §3, UC-06)
@@ -123,7 +136,7 @@ async function main(): Promise<void> {
       intervalMs: backupConfig.intervalMs,
     });
     backupService.start();
-    console.log(`backup: ${backupConfig.kind} sink, every ${backupConfig.intervalMs} ms`);
+    logger.info('backup.enabled', { sink: backupConfig.kind, intervalMs: backupConfig.intervalMs });
   }
 
   const app = buildApp({
@@ -132,6 +145,8 @@ async function main(): Promise<void> {
     agents,
     broadcaster,
     authToken,
+    logger,
+    metricsSnapshot: () => ({ ...metrics.snapshot() }),
     ...(backupService
       ? {
           snapshotFreshness: () => {
@@ -142,7 +157,7 @@ async function main(): Promise<void> {
       : {}),
   });
   app.listen(port, () => {
-    console.log(`agenthub backend listening on :${port} (runtime: ${runtimeConfig.kind})`);
+    logger.info('server.listening', { port, runtime: runtimeConfig.kind });
   });
 
   // clean-shutdown snapshot (09 §5) + graceful stop

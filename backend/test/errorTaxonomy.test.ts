@@ -147,10 +147,10 @@ describe('seam error classification (08 §6)', () => {
     const { store, orch, conversation } = await harness();
     // adapter/port throws a status-bearing error before the stream starts
     const orchAny = orch as unknown as { adapter: { runTurn: () => AsyncIterable<never> } };
-    orchAny.adapter.runTurn = async function* (): AsyncIterable<never> {
-      await Promise.resolve();
-      throw Object.assign(new Error('too-many-concurrent-execs'), { status: 429 });
-    };
+    const boom = Object.assign(new Error('too-many-concurrent-execs'), { status: 429 });
+    orchAny.adapter.runTurn = (): AsyncIterable<never> => ({
+      [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(boom) }),
+    });
     const { run } = orch.send(conversation.id, 'refused');
     await orch.idle();
     const final = store.getRun(run.id)!;
@@ -165,10 +165,10 @@ describe('seam error classification (08 §6)', () => {
   it('an unreachable seam (no status) → seam_unavailable', async () => {
     const { store, orch, conversation } = await harness();
     const orchAny = orch as unknown as { adapter: { runTurn: () => AsyncIterable<never> } };
-    orchAny.adapter.runTurn = async function* (): AsyncIterable<never> {
-      await Promise.resolve();
-      throw new Error('ECONNREFUSED');
-    };
+    const boom = new Error('ECONNREFUSED');
+    orchAny.adapter.runTurn = (): AsyncIterable<never> => ({
+      [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(boom) }),
+    });
     const { run } = orch.send(conversation.id, 'down');
     await orch.idle();
     const final = store.getRun(run.id)!;

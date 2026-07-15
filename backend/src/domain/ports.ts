@@ -147,3 +147,25 @@ export const NOOP_NOTIFIER: HubNotifier = {
   summary: () => {},
   projectState: () => {},
 };
+
+// — Observability (B3-07, OPS-04, 14 §1/§2) —
+
+/**
+ * Structured logger. Fields are ids/types/counts ONLY — never run-event
+ * payloads, secrets, or tokens (SEC-04/05, 13 §5). Implementations attach
+ * the request correlation id from ambient context.
+ */
+export interface Logger {
+  info(event: string, fields?: Record<string, string | number | boolean | null>): void;
+  warn(event: string, fields?: Record<string, string | number | boolean | null>): void;
+  error(event: string, fields?: Record<string, string | number | boolean | null>): void;
+}
+
+/** Process-local counters (14 §2); gauges are computed on read from the store. */
+export interface Metrics {
+  runTransition(to: RunState): void;
+  seamError(): void;
+}
+
+export const NOOP_LOGGER: Logger = { info: () => {}, warn: () => {}, error: () => {} };
+export const NOOP_METRICS: Metrics = { runTransition: () => {}, seamError: () => {} };
