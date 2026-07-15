@@ -105,7 +105,7 @@ describe('B2-04 — real and fake adapters produce identical item streams (R-12)
     expect(splitItems).toEqual(wholeItems);
   });
 
-  it('the two adapters differ only in the documented argv shape', () => {
+  it('the two adapters share stdin, env, caps, and allowedTools/max-turns flags', () => {
     const port = new FakeSubstrateExecPort();
     const fakeReq = new FakeRuntimeAdapter(port).buildExecRequest(TURN);
     const realReq = new ClaudeCliRuntimeAdapter(port).buildExecRequest(TURN);
