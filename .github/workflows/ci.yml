@@ -1,5 +1,5 @@
-# Minimal CI for the specification phase: markdown lint + link check.
-# Extend with build/test/typecheck jobs once product code exists.
+# CI: markdown lint + link check for docs; offline deterministic suite for
+# the backend (13 §6 — no secrets, no network, no real services).
 name: CI
 
 on:
@@ -27,3 +27,26 @@ jobs:
         with:
           args: --no-progress --retry-wait-time 2 --max-retries 2 "./**/*.md"
           fail: true
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Assert no real-service credentials are present (13 §6)
+        run: |
+          if env | grep -qiE '^(ANTHROPIC|CLAUDE|CLOUDFLARE)'; then
+            echo "credential-shaped env vars present — the offline suite must not see them"
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
