@@ -220,6 +220,8 @@ export interface RealExecPortOptions {
 
 /** Cap the bootstrap-log tail carried on a provisioning error. */
 const BOOTSTRAP_LOG_TAIL_BYTES = 2048;
+/** Seam cap per agentSeed field (sessionConfig.ts MAX_AGENT_SEED_BYTES). */
+const AGENT_SEED_MAX_BYTES = 256 * 1024;
 
 export class RealSubstrateExecPort implements SubstrateExecPort {
   private readonly fetchImpl: typeof fetch;
@@ -252,11 +254,27 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
     const template = (await tplRes.json()) as { config?: Record<string, unknown> };
 
     const templateSeed = (template.config?.agentSeed ?? {}) as Record<string, unknown>;
+    // wire shape (sessionConfig.ts AgentSeedSpec, live-E2E finding): both
+    // fields are byte-capped STRINGS — `settings` is the serialized JSON
+    // that becomes the settings file, not an object
+    const settingsString =
+      seed.settings === undefined
+        ? undefined
+        : typeof seed.settings === 'string'
+          ? seed.settings
+          : JSON.stringify(seed.settings);
     const agentSeed: Record<string, unknown> = {
       ...templateSeed,
-      ...(seed.settings !== undefined ? { settings: seed.settings } : {}),
+      ...(settingsString !== undefined ? { settings: settingsString } : {}),
       ...(seed.claudeMd !== undefined ? { claudeMd: seed.claudeMd } : {}),
     };
+    for (const [field, value] of Object.entries(agentSeed)) {
+      if (typeof value === 'string' && utf8Bytes(value) > AGENT_SEED_MAX_BYTES) {
+        throw new SeamValidationError(
+          `agentSeed.${field} is ${utf8Bytes(value)} bytes, over the seam's ${AGENT_SEED_MAX_BYTES}-byte cap`,
+        );
+      }
+    }
     const config: Record<string, unknown> = {
       ...(template.config ?? {}),
       ...(Object.keys(agentSeed).length > 0 ? { agentSeed } : {}),

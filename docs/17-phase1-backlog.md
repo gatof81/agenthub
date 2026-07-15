@@ -46,7 +46,7 @@ exec API live upstream, Q-02/Q-10 decided.
 | B2-02 | Real session provisioning (template → create → agentSeed → start/stop) | FR-30, ADR-005, 02 §1/§3 | port provisions a session from a template with instructions seeded, bootstrap-failure and quota paths typed (conformance suite, offline); the end-to-end "project provisions a real session" flow is exercised when B2-05 wires the real port into the composition root |
 | B2-03 | Real `claude-cli` `RuntimeAdapter` (stdin prompt, allowlist, `--resume`, env) | ADR-003, SEC-07, Q-02 | command construction pinned (ADR-003 shape; S-01 traps — variadic allowlist, empty `--resume`, empty policy — guarded by tests); a live real turn rides the B2-05 end-to-end acceptance |
 | B2-04 | Real-vs-fake adapter contract test | R-12, 13 §2 | both produce identical `AdapterItem` streams from S-01 fixtures (RunEvent sequencing is the orchestrator's, downstream of the adapters) |
-| B2-05 | OAuth token wiring + `HUB_RUN_ID` marker; real port + adapter wired into the composition root | SEC-07, ADR-003, 07 §2 | token never persisted/logged (13 §5); marker present in exec env; **a project provisions a real session end-to-end** (the acceptance deferred from B2-02) |
+| B2-05 | OAuth token wiring + `HUB_RUN_ID` marker; real port + adapter wired into the composition root | SEC-07, ADR-003, 07 §2 | token never persisted/logged (13 §5); marker present in exec env; **a project provisions a real session end-to-end** (the acceptance deferred from B2-02) — **met 2026-07-15**: live acceptance on the deployment host (real provisioning → real turn, $0.059, summary → `--resume` recall → cancel → archive) |
 
 **Increment-2 done:** a real project runs a real Claude turn end-to-end, real
 cost in the summary, `--resume` continuity, activity from live `tool_use`.
@@ -57,7 +57,7 @@ Goal: survive the failure modes (12 §Increment 3, UC-06/07/08).
 
 | ID | Item | Traces | Done when |
 | --- | --- | --- | --- |
-| B3-01 | Cancellation + post-cancel sweep (`HUB_RUN_ID` scan) | FR-20/21, ADR-003 | escaping Bash-tool child is swept; outcome authoritative over `reason` |
+| B3-01 | Cancellation + post-cancel sweep (`HUB_RUN_ID` scan) | FR-20/21, ADR-003 | escaping Bash-tool child is swept; outcome authoritative over `reason`; **fix the kill-outcome race found by the Increment-2 live acceptance** (the kill round-trip can resolve after the stream's `exit(killed)` ends the run, so `killOutcome` is read before it is recorded — state lands `cancelled` correctly, the diagnostic field is lost; the fake's synchronous kill always wins that race, which is why offline tests can't see it) |
 | B3-02 | Boot reconciliation (two-transaction) + queue rebuild | FR-23, UC-06, 09 §3 | crash-point tests heal to a legal state |
 | B3-03 | SSE resilience (reconnect + REST recovery, mobile backgrounding) | 11 §5, NFR-07 | backgrounding reconnect is normal, not an error |
 | B3-04 | Backup pipeline (`VACUUM INTO` → R2) + freshness gauge | OPS-01/02, R-16 | automated restore drill green (13 §4); freshness on `/api/health` |

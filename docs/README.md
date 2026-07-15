@@ -92,7 +92,7 @@ numbers are noted per item as they land, since the two drift.
 14. Phase-1 backlog (17) + quality-gate review — **merged (GitHub #21)**.
 15. Second direction review: collaboration model (18) + amendments — **merged (GitHub #22)**; owner approved docs 01–18 (gates passed, GitHub #23 records it).
 16. **Increment 1 — fake-runtime spine, complete**: backend B1-01..09 + B1-11 + BX-01 (GitHub #26), frontend B1-10 (GitHub #27), command palette B1-12 (GitHub #28).
-17. **Increment 2 — real substrate + real Claude, in progress**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29); B2-02 real session provisioning (GitHub #30); B2-03 real `claude-cli` adapter + B2-04 real-vs-fake contract test (GitHub #31); B2-05 composition-root wiring + token hygiene (GitHub #32) — **the live end-to-end acceptance remains open**, pending the dedicated seam account (Q-04).
+17. **Increment 2 — real substrate + real Claude, COMPLETE**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29); B2-02 real session provisioning (GitHub #30); B2-03 real `claude-cli` adapter + B2-04 real-vs-fake contract test (GitHub #31); B2-05 composition-root wiring + token hygiene (GitHub #32) + agentSeed wire fix and **live end-to-end acceptance passed on the deployment host** (GitHub #33). **Next: Increment 3 (hardening, B3-01..07).**
 
 ## Quality gates
 
@@ -115,6 +115,20 @@ in progress (doc 17).
 | MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | **passed** (owner, 2026-07-15) |
 
 ## Changelog
+
+- **2026-07-15** — **Increment 2 COMPLETE — live end-to-end acceptance
+  passed** on the deployment host (dedicated seam account, Q-04): real
+  provisioning (template → create → agentSeed bootstrap → ready), a real
+  Claude turn ($0.059, 1 turn, summary present, exact-marker response),
+  `--resume` continuity (second turn recalled the first's marker
+  verbatim), cancel mid-run (202 → `cancelled`), archive (session
+  stopped). Two findings, both fixed or routed: (1) `agentSeed` fields
+  are byte-capped **strings** on the wire — `settings` is serialized
+  JSON; the port now stringifies and the contract double enforces the
+  wire shape it previously masked. (2) A kill-outcome race (kill
+  round-trip vs stream end) loses the diagnostic `killOutcome` field on
+  real cancels — state stays correct; fix routed to B3-01 with analysis.
+  **Increment 3 (hardening) is next.**
 
 - **2026-07-15** — **B2-05 (wiring half)**: `HUB_RUNTIME=fake|real` selects
   the stack in the composition root (pure resolution in

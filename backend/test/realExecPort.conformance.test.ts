@@ -294,7 +294,7 @@ describe('session provisioning (B2-02: template → create → agentSeed → boo
       body: {
         id: 'tpl-dev',
         name: 'dev template',
-        config: { cpuLimit: 2, agentSeed: { settings: { theme: 'tpl' } } },
+        config: { cpuLimit: 2, agentSeed: { settings: '{"theme":"tpl"}' } },
       },
     });
     double.createResponses.push({
@@ -319,7 +319,7 @@ describe('session provisioning (B2-02: template → create → agentSeed → boo
     expect(sent.name).toMatch(/^hub-[0-9a-f]{8}$/);
     expect(sent.config.cpuLimit).toBe(2); // template config preserved
     expect(sent.config.agentSeed).toEqual({
-      settings: { theme: 'tpl' }, // template field kept (seed did not set it)
+      settings: '{"theme":"tpl"}', // template field kept (seed did not set it)
       claudeMd: '# instructions', // seed field folded in
     });
     expect(double.bootstrapLogCalls.length).toBe(2); // polled until the log landed
@@ -327,7 +327,7 @@ describe('session provisioning (B2-02: template → create → agentSeed → boo
 
   it('seed fields override the template agentSeed per-field', async () => {
     double.templateResponses.push({
-      body: { config: { agentSeed: { settings: { old: true }, claudeMd: 'template md' } } },
+      body: { config: { agentSeed: { settings: '{"old":true}', claudeMd: 'template md' } } },
     });
     double.createResponses.push({
       status: 201,
@@ -339,9 +339,18 @@ describe('session provisioning (B2-02: template → create → agentSeed → boo
     });
     const sent = double.createCalls[0] as { config: { agentSeed: unknown } };
     expect(sent.config.agentSeed).toEqual({
-      settings: { allowedTools: ['Read'] },
+      settings: '{"allowedTools":["Read"]}', // serialized for the wire
       claudeMd: 'seeded md',
     });
+  });
+
+  it('rejects an agentSeed field over the seam 256 KiB cap before any create', async () => {
+    double.templateResponses.push({ body: { config: {} } });
+    const err = await fastPort()
+      .createSession('tpl', { claudeMd: 'x'.repeat(257 * 1024) })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SeamValidationError);
+    expect(double.createCalls).toHaveLength(0);
   });
 
   it('skips the bootstrap wait when the create is not bootstrapping', async () => {
