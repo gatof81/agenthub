@@ -124,7 +124,11 @@ in progress (doc 17).
   paths — the running→kill branch and the unknown branch, where it is
   the only orphan mitigation available. Sweep failure degrades to a
   warning; a reconcile-idempotence test pins that a second pass changes
-  nothing and issues no execs.
+  nothing and issues no execs. **Live-verified on the deployment host**
+  (`kill -9` the Hub process group mid-run): the streaming run healed to
+  `cancelled`, a project caught mid-provisioning healed to `error`, a
+  healthy project was untouched, and the post-recovery turn completed
+  with `--resume` continuity.
 
 - **2026-07-15** — **B3-01 cancellation hardening** (Increment 3 starts):
   the kill-outcome race found by the live acceptance is closed — terminal
