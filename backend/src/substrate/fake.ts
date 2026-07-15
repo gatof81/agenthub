@@ -111,7 +111,8 @@ export class FakeSubstrateExecPort implements SubstrateExecPort {
       yield { v: 1, type: 'exit', exitCode: 15, reason: 'killed' };
     } else {
       state.exitCode = fixture.exitCode ?? 0;
-      yield { v: 1, type: 'exit', exitCode: state.exitCode };
+      // wire fidelity (B2-04): the seam always attributes a reason
+      yield { v: 1, type: 'exit', exitCode: state.exitCode, reason: 'exited' };
     }
   }
 
