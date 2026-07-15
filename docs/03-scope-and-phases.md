@@ -1,6 +1,6 @@
 # 03 — Scope and Phases
 
-**Status:** draft — review · **Last updated:** 2026-07-15
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-15
 
 ## 1. Phase map
 

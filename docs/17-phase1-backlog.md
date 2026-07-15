@@ -1,6 +1,6 @@
 # 17 — Phase-1 Backlog
 
-**Status:** draft — review · **Last updated:** 2026-07-15
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-15
 
 The actionable work items for the Phase-1 MVP, grouped by the three increments
 of [12-mvp-implementation-plan.md](./12-mvp-implementation-plan.md), each

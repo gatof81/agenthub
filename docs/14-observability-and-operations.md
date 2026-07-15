@@ -1,6 +1,6 @@
 # 14 — Observability & Operations (Phase 1)
 
-**Status:** draft — review · **Last updated:** 2026-07-14
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-14
 
 How the running Hub is observed and operated: logs, signals, health, the
 runbooks a single operator needs, and the alerting floor. Scoped to a

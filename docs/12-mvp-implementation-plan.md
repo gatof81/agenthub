@@ -1,6 +1,6 @@
 # 12 — MVP Implementation Plan (Phase 1)
 
-**Status:** draft — review · **Last updated:** 2026-07-14
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-14
 
 The build sequence for Phase 1: three increments, the module order within
 them, and the test-first discipline that binds each to its spec. Nothing here
@@ -130,8 +130,8 @@ ADRs, risk mitigations), and the increments above satisfy the *build* side:
 | MVP-phase risk mitigations accepted | 16 (R-01/R-04/R-08/R-14/R-15 closed; open ones mitigated + accepted) |
 
 Status of each is authoritative in the README gate list and the source doc;
-this table maps gate → owning artifact. Approval of the draft docs is the
-owner's remaining act on the specification gates.
+this table maps gate → owning artifact. The owner approved the drafts on
+2026-07-15 — all specification gates are passed.
 
 ## What this plan deliberately excludes
 

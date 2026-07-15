@@ -1,6 +1,6 @@
 # 11 — UX Specification (Phase 1)
 
-**Status:** draft — review · **Last updated:** 2026-07-15
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-15
 
 The model-relevant UX: device targets, information architecture, the surfaces
 each device needs, and how the client consumes the event stream. This is a
