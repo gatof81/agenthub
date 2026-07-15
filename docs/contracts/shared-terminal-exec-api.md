@@ -82,7 +82,7 @@ Surface consumed beyond the exec API (session routes verified at the same
 | Endpoint | Use |
 | --- | --- |
 | `GET /api/templates/:id` → `{ name, config }` | templates are client-side presets: the Hub materializes the config itself |
-| `POST /api/sessions` `{ name, config }` → `201` + `bootstrapping?: true` | create with `config.agentSeed = { settings, claudeMd }` (seed fields override the template's per-field); `429` = user quota |
+| `POST /api/sessions` `{ name, config }` → `201` + `bootstrapping?: true` | create with `config.agentSeed = { settings, claudeMd }` (seed fields override the template's per-field); **both fields are byte-capped strings** (≤ 256 KiB each, `AgentSeedSpec`) — `settings` is the *serialized JSON* that becomes the settings file, so the port stringifies it (live-E2E finding, 2026-07-15); `429` = user quota |
 | `GET /api/sessions/:id` → `{ status: running \| stopped \| terminated \| failed }` | bootstrap hard-fail detection (`failed` also kills the container upstream) |
 | `GET /api/sessions/:id/bootstrap-log` → `{ log: string \| null }` | **readiness signal**: upstream persists the log when the bootstrap runner finishes, success or failure — non-null ⇒ done. Chosen over the `/ws/bootstrap/:id` channel to avoid a WebSocket client dependency; `null` cannot mean "never ran" because a seeded create always bootstraps |
 | `POST /api/sessions/:id/stop` | archive path (FR-30); `404` tolerated (already gone) |

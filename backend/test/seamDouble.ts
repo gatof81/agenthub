@@ -139,6 +139,32 @@ export class SeamDouble {
     }
 
     if (req.method === 'POST' && url === '/api/sessions') {
+      // wire-accurate AgentSeedSpec (sessionConfig.ts): both fields are
+      // strings, settings must parse as JSON — objects are a 400
+      const seed = (body as { config?: { agentSeed?: Record<string, unknown> } })?.config
+        ?.agentSeed;
+      if (seed) {
+        for (const [field, value] of Object.entries(seed)) {
+          if (typeof value !== 'string') {
+            res.writeHead(400, { 'content-type': 'application/json' });
+            res.end(
+              JSON.stringify({
+                error: `config.agentSeed.${field}: Invalid input: expected string, received ${typeof value}`,
+              }),
+            );
+            return;
+          }
+        }
+        if (typeof seed.settings === 'string' && seed.settings !== '') {
+          try {
+            JSON.parse(seed.settings);
+          } catch {
+            res.writeHead(400, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ error: 'settings must be valid JSON' }));
+            return;
+          }
+        }
+      }
       this.createCalls.push(body);
       const scripted = this.createResponses.shift() ?? {
         status: 201,
