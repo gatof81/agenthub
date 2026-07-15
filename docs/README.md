@@ -116,6 +116,12 @@ in progress (doc 17).
 
 ## Changelog
 
+- **2026-07-15** — **Two-level sidebar IA + contrast pass** (owner UX
+  feedback on the B1-10 UI): projects home vs in-project context with a
+  dropdown project switcher and `‹ All projects`; explicit new-conversation
+  affordance; border/tone tokens replace black hairlines so panels read
+  as panels (GitHub #34).
+
 - **2026-07-15** — **Increment 2 COMPLETE — live end-to-end acceptance
   passed** on the deployment host (dedicated seam account, Q-04): real
   provisioning (template → create → agentSeed bootstrap → ready), a real
