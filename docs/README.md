@@ -113,6 +113,22 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-15** — **Execution topology clarified** (owner's
+  session-ownership question, analyzed — the spec already matched: ADR-005
+  rejected session-per-conversation): normative **three-term glossary** in
+  06 §1 (substrate session = Project's persistent environment; runtime
+  session = a runtime's continuity transcript, `Conversation`-held in P1;
+  agent role = reusable config, no session of its own). 18 §2 gains
+  "Execution topology": sessions are stable reused resources; default =
+  role template executes inside the target project's substrate session
+  under an isolated runtime session; new-session creation requires a
+  concrete operational cause; Run/Step environment selection reserved for
+  later phases; the logical exclusion unit is the **workspace** (I-2's
+  per-project rule is its P1 realization); role-specific sessions = future
+  exceptional topology with disposable/project-partitioned transcripts.
+  Two rejected shapes added (18 §10). No MVP change; Increments 1–2
+  untouched.
+
 - **2026-07-15** — **Two dimensions of specialization made explicit**
   (owner's composition question, analyzed): role = stateless template,
   project = stateful context, "project agent" = the derived

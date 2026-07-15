@@ -33,6 +33,15 @@ Two aggregates, one configuration entity, one value object:
 | `Run` | aggregate root (owns `RunEvent`s, `UsageRecord`, `RunSummary`) | The execution unit; heaviest write path |
 | `SessionBinding` | value object on `Project` | The substrate seam reference |
 
+**Terminology — "session" names three different things; this table is
+normative:**
+
+| Term | What it is | Who holds it |
+| --- | --- | --- |
+| **Substrate session** | The persistent shared-terminal environment: container, workspace, repository | The **Project**, via `SessionBinding` — never a conversation, task, or run (ADR-005 rejected session-per-conversation) |
+| **Runtime session** | A runtime's continuity/transcript handle — e.g. the Claude CLI's `runtimeSessionId` used for `--resume`. Many coexist in one substrate session (S-01) | `Conversation` in Phase 1; later phases may attach continuity to a Task, Run, or Step instead |
+| **Agent role** | Reusable specialty configuration: instructions, tools, criteria, permissions | Config (`Agent`); implies **no** substrate session of its own and no cross-project memory ([18 §2](./18-agent-collaboration-model.md)) |
+
 ## 2. Entities
 
 ### Agent (config-defined in Phase 1)
