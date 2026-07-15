@@ -93,7 +93,7 @@ numbers are noted per item as they land, since the two drift.
 15. Second direction review: collaboration model (18) + amendments — **merged (GitHub #22)**; owner approved docs 01–18 (gates passed, GitHub #23 records it).
 16. **Increment 1 — fake-runtime spine, complete**: backend B1-01..09 + B1-11 + BX-01 (GitHub #26), frontend B1-10 (GitHub #27), command palette B1-12 (GitHub #28).
 17. **Increment 2 — real substrate + real Claude, COMPLETE**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29); B2-02 real session provisioning (GitHub #30); B2-03 real `claude-cli` adapter + B2-04 real-vs-fake contract test (GitHub #31); B2-05 composition-root wiring + token hygiene (GitHub #32) + agentSeed wire fix and **live end-to-end acceptance passed on the deployment host** (GitHub #33). Two-level sidebar + contrast pass on owner UX feedback (GitHub #34).
-18. **Increment 3 — hardening, in progress**: B3-01 cancellation (kill-outcome race fix + FR-21 post-cancel sweep, live-verified, GitHub #35); B3-02 boot-reconciliation hardening (provisioning heal, boot sweeps, idempotence, live-verified, GitHub #36); B3-03 SSE resilience (stall watchdog + proactive wake + heartbeat, first frontend tests, GitHub #37); B3-04 backup pipeline (snapshot sink port, VACUUM INTO → gzip → R2/S3, freshness gauge, restore drill, GitHub #38). Next: B3-05 restore drill (live) + B3-06/07.
+18. **Increment 3 — hardening, in progress**: B3-01 cancellation (kill-outcome race fix + FR-21 post-cancel sweep, live-verified, GitHub #35); B3-02 boot-reconciliation hardening (provisioning heal, boot sweeps, idempotence, live-verified, GitHub #36); B3-03 SSE resilience (stall watchdog + proactive wake + heartbeat, first frontend tests, GitHub #37); B3-04 backup pipeline (snapshot sink port, VACUUM INTO → gzip → R2/S3, freshness gauge, restore drill, GitHub #38); B3-06 error taxonomy + timeouts + lagging budget (GitHub #41). UX follow-ups: back-arrow + archive projects/conversations (GitHub #40). Next: B3-05 live restore drill + B3-07 observability floor.
 
 ## Quality gates
 
@@ -116,6 +116,19 @@ in progress (doc 17).
 | MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | **passed** (owner, 2026-07-15) |
 
 ## Changelog
+
+- **2026-07-15** — **B3-06 error taxonomy + timeouts + budget**: the run
+  loop now enforces the caps and surfaces every 08 §6 code. A Hub
+  wall-clock backstop sits over the seam's own `maxDurationMs` cap and
+  kills a hung stream → `run_timeout` (also classified from a seam
+  `exit reason:"timeout"`). A lagging budget estimate accumulates
+  per-message token usage (surfaced as a new `usage` adapter item from
+  the stream-json mapping) and trips `budget_exceeded` on crossing
+  `caps.budgetUsd` — prices configurable, conservative defaults (a
+  runaway cap, not a billing figure; the estimate lags by up to one model
+  call, ADR-003). Seam 409/429 classifies as `exec_refused`, anything
+  unreachable as `seam_unavailable`. Timeout/budget kills resolve as
+  `failed` (not `cancelled`) and run the FR-21 sweep for escaped children.
 
 - **2026-07-15** — **B3-04 backup pipeline**: a snapshot-sink port with two
   implementations — a local-file sink (offline/tests) and an R2 sink over

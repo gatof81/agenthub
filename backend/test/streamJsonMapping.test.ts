@@ -14,9 +14,10 @@ function mapAll(lines: string[]): AdapterItem[] {
 }
 
 describe('stream-json mapping (ADR-003) against S-01 fixtures', () => {
-  it('p2-baseline: init → unknown(rate_limit) → output(text) → result', () => {
+  it('p2-baseline: init → unknown(rate_limit) → usage → output(text) → result', () => {
     const items = mapAll(fixtureStreamLines(FIXTURES.baseline));
-    expect(items.map((i) => i.kind)).toEqual(['init', 'event', 'event', 'result']);
+    // the assistant message emits a usage item (B3-06) before its content
+    expect(items.map((i) => i.kind)).toEqual(['init', 'event', 'usage', 'event', 'result']);
 
     const init = items[0] as Extract<AdapterItem, { kind: 'init' }>;
     expect(init.model).toBe('claude-sonnet-5');
@@ -27,11 +28,16 @@ describe('stream-json mapping (ADR-003) against S-01 fixtures', () => {
     expect(rateLimit.type).toBe('unknown'); // FR-16: preserved, not dropped
     expect((rateLimit.payload as { originalType: string }).originalType).toBe('rate_limit_event');
 
-    const text = items[2] as Extract<AdapterItem, { kind: 'event' }>;
+    const usage = items[2] as Extract<AdapterItem, { kind: 'usage' }>;
+    expect(usage.kind).toBe('usage'); // per-message tokens for the budget estimate
+    expect(usage.outputTokens).toBeGreaterThanOrEqual(0);
+    expect(usage.cacheReadTokens).toBeGreaterThan(0); // baseline read a large cache
+
+    const text = items[3] as Extract<AdapterItem, { kind: 'event' }>;
     expect(text.type).toBe('output');
     expect((text.payload as { blockType: string }).blockType).toBe('text');
 
-    const result = items[3] as Extract<AdapterItem, { kind: 'result' }>;
+    const result = items[4] as Extract<AdapterItem, { kind: 'result' }>;
     expect(result.totalCostUsd).toBeCloseTo(0.0101426, 6);
     expect(result.numTurns).toBe(1);
     expect(result.permissionDenialCount).toBe(0);

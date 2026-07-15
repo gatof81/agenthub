@@ -16,6 +16,7 @@ import { LocalSnapshotSink } from './backup/localSink.js';
 import { R2SnapshotSink } from './backup/r2Sink.js';
 import { loadAgents } from './config/agents.js';
 import { resolveBackupConfig } from './config/backup.js';
+import { resolveTokenPrices } from './config/budget.js';
 import { resolveRuntimeConfig } from './config/runtime.js';
 import type { RuntimeAdapter, SubstrateExecPort } from './domain/ports.js';
 import { Orchestrator } from './orchestrator/orchestrator.js';
@@ -98,6 +99,7 @@ async function main(): Promise<void> {
     agents,
     notify: broadcaster,
     runEnv,
+    tokenPrices: resolveTokenPrices(process.env), // budget estimate (B3-06)
   });
 
   // boot reconciliation runs before the API accepts writes (07 §3, UC-06)

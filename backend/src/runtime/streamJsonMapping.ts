@@ -14,7 +14,7 @@ interface StreamJsonEnvelope {
   session_id?: string;
   model?: string;
   claude_code_version?: string;
-  message?: { content?: Array<Record<string, unknown>> };
+  message?: { content?: Array<Record<string, unknown>>; usage?: Record<string, unknown> };
   result?: string;
   is_error?: boolean;
   total_cost_usd?: number;
@@ -67,6 +67,18 @@ export function mapStreamJsonLine(line: string): AdapterItem[] {
 
     case 'assistant': {
       const items: AdapterItem[] = [];
+      // per-message token usage feeds the lagging budget estimate (B3-06)
+      const u = parsed.message?.usage;
+      if (u) {
+        const n = (k: string): number => (typeof u[k] === 'number' ? (u[k] as number) : 0);
+        items.push({
+          kind: 'usage',
+          inputTokens: n('input_tokens'),
+          outputTokens: n('output_tokens'),
+          cacheReadTokens: n('cache_read_input_tokens'),
+          cacheCreationTokens: n('cache_creation_input_tokens'),
+        });
+      }
       for (const block of parsed.message?.content ?? []) {
         const blockType = block['type'];
         if (blockType === 'text') {
