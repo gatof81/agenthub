@@ -1,7 +1,7 @@
 /**
  * In-process contract double of the seam's exec API (EXEC_API.md wire
  * shapes) for the B2-01 conformance suite: real HTTP + chunked NDJSON, JWT
- * cookie auth via /auth/login, scripted responses. Offline by construction
+ * cookie auth via /api/auth/login, scripted responses. Offline by construction
  * (13 §6) — it exists so RealSubstrateExecPort can be exercised against the
  * documented wire without a substrate.
  */

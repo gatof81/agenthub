@@ -1,6 +1,6 @@
 /**
  * Seam authentication (Q-04, ADR-001, SEC-06): the Hub logs into the
- * substrate as its dedicated account via the existing `POST /auth/login`
+ * substrate as its dedicated account via the existing `POST /api/auth/login`
  * and rides the httpOnly `st_token` JWT cookie on every seam call. The
  * token exists only in the Set-Cookie header (the login body never carries
  * it), is cached in memory, and is never logged (SEC-04).
