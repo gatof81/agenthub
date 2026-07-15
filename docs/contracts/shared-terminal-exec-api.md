@@ -35,6 +35,37 @@ account, SEC-06). `X-Request-Id` emitted on every response and echoed in
 | Caller-supplied `X-Request-Id` | MAY be adopted | **ignored**; the response header is always the substrate's own id | One id to record, no ambiguity |
 | Operational limits | suggested values | **4 concurrent execs/session · 120/min per IP (start+kill; status unlimited) · `graceMs` ≤ 30000** | FR-19 serializes runs per session anyway (1 ≪ 4); reconciliation polling uses status freely |
 
+## Hub-side implementation notes (B2-01, `RealSubstrateExecPort`)
+
+Recorded when the real port landed; verified against the exec route source
+at shared-terminal `main @ 6291397` (`backend/src/routes/exec.ts`).
+
+- **stdin delivery.** The seam has no stdin channel (the exec schema is
+  `cmd`/`env`/`workingDir`/`maxDurationMs`; one-shot stdin is distinct from
+  the contract's "interactive stdin/PTY" non-goal but equally absent), while
+  ADR-003 requires prompts to reach the CLI via stdin. The port bridges the
+  gap with an injection-safe wrapper:
+  `["bash","-c",'printf %s "$1" | "${@:2}"',"hub_stdin",<payload>,<argv...>]`
+  — the payload travels as its own argv element (positional parameter, never
+  shell-interpreted) and reaches the real command's stdin through a pipe;
+  the process group is still rooted at the seam's `setsid` leader, so kill
+  semantics are unchanged. Consequence: **the stdin payload counts against
+  the seam's 32 KiB `cmd` cap** — the port rejects larger requests Hub-side
+  before dispatch. A one-shot `stdin` field upstream would remove the bound;
+  worth proposing if real prompts ever approach it.
+- **Kill on 404.** The wire keeps `404` for execIds the registry does not
+  hold (aged out, lost to a restart, never existed); the port collapses it
+  into the `already-exited` outcome — the same tolerant no-op the fake
+  answers, so the orchestrator sees one semantics from both implementations.
+- **Auth.** `POST /auth/login` with the Hub's dedicated account (Q-04);
+  the JWT exists only in the httpOnly `st_token` Set-Cookie (never in the
+  login body, never logged). Cached in memory, single-flight login, one
+  re-login + retry on `401` — safe for the exec POST because a `401` is
+  rejected before anything runs.
+- **Validation before dispatch** (fail fast per the delta table): env name
+  charset / ≤ 64 entries / ≤ 4096 B value / ≤ 64 KiB total, `cmd` ≤ 32 KiB,
+  `maxDurationMs` within 1..3600000.
+
 ## Related upstream closures
 
 - **Zombies (Q-08): resolved.** Upstream confirmed accumulation (3 permanent
