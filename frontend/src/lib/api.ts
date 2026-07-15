@@ -147,4 +147,13 @@ export const api = {
     ),
   getRun: (id: string) => call<RunDetail>('GET', `/api/runs/${id}`),
   cancelRun: (id: string) => call<{ accepted: boolean }>('POST', `/api/runs/${id}/cancel`),
+  // archive = the product's "delete": reversible, keeps history; archiving a
+  // project stops its substrate session (FR-30). Archived items drop out of
+  // the default lists.
+  archiveProject: (id: string) =>
+    call<{ project: Project }>('PATCH', `/api/projects/${id}`, { status: 'archived' }),
+  archiveConversation: (id: string) =>
+    call<{ conversation: Conversation }>('PATCH', `/api/conversations/${id}`, {
+      status: 'archived',
+    }),
 };

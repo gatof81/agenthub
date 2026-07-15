@@ -52,7 +52,7 @@ body {
   margin: 6px 2px 8px;
 }
 .nav-list { list-style: none; margin: 0 0 14px; padding: 0; }
-.nav-list li button {
+.nav-list .nav-main {
   width: 100%;
   text-align: left;
   background: none;
@@ -66,13 +66,32 @@ body {
   align-items: center;
   gap: 6px;
 }
-.nav-list li button:hover { background: var(--raised); }
-.nav-list li button.selected {
+.nav-list .nav-main:hover { background: var(--raised); }
+.nav-list .nav-main.selected {
   background: var(--accent-soft);
   box-shadow: inset 3px 0 0 var(--accent);
   color: #fff;
 }
 .empty-hint { color: var(--muted); font-size: 13px; padding: 6px 10px; list-style: none; }
+
+/* rows with a hover-revealed archive action */
+.nav-row { display: flex; align-items: center; gap: 2px; }
+.nav-row .nav-main { flex: 1; min-width: 0; }
+.nav-row .nav-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-action {
+  flex: none;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  padding: 6px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0;
+}
+.nav-row:hover .row-action,
+.project-header .row-action { opacity: 1; }
+.row-action:hover { background: var(--raised); color: var(--danger); }
 
 .new-item input {
   width: 100%;
@@ -98,8 +117,26 @@ body {
 
 .palette-hint { font-size: 12px; margin-top: auto; padding-top: 14px; }
 
-/* — project switcher (inside a project) — */
-.project-switcher { position: relative; margin-bottom: 16px; }
+/* — project header: back arrow + switcher + archive (inside a project) — */
+.project-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.back-arrow {
+  flex: none;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  padding: 8px 11px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.back-arrow:hover { background: var(--raised); border-color: var(--accent); }
+.project-switcher { position: relative; flex: 1; min-width: 0; }
 .switcher-button {
   width: 100%;
   display: flex;
