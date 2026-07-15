@@ -137,6 +137,17 @@ export function App(): React.JSX.Element {
         run: () => void createConversation(),
       });
     }
+    if (selectedProject) {
+      cmds.push({
+        id: 'all-projects',
+        label: 'Go to all projects',
+        run: () => {
+          setSelectedProject(null);
+          setSelectedConversation(null);
+          setConversations([]);
+        },
+      });
+    }
     for (const p of projects) {
       if (p.id === selectedProject?.id) continue;
       cmds.push({
@@ -180,6 +191,11 @@ export function App(): React.JSX.Element {
         onOpenConversation={setSelectedConversation}
         onCreateProject={(name) => void createProject(name)}
         onCreateConversation={() => void createConversation()}
+        onBackToProjects={() => {
+          setSelectedProject(null);
+          setSelectedConversation(null);
+          setConversations([]);
+        }}
       />
       {selectedConversation ? (
         <Thread
