@@ -156,6 +156,10 @@ describe('seam error classification (08 §6)', () => {
     const final = store.getRun(run.id)!;
     expect(final.state).toBe('failed');
     expect(final.errorCode).toBe('exec_refused');
+    // FR-33: the detail carries the seam status + session-state context so a
+    // client can retry provisioning without a second API call
+    expect(final.errorDetail).toContain('429');
+    expect(final.errorDetail).toContain('FR-33');
   });
 
   it('an unreachable seam (no status) → seam_unavailable', async () => {

@@ -545,10 +545,17 @@ export class Orchestrator {
         const status =
           err && typeof err === 'object' && 'status' in err ? Number((err as { status: unknown }).status) : NaN;
         const refused = status === 409 || status === 429;
+        const raw = err instanceof Error ? err.message : String(err);
+        // exec_refused: attach the session-state context FR-33 calls for, so a
+        // client can retry provisioning without a second API call (matches the
+        // no-session exec_refused path above; 08 §6)
+        const lastKnownState = project.sessionBinding.lastKnownState ?? 'unknown';
         this.finalize(current, current.state, 'failed', {
           usageSource: 'error-partial',
           errorCode: refused ? 'exec_refused' : 'seam_unavailable',
-          errorDetail: err instanceof Error ? err.message : String(err),
+          errorDetail: refused
+            ? `seam ${status}: ${raw} — session lastKnownState=${lastKnownState} (FR-33)`
+            : raw,
           userMessageContent: message.content,
           warnings: this.excerpts(stderr),
           runtimeSessionId,
