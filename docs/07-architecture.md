@@ -1,6 +1,6 @@
 # 07 — Architecture (Phase 1)
 
-**Status:** draft — review · **Last updated:** 2026-07-14
+**Status:** draft — review · **Last updated:** 2026-07-15
 
 How the Phase-1 system is put together: context, modules, runtime behavior,
 deployment, and the decisions that bind them. Domain names from
@@ -33,7 +33,7 @@ authenticated as the Hub's dedicated substrate account (SEC-06).
 flowchart TB
     subgraph hub[Hub backend — single process]
         API[api: HTTP + SSE gateway<br/>auth, validation, correlation]
-        ORCH[orchestrator: run state machine,<br/>per-conversation queue, reconciler]
+        ORCH[orchestrator: run state machine,<br/>per-project queue, reconciler]
         RT[runtime: RuntimeAdapter port<br/>claude-cli ADR-003 / fake]
         SUB[substrate: SubstrateExecPort +<br/>session lifecycle · http / fake]
         STORE[store: HubStore port<br/>SQLite / in-memory]
@@ -63,7 +63,7 @@ Module rules:
 
 - **Turn**: exactly UC-02; the orchestrator owns the state machine and
   performs every transition in one `HubStore` transaction (NFR-01, I-3).
-- **Queueing**: an in-process FIFO per conversation (I-2). No broker — the
+- **Queueing**: an in-process FIFO per project (I-2). No broker — the
   queue's durable form IS the `queued` runs in SQLite; the in-memory
   structure is rebuilt from it at boot (R-10, R-13).
 - **Reconciler**: runs at boot before the API accepts writes (UC-06);

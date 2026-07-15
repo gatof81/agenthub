@@ -1,6 +1,6 @@
 # 01 — Product Brief
 
-**Status:** draft — review · **Last updated:** 2026-07-13
+**Status:** draft — review · **Last updated:** 2026-07-15
 
 > Curated from the kickoff specification. The original long-form brief (Spanish) has
 > not been supplied to this repo yet; if it surfaces, it is the source of truth for
@@ -9,7 +9,10 @@
 
 ## 1. Vision
 
-Agent Hub is a **personal hub for AI agents behind a chat interface**. The
+Agent Hub is a **personal system where teams of AI specialists do real work
+on projects** — chat is one entry point into that work, not the center of
+the system (the long-range collaboration direction lives in
+[18-agent-collaboration-model.md](./18-agent-collaboration-model.md)). The
 user works in **Projects** — "I'm going to work on the home-automation
 project", never "I
 want to talk to agent X" ([ADR-005](./adr/ADR-005-project-aggregate.md)).
@@ -50,6 +53,12 @@ the user can always drop into the workspace the agent operates on.
   contracts. No Kubernetes, microservices, Kafka, vector databases, event
   sourcing, or CQRS in the MVP. Every new infrastructure piece must cite a
   concrete failing constraint (see quality gates in [README](./README.md)).
+- **Need-to-know knowledge flow.** Agents collaborate by exchanging
+  *selected, structured* knowledge — Work Products, Context Packages
+  ([18 §4/§5](./18-agent-collaboration-model.md)) — never by sharing full
+  transcripts. Phase 1 has a single agent, so the principle costs nothing
+  yet; it governs how memory, context, delegation, and artifacts are designed
+  from Phase 2 on.
 
 ## 4. Conversation modes and multi-agent patterns (later phases)
 
@@ -59,8 +68,11 @@ supervisor — arrive in phases 3–4, always bounded: budgets, delegation depth
 timeouts, loop prevention. Teams collaborate on a **need-to-know basis**:
 agents exchange structured **Work Products** (security reviews, QA reports,
 implementation plans) rather than sharing one transcript — Phase 1's
-`RunSummary` is the first such artifact. Documented as vision here; designed
-in detail only when their phase arrives.
+`RunSummary` is the first such artifact. The full collaboration vision —
+Coordinator decomposition, Work Products, Knowledge Flow, workflow
+templates — is consolidated in
+[18-agent-collaboration-model.md](./18-agent-collaboration-model.md);
+designed in detail only when their phase arrives.
 
 ## 5. Phases
 
