@@ -202,6 +202,15 @@ export class SqliteHubStore implements HubStore {
     this.db.close();
   }
 
+  /**
+   * Consistent snapshot via `VACUUM INTO` (B3-04, 09 §5) — a clean copy
+   * without WAL/SHM sidecars, safe while writers are active (never a raw
+   * file copy of a live WAL database). `destPath` must not already exist.
+   */
+  snapshotTo(destPath: string): void {
+    this.db.prepare('VACUUM INTO ?').run(destPath);
+  }
+
   // — projects —
 
   createProject(input: CreateProjectInput): Project {

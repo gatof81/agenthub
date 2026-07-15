@@ -40,9 +40,11 @@ Phase 1; expose on an internal endpoint or log-derive):
 `GET /api/health`:
 
 - **Liveness** (unauthenticated): process up.
-- **Detail** (authenticated): `lastSnapshotAt` + staleness verdict (OPS-02),
-  seam reachability, DB writable, migration/schema version. This is the single
-  pane the operator checks.
+- **Detail** (authenticated): a `backup` object —
+  `{ enabled, lastSnapshotAt, degraded }` (OPS-02; `degraded` is the
+  staleness verdict, true past 2× the interval) — plus seam reachability,
+  DB writable, migration/schema version. This is the single pane the
+  operator checks.
 
 ## 4. Runbooks
 

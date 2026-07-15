@@ -11,6 +11,7 @@
     "start": "tsx src/main.ts"
   },
   "dependencies": {
+    "aws4fetch": "^1.0.20",
     "better-sqlite3": "^12.11.1",
     "express": "^5.2.1",
     "yaml": "^2.9.0"

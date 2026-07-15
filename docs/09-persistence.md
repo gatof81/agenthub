@@ -169,9 +169,10 @@ never a half-migrated serving process.
 4. Retention: keep last 14 dailies + last 8 six-hourlies (R2 lifecycle rule
    as backstop).
 
-**Freshness monitoring (OPS-02):** `GET /api/health` exposes
-`lastSnapshotAt`; a snapshot older than 2× the interval flags degraded — the
-operator-visible alert; failures log loudly and never crash the process.
+**Freshness monitoring (OPS-02):** `GET /api/health` (authenticated) exposes
+a `backup` object — `{ enabled, lastSnapshotAt, degraded }`; a snapshot older
+than 2× the interval sets `degraded` — the operator-visible alert; failures
+log loudly and never crash the process.
 
 **Restore (OPS-03):** stop Hub → download + decompress snapshot → replace db
 file (WAL/SHM absent) → start Hub → migrations no-op or roll forward → boot

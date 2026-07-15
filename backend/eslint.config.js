@@ -89,6 +89,7 @@ export default tseslint.config(
                 { type: 'runtime' },
                 { type: 'substrate' },
                 { type: 'store' },
+                { type: 'backup' },
                 { type: 'config' },
                 { type: 'domain' },
               ],
