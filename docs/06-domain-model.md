@@ -1,6 +1,6 @@
 # 06 — Domain Model (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-14
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-15
 
 The entities, relationships, and invariants behind
 [04-requirements.md](./04-requirements.md) and the flows in
@@ -47,7 +47,10 @@ Two aggregates, one configuration entity, one value object:
 | `defaultCaps` | `{maxTurns, budgetUsd, timeoutMs}` — every run gets a caps snapshot (FR-17) |
 
 Phase-2 forward constraint: this shape must survive becoming a stored,
-user-editable entity (Agent Registry) without field renames.
+user-editable entity (Agent Registry) without field renames — and it stays a
+**stateless role template**: accumulated knowledge (memory, decisions,
+history) binds to the *(project, agent)* pair, never to the agent alone
+([18 §2](./18-agent-collaboration-model.md), knowledge-isolation rule).
 
 ### Project
 

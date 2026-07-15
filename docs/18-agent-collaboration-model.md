@@ -47,6 +47,47 @@ for later phases:
 - A role's *quality criteria and way of working* live in its instructions —
   configuration, not code.
 
+### Two dimensions, one composition
+
+The professional role is only one axis of specialization; the other is the
+**project** ("the home-automation project's QA Engineer"). The model
+composes the two instead of multiplying entities:
+
+- **The role is a stateless template.** `Agent` (06 §2) is pure
+  configuration — instructions, tools, caps, runtime binding. It accumulates
+  nothing.
+- **The project is the stateful context.** Workspace and instructions today;
+  memory, documents, and decisions as their phases land (ADR-005 deferred
+  list).
+- **A "project agent" is the pair, not a layer.** The project-specialized
+  QA Engineer already exists as `(Conversation.projectId,
+  Conversation.agentId)` — a **derived identity**, resolved when a
+  conversation (later, a Task) binds a role into a project. How the UI
+  labels the pair is presentation, not domain.
+
+**Knowledge-isolation rule** — the reason this subsection exists:
+accumulated knowledge (memory, decisions, history) binds to the *(project,
+role)* pair, **never to the role alone**, and role templates change only by
+deliberate configuration edits. Nothing accumulated flows between projects
+automatically; craft learned in one project reaches the template — and
+thereby other projects — only when the owner promotes it explicitly.
+
+Phase 1 satisfies the rule *by construction* (all accumulated state lives in
+the project's own workspace; `Agent` is immutable config), so it costs
+nothing now. It is written down to constrain the two phases that could
+silently break it: **Phase 2** (a stored Agent Registry must keep agents
+stateless templates; project memory indexes by the pair) and **Phase 6**
+(advanced memory must not give roles cross-project memory). And it is a
+rule, not a preference, for two security reasons:
+
+- **Cross-project confidentiality**: workspaces can hold secrets and private
+  material (doc 10); role-shared memory would be a cross-project leak
+  channel the threat model otherwise does not have.
+- **Prompt-injection blast radius (R-05)**: with role-shared memory,
+  poisoned content ingested in one project could steer that role in *every*
+  project; pair-bound knowledge contains the contamination where it
+  happened.
+
 ## 3. The Coordinator, decomposed
 
 The intuition: the user should express intent, and the system should figure
@@ -203,3 +244,4 @@ Recorded so they are not re-proposed without new evidence (R-17):
 | Configurable workflow-template objects now | A BPM engine with zero executed pipelines behind it | §6: code-first, extract the template at the third proven workflow |
 | `PermanentAgent` as a distinct agent kind | All agents are already persistent identities; "permanent" is accumulated project context, not a lifecycle | §2: project memory indexed by *(project, agent)*, Phase 2+ |
 | Generic `WorkProduct` entity in Phase 1 | One producer, zero consumers — generalization without a second case | §4: `RunSummary` is the seed; the entity lands with Phase 4's first consumer |
+| `ProjectAgent` as a stored entity / per-project role forks | Config duplication that drifts (N project copies of the QA template diverging); `PermanentAgent` through the back door | §2: the *(project, role)* pair is a derived identity; knowledge binds to the pair, templates stay shared and stateless |
