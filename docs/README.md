@@ -122,9 +122,14 @@ approval** (see the maturity note under the index). On approval each flips to
   workflow templates code-first (extract at the third pipeline),
   "permanent agents" = (project, agent)-indexed memory, Task parents to
   Project (Phase-2 forward constraint), dashboard as evolution of the
-  project view. Rejected shapes recorded in 18 §9. Amendments: 01 §1/§4,
-  03 §1, 11 §7; R-17 broadened to vision churn. **No MVP change; quality
-  gates untouched.**
+  project view. Rejected shapes recorded in 18 §10. Owner follow-up
+  (same PR): **need-to-know knowledge flow elevated to a non-negotiable
+  principle (01 §3)**; the Work Product **family envelope**
+  (type/producer/provenance/structured body) fixed in 18 §4 with
+  RunSummary as its first member; **Project Policies** (declarative
+  gates, branch-protection analogy) recorded as future direction (18 §7).
+  Amendments: 01 §1/§3/§4, 03 §1, 11 §7; R-17 broadened to vision churn.
+  **No MVP change; quality gates untouched.**
 
 - **2026-07-15** — Doc 17 (Phase-1 backlog: Increment-1/2/3 work items,
   each traceable to FR/module/UC) drafted (GitHub #21). **Specification

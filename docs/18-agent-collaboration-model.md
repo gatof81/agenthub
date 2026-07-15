@@ -92,11 +92,27 @@ project), UX (a viewer per type), events (`work_product.*`), and audit
 (`RunSummary`) and zero consumers — generalizing from a single case produces
 the wrong schema.
 
+What *is* fixed now is the **family envelope** — the properties every Work
+Product shares, which `RunSummary` is deliberately designed to satisfy:
+
+- a **type** (what kind of product this is),
+- a **producer** (the run — and through it the agent — that emitted it),
+- **provenance** (derived from persisted evidence, not free assertion:
+  `RunSummary` derives from run events),
+- a **structured, consumer-addressable body** (typed fields, never prose
+  alone).
+
+`RunSummary` is therefore not "the UI summary of a run" that happens to be
+reusable — it is the first concrete member of this family, and Phase 4
+generalizes by **extension of the envelope, not redesign**. The family
+contract is the envelope; payload schemas stay per-type and evolve freely.
+
 ## 5. Knowledge Flow and Context Packages
 
 The collaboration failure mode to design against: delegation degenerating
 into forwarding hundreds of transcript messages to the next agent. The
-standing principle (01 §4) is **need-to-know**: a delegated agent receives a
+standing principle — elevated to the non-negotiable list in 01 §3 — is
+**need-to-know**: a delegated agent receives a
 **Context Package** — the task brief, the specific Work Products it must
 consume, and the relevant project decisions — and nothing else. Knowledge
 flows through typed artifacts, not through shared history.
@@ -123,7 +139,39 @@ is visible, the declarative template (likely a YAML sequence of role + expected
 Work Product type) is extracted from evidence. Direction recorded here;
 object deferred until earned.
 
-## 7. Task, ahead of its phase
+## 7. Project Policies: declarative gates, not orchestration
+
+A project will want to declare rules about its work — the GitHub
+branch-protection analogy: *every feature requires an Architecture Review
+before it is marked complete; infrastructure changes require a Security
+Review; physical automation requires human approval.* These are **not
+workflows**: they don't plan or execute anything. They are **conditions a
+state transition must satisfy**, checked deterministically.
+
+Why the direction is coherent with this architecture:
+
+- **Enforcement is code, not model** — a policy check ("does a Security
+  Review Work Product exist for this task?") is exactly the kind of
+  deterministic gate the Orchestrator already owns (backend-as-authority).
+  Policies *strengthen* the product's central principle rather than adding a
+  new kind of authority.
+- **They are the consumer that Work Products were missing.** A policy like
+  "requires Architecture Review" is only checkable when Tasks (Phase 2) and
+  typed Work Products (Phase 4) exist — which is why policies land *after*
+  both, as a thin declarative layer over them, not before.
+- **Human-approval policies compose with autonomy levels** (01 §3): "physical
+  automation requires human approval" is the project-scoped face of the
+  approvals/`awaiting_approval` mechanism — one mechanism, two configuration
+  surfaces, never a parallel permission system.
+
+The known trap, same as workflows: a policy *language* (conditions,
+expressions, combinators) is a rules engine — the enterprise shape this
+product refuses. Same discipline applies: the first policies are hardcoded
+checks in project config; a declarative form is extracted only from real,
+repeated cases. Vocabulary reserved; nothing designed until Tasks and Work
+Products exist.
+
+## 8. Task, ahead of its phase
 
 Task becomes an entity in Phase 2 (03 §1); today a task *is* a run with
 bigger caps (06 §5). One forward constraint is worth fixing now so Phase 2
@@ -132,7 +180,7 @@ Conversation.** Tasks outlive conversations, may involve several agents
 (Phase 4), and produce Work Products; a conversation is one way to start or
 steer a task, not its owner.
 
-## 8. The project surface grows into a dashboard
+## 9. The project surface grows into a dashboard
 
 Phase 1's project view (11 §4: conversations · activity inspector · terminal)
 is the **proto-dashboard** — it already shows everything that exists. As
@@ -143,7 +191,7 @@ project then lands on an overview rather than a conversation list — an
 evolution of one surface, not a new product. Recorded as UX direction in
 [11 §7](./11-ux-specification.md).
 
-## 9. Explicitly rejected shapes
+## 10. Explicitly rejected shapes
 
 Recorded so they are not re-proposed without new evidence (R-17):
 

@@ -143,7 +143,7 @@ depth. Phase 1 ships the two device experiences above and nothing past them.
 **Direction, not scope:** the Phase-1 project view is the proto-dashboard —
 as later phases add entities (tasks, approvals, Work Products, decisions),
 the same entry surface evolves into a project overview/dashboard rather
-than a conversation list ([18 §8](./18-agent-collaboration-model.md)). An
+than a conversation list ([18 §9](./18-agent-collaboration-model.md)). An
 evolution of one surface, never a Phase-1 deliverable.
 
 ## 8. Open UX questions (non-blocking)

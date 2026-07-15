@@ -53,6 +53,12 @@ the user can always drop into the workspace the agent operates on.
   contracts. No Kubernetes, microservices, Kafka, vector databases, event
   sourcing, or CQRS in the MVP. Every new infrastructure piece must cite a
   concrete failing constraint (see quality gates in [README](./README.md)).
+- **Need-to-know knowledge flow.** Agents collaborate by exchanging
+  *selected, structured* knowledge — Work Products, Context Packages
+  ([18 §4/§5](./18-agent-collaboration-model.md)) — never by sharing full
+  transcripts. Phase 1 has a single agent, so the principle costs nothing
+  yet; it governs how memory, context, delegation, and artifacts are designed
+  from Phase 2 on.
 
 ## 4. Conversation modes and multi-agent patterns (later phases)
 
