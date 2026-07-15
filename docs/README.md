@@ -113,6 +113,17 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-15** — **Two dimensions of specialization made explicit**
+  (owner's composition question, analyzed): role = stateless template,
+  project = stateful context, "project agent" = the derived
+  *(project, role)* pair — no new entity. **Knowledge-isolation rule**
+  recorded in 18 §2 (accumulated knowledge binds to the pair, never the
+  role; templates change only by deliberate edit) with its two security
+  grounds (cross-project confidentiality; R-05 blast-radius containment) —
+  it constrains Phase-2 registry/memory and Phase-6 memory design.
+  `ProjectAgent`-as-entity rejected (18 §10); 06 §Agent forward constraint
+  sharpened (stateless template). No MVP change.
+
 - **2026-07-15** — **Owner approved docs 01–18** (after the second direction
   review merged, GitHub #22). All 11 quality gates flip to **passed**; doc
   statuses flip to *approved*. **The specification phase is closed;
