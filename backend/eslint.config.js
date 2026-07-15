@@ -82,10 +82,12 @@ export default tseslint.config(
               allow: [{ type: 'backup' }, { type: 'domain' }, { type: 'store' }, { type: 'config' }],
             },
             { from: [{ type: 'config' }], allow: [{ type: 'config' }, { type: 'domain' }] },
-            // observability (logger/metrics): depends on domain interfaces + store
+            // observability (logger/metrics): depends only on domain
+            // interfaces (Logger/Metrics/RunState); store gauges are injected
+            // callbacks, not a store import
             {
               from: [{ type: 'observability' }],
-              allow: [{ type: 'observability' }, { type: 'domain' }, { type: 'store' }],
+              allow: [{ type: 'observability' }, { type: 'domain' }],
             },
             // the composition root wires everything (and only it may)
             {
