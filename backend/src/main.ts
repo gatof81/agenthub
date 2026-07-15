@@ -1,9 +1,10 @@
-/* eslint-disable no-console -- the composition root logs startup facts; SEC-05 payload rules apply to run data, which is never logged here */
+/* eslint-disable no-console -- the composition root logs startup facts; SEC-05 payload rules apply to run data, which is never logged here. No secret value is ever logged (SEC-04). */
 /**
  * Composition root: the only file allowed to see every module — it wires
  * implementations into the domain ports (06 §4) and starts the server.
- * Increment 1 runs the FAKE substrate + runtime (A1): fully offline, fixture
- * cycling, no credentials.
+ * HUB_RUNTIME selects the stack (config/runtime.ts): `fake` (default) is
+ * the Increment-1 offline stack; `real` (B2-05) wires the seam client and
+ * the claude-cli adapter, with the OAuth token riding each run's exec env.
  */
 
 import { readdirSync } from 'node:fs';
@@ -12,10 +13,15 @@ import { join } from 'node:path';
 import { buildApp } from './api/app.js';
 import { Broadcaster } from './api/broadcaster.js';
 import { loadAgents } from './config/agents.js';
+import { resolveRuntimeConfig } from './config/runtime.js';
+import type { RuntimeAdapter, SubstrateExecPort } from './domain/ports.js';
 import { Orchestrator } from './orchestrator/orchestrator.js';
+import { ClaudeCliRuntimeAdapter } from './runtime/claudeCliAdapter.js';
 import { FakeRuntimeAdapter } from './runtime/fakeAdapter.js';
 import { SqliteHubStore } from './store/sqlite.js';
 import { FakeSubstrateExecPort, type ExecFixture } from './substrate/fake.js';
+import { RealSubstrateExecPort } from './substrate/real.js';
+import { CookieSeamAuth } from './substrate/seamAuth.js';
 
 function env(name: string, fallback?: string): string {
   const value = process.env[name] ?? fallback;
@@ -54,21 +60,41 @@ async function main(): Promise<void> {
   const dbPath = env('HUB_DB_PATH', './hub.sqlite');
   const authToken = env('HUB_API_TOKEN');
   const agentsPath = env('AGENTS_CONFIG', './agents.example.yaml');
-  const fixturesDir = env(
-    'HUB_FAKE_FIXTURES_DIR',
-    '../docs/spikes/S-01/fixtures/run-20260714T142930Z',
-  );
+  const runtimeConfig = resolveRuntimeConfig(process.env);
 
   const agents = loadAgents(agentsPath);
   const store = new SqliteHubStore(dbPath);
   const broadcaster = new Broadcaster();
-  const execPort = new FakeSubstrateExecPort({ fixtureProvider: fixtureCycler(fixturesDir) });
+
+  let execPort: SubstrateExecPort;
+  let adapter: RuntimeAdapter;
+  let runEnv: Record<string, string> = {};
+  if (runtimeConfig.kind === 'real') {
+    const auth = new CookieSeamAuth({
+      baseUrl: runtimeConfig.seamBaseUrl,
+      username: runtimeConfig.seamUsername,
+      password: runtimeConfig.seamPassword,
+    });
+    execPort = new RealSubstrateExecPort({ baseUrl: runtimeConfig.seamBaseUrl, auth });
+    adapter = new ClaudeCliRuntimeAdapter(execPort);
+    // env-only credential path (SEC-07): the token rides each run's exec
+    // env and exists nowhere else — never persisted, never logged (13 §5)
+    runEnv = { CLAUDE_CODE_OAUTH_TOKEN: runtimeConfig.oauthToken };
+  } else {
+    const fakePort = new FakeSubstrateExecPort({
+      fixtureProvider: fixtureCycler(runtimeConfig.fixturesDir),
+    });
+    execPort = fakePort;
+    adapter = new FakeRuntimeAdapter(fakePort);
+  }
+
   const orchestrator = new Orchestrator({
     store,
-    adapter: new FakeRuntimeAdapter(execPort),
+    adapter,
     execPort,
     agents,
     notify: broadcaster,
+    runEnv,
   });
 
   // boot reconciliation runs before the API accepts writes (07 §3, UC-06)
@@ -76,7 +102,7 @@ async function main(): Promise<void> {
 
   const app = buildApp({ store, orchestrator, agents, broadcaster, authToken });
   app.listen(port, () => {
-    console.log(`agenthub backend listening on :${port} (runtime: fake, Increment 1)`);
+    console.log(`agenthub backend listening on :${port} (runtime: ${runtimeConfig.kind})`);
   });
 }
 

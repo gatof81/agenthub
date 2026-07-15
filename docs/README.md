@@ -92,7 +92,7 @@ numbers are noted per item as they land, since the two drift.
 14. Phase-1 backlog (17) + quality-gate review — **merged (GitHub #21)**.
 15. Second direction review: collaboration model (18) + amendments — **merged (GitHub #22)**; owner approved docs 01–18 (gates passed, GitHub #23 records it).
 16. **Increment 1 — fake-runtime spine, complete**: backend B1-01..09 + B1-11 + BX-01 (GitHub #26), frontend B1-10 (GitHub #27), command palette B1-12 (GitHub #28).
-17. **Increment 2 — real substrate + real Claude, in progress**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29); B2-02 real session provisioning (GitHub #30); B2-03 real `claude-cli` adapter + B2-04 real-vs-fake contract test (GitHub #31). Next: B2-05 composition-root wiring + live end-to-end.
+17. **Increment 2 — real substrate + real Claude, in progress**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29); B2-02 real session provisioning (GitHub #30); B2-03 real `claude-cli` adapter + B2-04 real-vs-fake contract test (GitHub #31); B2-05 composition-root wiring + token hygiene (GitHub #32) — **the live end-to-end acceptance remains open**, pending the dedicated seam account (Q-04).
 
 ## Quality gates
 
@@ -115,6 +115,19 @@ in progress (doc 17).
 | MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | **passed** (owner, 2026-07-15) |
 
 ## Changelog
+
+- **2026-07-15** — **B2-05 (wiring half)**: `HUB_RUNTIME=fake|real` selects
+  the stack in the composition root (pure resolution in
+  `config/runtime.ts`, fail-fast on missing real-mode variables, names
+  only — values never echoed); real mode wires `CookieSeamAuth` +
+  `RealSubstrateExecPort` + `ClaudeCliRuntimeAdapter` and injects
+  `CLAUDE_CODE_OAUTH_TOKEN` into each run's exec env alongside the
+  existing `HUB_RUN_ID` marker. Token-hygiene test (13 §5): the canary
+  token reaches exec env only and the raw SQLite file bytes contain no
+  trace after full turns. `.env.example` documents the matrix. CI stays
+  fake/credential-free. **Open**: the live end-to-end acceptance (real
+  project → real session → real Claude turn) waits on the dedicated seam
+  account.
 
 - **2026-07-15** — **B2-03 + B2-04**: real `claude-cli` adapter (ADR-003
   command construction with the S-01 traps guarded: variadic allowlist ⇒
