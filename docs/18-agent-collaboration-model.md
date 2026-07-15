@@ -129,10 +129,12 @@ Recurring pipelines are real — Security Review (architect → security reviewe
 implementation → QA → docs). The trap is building the workflow *engine*
 (template versioning, per-step error semantics, conditional branches, an
 editor) before a single pipeline has run — that is the generic-BPM shape this
-product explicitly refuses (01 §8).
+product explicitly refuses (01 §3, anti-over-architecture).
 
-The rule, mirroring the runtime-adapter discipline (R-12: the third
-implementation pays for the generalization): **Phase 4's first workflows are
+The rule, mirroring the runtime-adapter discipline (12 §exclusions: two
+adapters + one interface is the rule; the third implementation pays for the
+generalization — with R-12's design-time review against a hypothetical third
+guarding the interface meanwhile): **Phase 4's first workflows are
 plain code** — a hardcoded sequence of roles exchanging Work Products under
 Orchestrator bounds. When **three** real workflows exist and their variation
 is visible, the declarative template (likely a YAML sequence of role + expected

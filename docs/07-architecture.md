@@ -63,7 +63,7 @@ Module rules:
 
 - **Turn**: exactly UC-02; the orchestrator owns the state machine and
   performs every transition in one `HubStore` transaction (NFR-01, I-3).
-- **Queueing**: an in-process FIFO per conversation (I-2). No broker — the
+- **Queueing**: an in-process FIFO per project (I-2). No broker — the
   queue's durable form IS the `queued` runs in SQLite; the in-memory
   structure is rebuilt from it at boot (R-10, R-13).
 - **Reconciler**: runs at boot before the API accepts writes (UC-06);
