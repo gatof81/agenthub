@@ -1,0 +1,6 @@
+# build & test artifacts
+dist/
+coverage/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

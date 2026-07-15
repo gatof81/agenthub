@@ -1,5 +1,5 @@
-# Minimal CI for the specification phase: markdown lint + link check.
-# Extend with build/test/typecheck jobs once product code exists.
+# CI: markdown lint + link check for docs; offline deterministic suite for
+# the backend (13 §6 — no secrets, no network, no real services).
 name: CI
 
 on:
@@ -14,16 +14,39 @@ jobs:
   markdown-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: DavidAnson/markdownlint-cli2-action@v20
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: DavidAnson/markdownlint-cli2-action@8de2aa07cae85fd17c0b35642db70cf5495f1d25 # v24.0.0
         with:
           globs: "**/*.md"
 
   link-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: lycheeverse/lychee-action@v2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
           args: --no-progress --retry-wait-time 2 --max-retries 2 "./**/*.md"
           fail: true
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Assert no real-service credentials are present (13 §6)
+        run: |
+          if env | grep -qiE '^(ANTHROPIC|CLAUDE|CLOUDFLARE)'; then
+            echo "credential-shaped env vars present — the offline suite must not see them"
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test

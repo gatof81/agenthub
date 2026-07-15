@@ -1,0 +1,38 @@
+{
+  "name": "agenthub-backend",
+  "version": "0.1.0",
+  "description": "Agent Hub backend - modular monolith (doc 07)",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "express": "^5.2.1",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.1",
+    "@types/supertest": "^7.2.1",
+    "eslint": "^10.7.0",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-boundaries": "^7.0.2",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.64.0",
+    "vitest": "^4.1.10"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  }
+}
