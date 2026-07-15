@@ -226,8 +226,12 @@ export class Orchestrator {
         this.finalize(run, 'interrupted', ok ? 'completed' : 'failed', {
           usageSource: 'error-partial',
           assistantContent: ok ? assembleAssistantText(events) || null : null,
-          errorCode: ok ? undefined : 'runtime_error',
-          errorDetail: ok ? undefined : `exited ${String(exitCode)} while Hub was down`,
+          ...(ok
+            ? {}
+            : {
+                errorCode: 'runtime_error' as const,
+                errorDetail: `exited ${String(exitCode)} while Hub was down`,
+              }),
           userMessageContent: message.content,
           warnings: [],
           runtimeSessionId: conversation.runtimeSessionId,
@@ -291,7 +295,6 @@ export class Orchestrator {
     };
 
     let seq = 0;
-    let execId: string | null = null;
     let resultMeta: Extract<AdapterItem, { kind: 'result' }> | null = null;
     let exitMeta: Extract<AdapterItem, { kind: 'exit' }> | null = null;
     let runtimeSessionId = conversation.runtimeSessionId;
@@ -308,7 +311,6 @@ export class Orchestrator {
       for await (const item of this.adapter.runTurn(sessionId, turn)) {
         switch (item.kind) {
           case 'started':
-            execId = item.execId;
             this.store.transitionRun(run.id, 'starting', 'streaming', {
               execId: item.execId,
               pgid: item.pgid,

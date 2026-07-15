@@ -9,8 +9,11 @@ Current modules (Increment 1 in progress, [docs/17-phase1-backlog.md](../docs/17
 
 | Module | Contents |
 | --- | --- |
-| `src/domain` | canonical types (doc 06), run state machine (doc 05), id/clock ports |
+| `src/domain` | canonical types (doc 06), run state machine (doc 05), ports (06 §4), pure projections (activity A2, RunSummary FR-42), id/clock |
 | `src/store` | `HubStore` port + SQLite (doc 09) and in-memory implementations, migrations |
+| `src/orchestrator` | send → queue → dispatch → ingest → terminal (09 §3), provisioning UC-01, cancellation UC-04, boot reconciler UC-06 |
+| `src/runtime` | ADR-003 stream-json mapping (the R-12 contract surface), fake `RuntimeAdapter` |
+| `src/substrate` | fake `SubstrateExecPort` (S-01 fixture replay, kill honoring, contract `unknown` semantics) |
 
 ## Commands
 
