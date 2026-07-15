@@ -19,6 +19,14 @@ assumes a fleet. Requirements: OPS-01..06; architecture 07 §6.
 - Levels: `error` for anything alert-worthy (backup failure, `internal`
   taxonomy code); `warn` for recoverable seam/exec failures; `info` for
   lifecycle (run transitions, provisioning); `debug` off in production.
+- **Implementation (B3-07):** `observability/logger.ts` emits one JSON line
+  per event (`ts`/`level`/`event`/`cid` + typed fields). The correlation id
+  is generated per request, echoed as `X-Request-Id`, and carried through the
+  async chain via `AsyncLocalStorage` so a log emitted deep in a run keeps
+  the request's `cid`. The `Logger` interface's field type
+  (`string | number | boolean | null` only) makes logging a payload object a
+  type error — the no-payload guarantee is enforced at the type level, not
+  just by discipline, and pinned by a canary test (BX-02, 13 §5).
 
 ## 2. Signals (metrics)
 

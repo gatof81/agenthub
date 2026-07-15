@@ -36,6 +36,7 @@ export function makeApiHarness(
   opts: {
     heartbeatMs?: number;
     snapshotFreshness?: () => { lastSnapshotAt: string | null; degraded: boolean };
+    metricsSnapshot?: () => Record<string, unknown>;
   } = {},
 ): ApiHarness {
   const store = new MemoryHubStore();
@@ -56,6 +57,7 @@ export function makeApiHarness(
     authToken: TEST_TOKEN,
     heartbeatMs: opts.heartbeatMs ?? 3600_000, // effectively off in tests by default
     ...(opts.snapshotFreshness ? { snapshotFreshness: opts.snapshotFreshness } : {}),
+    ...(opts.metricsSnapshot ? { metricsSnapshot: opts.metricsSnapshot } : {}),
   });
   return { app, store, port, orch, broadcaster };
 }

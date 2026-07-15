@@ -31,6 +31,17 @@ describe('HTTP API (08 §1)', () => {
     expect(open.body).toEqual({ status: 'ok' });
   });
 
+  it('health surfaces the metrics snapshot when wired (B3-07, authed only)', async () => {
+    const { app } = makeApiHarness(undefined, {
+      metricsSnapshot: () => ({ runTransitions: { completed: 3 }, seamErrors: 0, activeRuns: 1 }),
+    });
+    const res = await request(app).get('/api/health').set(AUTH);
+    expect(res.body.metrics).toEqual({ runTransitions: { completed: 3 }, seamErrors: 0, activeRuns: 1 });
+    // unauthenticated liveness never exposes metrics
+    const open = await request(app).get('/api/health');
+    expect(open.body).toEqual({ status: 'ok' });
+  });
+
   it('every response carries a 16-hex X-Request-Id (OPS-04)', async () => {
     const { app } = makeApiHarness();
     const res = await request(app).get('/api/health');

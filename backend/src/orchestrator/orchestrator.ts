@@ -14,9 +14,13 @@ import {
 } from '../config/budget.js';
 import { systemClock, type Clock } from '../domain/ids.js';
 import {
+  NOOP_LOGGER,
+  NOOP_METRICS,
   NOOP_NOTIFIER,
   type AdapterItem,
   type HubNotifier,
+  type Logger,
+  type Metrics,
   type RuntimeAdapter,
   type SubstrateExecPort,
   type TurnRequest,
@@ -64,6 +68,9 @@ export interface OrchestratorDeps {
   timeoutGraceMs?: number;
   /** live-delivery sink (ADR-004); losing notifications loses nothing (NFR-07) */
   notify?: HubNotifier;
+  /** structured logging + metrics (B3-07); no-ops by default */
+  logger?: Logger;
+  metrics?: Metrics;
 }
 
 const STDERR_EXCERPT_MAX = 500;
@@ -112,6 +119,8 @@ export class Orchestrator {
   private readonly tokenPrices: TokenPrices;
   private readonly timeoutGraceMs: number;
   private readonly notify: HubNotifier;
+  private readonly logger: Logger;
+  private readonly metrics: Metrics;
 
   private readonly inFlight = new Map<string, Promise<void>>();
   private readonly cancelRequested = new Set<string>();
@@ -138,6 +147,8 @@ export class Orchestrator {
     this.tokenPrices = deps.tokenPrices ?? DEFAULT_TOKEN_PRICES;
     this.timeoutGraceMs = deps.timeoutGraceMs ?? DEFAULT_TIMEOUT_GRACE_MS;
     this.notify = deps.notify ?? NOOP_NOTIFIER;
+    this.logger = deps.logger ?? NOOP_LOGGER;
+    this.metrics = deps.metrics ?? NOOP_METRICS;
   }
 
   // — UC-01: create project + provision its substrate session —
@@ -720,6 +731,23 @@ export class Orchestrator {
     const usageRecord = this.store.getUsage(run.id);
     if (usageRecord) this.notify.usage(run.conversationId, usageRecord);
     this.notify.summary(run.conversationId, summary);
+
+    // observability (B3-07): count the terminal transition + log ids/type
+    // only — never the message, assistant text, or event payloads (13 §5)
+    this.metrics.runTransition(finalRun.state);
+    if (finalRun.errorCode === 'seam_unavailable' || finalRun.errorCode === 'exec_refused') {
+      this.metrics.seamError();
+    }
+    const level = to === 'failed' ? 'error' : 'info';
+    this.logger[level]('run.terminal', {
+      runId: run.id,
+      state: finalRun.state,
+      errorCode: finalRun.errorCode ?? null,
+      seamRequestId: finalRun.seamRequestId ?? null,
+      costUsd: summary.costUsd,
+      numTurns: summary.numTurns,
+      durationMs: summary.durationMs,
+    });
   }
 
   /**
