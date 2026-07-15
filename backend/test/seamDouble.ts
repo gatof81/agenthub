@@ -1,0 +1,198 @@
+/**
+ * In-process contract double of the seam's exec API (EXEC_API.md wire
+ * shapes) for the B2-01 conformance suite: real HTTP + chunked NDJSON, JWT
+ * cookie auth via /auth/login, scripted responses. Offline by construction
+ * (13 §6) — it exists so RealSubstrateExecPort can be exercised against the
+ * documented wire without a substrate.
+ */
+
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { setTimeout as sleep } from 'node:timers/promises';
+
+export interface ExecScript {
+  /** value for X-Request-Id and the started event's requestId */
+  requestId?: string;
+  /** wire lines (JSON strings, no trailing newline) streamed after `started` */
+  lines?: string[];
+  /** include the started line automatically (default true) */
+  emitStarted?: boolean;
+  execId?: string;
+  pgid?: number;
+  /** how the byte stream is cut into HTTP chunks */
+  chunkMode?: 'per-line' | 'split-mid-line';
+  /** non-200: respond with this status + errorBody instead of a stream */
+  status?: number;
+  errorBody?: unknown;
+}
+
+export interface ScriptedResponse {
+  status?: number;
+  body?: unknown;
+}
+
+interface RecordedCall {
+  sessionId: string;
+  execId?: string;
+  body: unknown;
+  cookie: string | undefined;
+}
+
+const readBody = (req: IncomingMessage): Promise<string> =>
+  new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (c: Buffer) => {
+      data += c.toString('utf8');
+    });
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
+
+export class SeamDouble {
+  readonly execScripts: ExecScript[] = [];
+  readonly statusResponses: ScriptedResponse[] = [];
+  readonly killResponses: ScriptedResponse[] = [];
+  readonly execCalls: RecordedCall[] = [];
+  readonly statusCalls: RecordedCall[] = [];
+  readonly killCalls: RecordedCall[] = [];
+  loginCount = 0;
+  username = 'hub-service';
+  password = 'hub-password';
+
+  private server: Server | null = null;
+  private readonly validCookies = new Set<string>();
+  baseUrl = '';
+
+  async start(): Promise<void> {
+    this.server = createServer((req, res) => {
+      void this.handle(req, res).catch(() => {
+        res.writeHead(500).end();
+      });
+    });
+    await new Promise<void>((resolve) => this.server?.listen(0, '127.0.0.1', resolve));
+    const addr = this.server.address() as AddressInfo;
+    this.baseUrl = `http://127.0.0.1:${addr.port}`;
+  }
+
+  async stop(): Promise<void> {
+    await new Promise<void>((resolve, reject) =>
+      this.server ? this.server.close((e) => (e ? reject(e) : resolve())) : resolve(),
+    );
+  }
+
+  /** Simulate a substrate-side session expiry: every issued JWT stops working. */
+  expireAllCookies(): void {
+    this.validCookies.clear();
+  }
+
+  private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const url = req.url ?? '';
+    const raw = await readBody(req);
+    const body: unknown = raw === '' ? undefined : JSON.parse(raw);
+
+    if (req.method === 'POST' && url === '/auth/login') {
+      const creds = body as { username?: string; password?: string };
+      if (creds.username !== this.username || creds.password !== this.password) {
+        res.writeHead(401, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid credentials' }));
+        return;
+      }
+      this.loginCount += 1;
+      const cookie = `st_token=tok_${this.loginCount}`;
+      this.validCookies.add(cookie);
+      res.writeHead(200, {
+        'content-type': 'application/json',
+        'set-cookie': `${cookie}; HttpOnly; Path=/; SameSite=Strict`,
+      });
+      res.end(JSON.stringify({ userId: 'user_hub' })); // never the raw token
+      return;
+    }
+
+    const cookie = req.headers.cookie;
+    if (cookie === undefined || !this.validCookies.has(cookie)) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'unauthenticated' }));
+      return;
+    }
+
+    const exec = /^\/api\/sessions\/([^/]+)\/exec$/.exec(url);
+    if (req.method === 'POST' && exec) {
+      this.execCalls.push({ sessionId: exec[1]!, body, cookie });
+      const script = this.execScripts.shift();
+      if (!script) {
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: 'seamDouble: no exec script queued' }));
+        return;
+      }
+      await this.streamExec(res, script);
+      return;
+    }
+
+    const status = /^\/api\/sessions\/([^/]+)\/exec\/([^/]+)$/.exec(url);
+    if (req.method === 'GET' && status) {
+      this.statusCalls.push({ sessionId: status[1]!, execId: status[2]!, body, cookie });
+      const scripted = this.statusResponses.shift() ?? { body: { state: 'unknown' } };
+      res.writeHead(scripted.status ?? 200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(scripted.body ?? {}));
+      return;
+    }
+
+    const kill = /^\/api\/sessions\/([^/]+)\/exec\/([^/]+)\/kill$/.exec(url);
+    if (req.method === 'POST' && kill) {
+      this.killCalls.push({ sessionId: kill[1]!, execId: kill[2]!, body, cookie });
+      const scripted = this.killResponses.shift() ?? { body: { outcome: 'terminated' } };
+      res.writeHead(scripted.status ?? 200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(scripted.body ?? {}));
+      return;
+    }
+
+    res.writeHead(404, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: 'unknown route' }));
+  }
+
+  private async streamExec(res: ServerResponse, script: ExecScript): Promise<void> {
+    if (script.status !== undefined && script.status !== 200) {
+      res.writeHead(script.status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(script.errorBody ?? { error: 'scripted-error' }));
+      return;
+    }
+    const requestId = script.requestId ?? 'a1b2c3d4e5f60718';
+    const lines: string[] = [];
+    if (script.emitStarted !== false) {
+      lines.push(
+        JSON.stringify({
+          v: 1,
+          type: 'started',
+          execId: script.execId ?? 'e_double1',
+          pgid: script.pgid ?? 137,
+          requestId,
+          ts: '2026-07-15T00:00:00.000Z',
+        }),
+      );
+    }
+    lines.push(...(script.lines ?? []));
+    const payload = lines.map((l) => `${l}\n`).join('');
+
+    res.writeHead(200, {
+      'content-type': 'application/x-ndjson',
+      'x-request-id': requestId,
+    });
+
+    if (script.chunkMode === 'split-mid-line') {
+      // cut the byte stream without regard for line boundaries (the
+      // contract's "not necessarily line-aligned"); tiny sleeps keep Node
+      // from coalescing the writes into one chunk
+      const size = 7;
+      for (let i = 0; i < payload.length; i += size) {
+        res.write(payload.slice(i, i + size));
+        await sleep(1);
+      }
+    } else {
+      for (const line of lines) {
+        res.write(`${line}\n`);
+        await sleep(1);
+      }
+    }
+    res.end();
+  }
+}
