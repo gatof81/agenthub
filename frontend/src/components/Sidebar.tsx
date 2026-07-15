@@ -1,15 +1,16 @@
 /**
  * Two-level sidebar (owner UX feedback 2026-07-15, refining 11 §4):
  * - Projects home: just the project list + creation.
- * - Inside a project: a clear back affordance (‹ arrow before the project
- *   name), the project name as a switcher dropdown (jump between projects),
+ * - Inside a project: a clear back affordance (an arrow icon before the
+ *   project name), the project name as a switcher dropdown (jump projects),
  *   its conversations, and a new-conversation affordance.
  * - Archive is the product's "delete" (reversible, keeps history; archiving
- *   a project stops its session, FR-30). Archived items leave the lists.
+ *   a project stops its session, FR-40). Archived items leave the lists.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import type { Conversation, Project } from '../lib/api.js';
+import { ArchiveIcon, BackIcon } from './icons.js';
 
 interface Props {
   projects: Project[];
@@ -56,7 +57,7 @@ function ProjectsHome(props: Props): React.JSX.Element {
               aria-label={`Archive project ${p.name}`}
               onClick={() => props.onArchiveProject(p)}
             >
-              ⌫
+              <ArchiveIcon />
             </button>
           </li>
         ))}
@@ -113,7 +114,7 @@ function ProjectPane(props: Props & { project: Project }): React.JSX.Element {
           aria-label="Back to all projects"
           onClick={props.onBackToProjects}
         >
-          ‹
+          <BackIcon />
         </button>
         <div className="project-switcher" ref={switcherRef}>
           <button
@@ -154,7 +155,7 @@ function ProjectPane(props: Props & { project: Project }): React.JSX.Element {
           aria-label={`Archive project ${props.project.name}`}
           onClick={() => props.onArchiveProject(props.project)}
         >
-          ⌫
+          <ArchiveIcon />
         </button>
       </div>
 
@@ -174,7 +175,7 @@ function ProjectPane(props: Props & { project: Project }): React.JSX.Element {
               aria-label={`Archive conversation ${c.title}`}
               onClick={() => props.onArchiveConversation(c)}
             >
-              ⌫
+              <ArchiveIcon />
             </button>
           </li>
         ))}

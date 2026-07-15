@@ -104,7 +104,7 @@ export function App(): React.JSX.Element {
 
   const archiveProject = useCallback(
     async (project: Project) => {
-      // archiving stops the substrate session (FR-30) — confirm the destructive edge
+      // archiving stops the substrate session (FR-40) — confirm the destructive edge
       if (!window.confirm(`Archive "${project.name}"? Its session stops and it leaves the list.`)) {
         return;
       }
