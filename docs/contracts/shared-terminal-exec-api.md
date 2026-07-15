@@ -67,6 +67,12 @@ at shared-terminal `main @ 6291397` (`backend/src/routes/exec.ts`).
 - **Validation before dispatch** (fail fast per the delta table): env name
   charset / ≤ 64 entries / ≤ 4096 B value / ≤ 64 KiB total, `cmd` ≤ 32 KiB,
   `maxDurationMs` within 1..3600000.
+- **`exit.reason` is always present** — natural exits default to
+  `"exited"` (`routes/exec.ts:255-256` at `6291397`:
+  `reason = registry.reason ?? "exited"`), matching the contract's event
+  table (`exited | killed | timeout`, no optional marker). The Hub's fake
+  port mirrors this so real-vs-fake adapter streams stay byte-identical
+  (B2-04).
 
 ### Session provisioning (B2-02, UC-01)
 
