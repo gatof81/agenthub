@@ -25,7 +25,7 @@ export type SeamEvent =
   | { v: 1; type: 'started'; execId: string; pgid: number; requestId: string }
   | { v: 1; type: 'output'; stream: 'stdout' | 'stderr'; data: string }
   | { v: 1; type: 'dropped'; scope: 'pre-start'; bytes: number }
-  | { v: 1; type: 'exit'; exitCode: number | null; reason?: string }
+  | { v: 1; type: 'exit'; exitCode: number | null; reason: string }
   | { v: 1; type: 'error'; message: string };
 
 export interface ExecRequest {

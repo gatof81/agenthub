@@ -52,11 +52,7 @@ export async function* runExecThroughMapping(
         for (const line of lines.flush()) {
           yield* mapStreamJsonLine(line);
         }
-        yield {
-          kind: 'exit',
-          exitCode: seamEvent.exitCode,
-          ...(seamEvent.reason !== undefined ? { reason: seamEvent.reason } : {}),
-        };
+        yield { kind: 'exit', exitCode: seamEvent.exitCode, reason: seamEvent.reason };
         break;
     }
   }
