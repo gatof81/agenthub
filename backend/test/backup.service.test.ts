@@ -110,6 +110,30 @@ describe('BackupService', () => {
     ]);
   });
 
+  it('a prune failure after a successful upload keeps the snapshot green', async () => {
+    const clock = new Date('2026-07-15T00:00:00Z');
+    const sink = new LocalSnapshotSink(join(dir, 'snap'));
+    const tmp = join(dir, 'tmp');
+    mkdirSync(tmp, { recursive: true });
+    // list() throws → prune() throws; the put already succeeded
+    sink.list = () => Promise.reject(new Error('list transient'));
+    const svc = new BackupService({
+      snapshot: fakeSnapshot('OK'),
+      sink,
+      tmpDir: tmp,
+      intervalMs: 3600_000,
+      now: () => clock,
+      log: () => {},
+    });
+    const key = await svc.snapshotOnce();
+    expect(key).toBe('snapshots/2026-07-15T000000Z.sqlite.gz'); // snapshot stands
+    expect(svc.freshness()).toMatchObject({
+      lastSnapshotAt: '2026-07-15T00:00:00.000Z',
+      degraded: false,
+      lastError: null,
+    });
+  });
+
   it('utcStamp is path-safe and lexicographically time-sortable', () => {
     const a = utcStamp(new Date('2026-07-15T06:00:00Z'));
     const b = utcStamp(new Date('2026-07-15T18:00:00Z'));

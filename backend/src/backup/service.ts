@@ -63,9 +63,17 @@ export class BackupService {
       this.deps.snapshot(tmpPath);
       const gz = gzipSync(readFileSync(tmpPath));
       await this.deps.sink.put(key, new Uint8Array(gz));
+      // the snapshot is durable once put returns — a later prune failure
+      // must NOT report the snapshot itself as failed (freshness stays green)
       this.lastSnapshotAt = this.now();
       this.lastError = null;
-      await this.prune();
+      try {
+        await this.prune();
+      } catch (err) {
+        this.log(
+          `retention prune failed (snapshot uploaded): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
       return key;
     } catch (err) {
       this.lastError = err instanceof Error ? err.message : String(err);
