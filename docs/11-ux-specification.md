@@ -1,6 +1,6 @@
 # 11 — UX Specification (Phase 1)
 
-**Status:** draft — review · **Last updated:** 2026-07-14
+**Status:** draft — review · **Last updated:** 2026-07-15
 
 The model-relevant UX: device targets, information architecture, the surfaces
 each device needs, and how the client consumes the event stream. This is a
@@ -139,6 +139,12 @@ Native iOS app · rich multi-agent visualization (the team pipeline of Phase 4)
 · Work Product viewers beyond the RunSummary · project document/memory
 browsing UI (ADR-005 deferred list) · offline mode · theming/customization
 depth. Phase 1 ships the two device experiences above and nothing past them.
+
+**Direction, not scope:** the Phase-1 project view is the proto-dashboard —
+as later phases add entities (tasks, approvals, Work Products, decisions),
+the same entry surface evolves into a project overview/dashboard rather
+than a conversation list ([18 §8](./18-agent-collaboration-model.md)). An
+evolution of one surface, never a Phase-1 deliverable.
 
 ## 8. Open UX questions (non-blocking)
 

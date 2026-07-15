@@ -1,6 +1,6 @@
 # 16 — Risk Register
 
-**Status:** draft — review · **Last updated:** 2026-07-14
+**Status:** draft — review · **Last updated:** 2026-07-15
 
 Inherited from the discovery register (2026-07-12, written against substrate
 `7a551f0`, before the separate-repos decision) and updated against `36be2f2`
@@ -26,7 +26,7 @@ risk. `P`robability / `I`mpact: L/M/H. **Phase** = where the mitigation must lan
 | R-14 | D1 round-trip latency/cost on chat-shaped write volume | **CLOSED by S-03 + ADR-002 reversion (2026-07-14)** — measured 291 ms p50 turn-commit fired the gate; SQLite chosen, so the risk is mooted, not mitigated | — | — | — | — | — |
 | R-15 | D1 non-transactionality → inconsistent run state | **CLOSED with R-14** — SQLite provides real transactions | — | — | — | — | — |
 | R-16 | Backup-pipeline failure → the SQLite file is the only copy of every conversation until the next successful R2 snapshot | NEW (opened by ADR-002) | M | H | Consistent snapshots (online backup API / `VACUUM INTO`), monitored freshness signal, restore procedure tested before Phase-1 exit (doc 09/14 requirements) | Window between snapshots is unavoidable; cadence bounds it | 1 |
-| R-17 | **Project aggregate scope creep**: Projects invite everything (memory, documents, repos, terminals, permissions) to attach to them ahead of need | NEW (opened by ADR-005) | M | M | ADR-005 records the explicit deferred list; each deferred item needs its phase and a failing constraint to land (R-10 discipline) | — | all |
+| R-17 | **Scope creep & vision churn**: Projects invite everything (memory, documents, repos, terminals, permissions) to attach to them ahead of need; and repeated conceptual direction reviews (two in the 48 h before spec close) can keep reopening the spec and delay implementation | BROADENED 2026-07-15 (opened by ADR-005) | M | M | ADR-005 records the explicit deferred list; each deferred item needs its phase and a failing constraint to land (R-10 discipline). Vision ideas park in [18-agent-collaboration-model.md](./18-agent-collaboration-model.md) (incl. its rejected-shapes table) instead of amending normative docs | — | all |
 
 ## Dropped from the discovery register (with cause)
 

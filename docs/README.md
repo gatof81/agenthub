@@ -1,6 +1,6 @@
 # Agent Hub — documentation
 
-Specification workspace for Agent Hub. **The specification is complete** (docs 01–17, ADR-001..005, spikes S-01/S-03); the quality gates below are satisfied by drafted-and-merged artifacts, pending the owner's approval. No product code lands until that approval.
+Specification workspace for Agent Hub. **The specification is complete** (docs 01–17, ADR-001..005, spikes S-01/S-03; doc 18 is a non-normative vision companion); the quality gates below are satisfied by drafted-and-merged artifacts, pending the owner's approval. No product code lands until that approval.
 
 All repo artifacts are in English. Substrate facts are verified against
 [shared-terminal](https://github.com/gatof81/shared-terminal) at commit `36be2f2` unless noted;
@@ -32,9 +32,10 @@ gates. The work plan below tracks per-PR/build progress separately.
 | [15-open-questions.md](./15-open-questions.md) | draft — review | — |
 | [16-risk-register.md](./16-risk-register.md) | draft — review | — |
 | [17-phase1-backlog.md](./17-phase1-backlog.md) | draft — review | 12 |
+| [18-agent-collaboration-model.md](./18-agent-collaboration-model.md) | vision — non-normative (not gate-relevant) | 01, 03 |
 | [adr/](./adr/README.md) | ADR-001..005 all accepted | see adr/README.md |
 
-**Specification complete.** Suggested full read-through order: 01 → 02 → 03 → 15 → 16 → ADR-001..005 → spike results → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 17.
+**Specification complete.** Suggested full read-through order: 01 → 02 → 03 → 18 → 15 → 16 → ADR-001..005 → spike results → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 17.
 
 ## Decisions requested now
 
@@ -111,6 +112,19 @@ approval** (see the maturity note under the index). On approval each flips to
 | MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | drafted, pending approval |
 
 ## Changelog
+
+- **2026-07-15** — **Second direction review** (owner's 12-idea conceptual
+  revision, analyzed critically): half were already adopted by the 07-14
+  pivot; the rest consolidated into doc 18
+  (agent collaboration model, **vision — non-normative**): Coordinator
+  decomposed into Orchestrator/router/supervisor (no new entity), Work
+  Products & Knowledge Flow/Context Packages as Phase-4 vocabulary,
+  workflow templates code-first (extract at the third pipeline),
+  "permanent agents" = (project, agent)-indexed memory, Task parents to
+  Project (Phase-2 forward constraint), dashboard as evolution of the
+  project view. Rejected shapes recorded in 18 §9. Amendments: 01 §1/§4,
+  03 §1, 11 §7; R-17 broadened to vision churn. **No MVP change; quality
+  gates untouched.**
 
 - **2026-07-15** — Doc 17 (Phase-1 backlog: Increment-1/2/3 work items,
   each traceable to FR/module/UC) drafted (GitHub #21). **Specification
