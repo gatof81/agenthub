@@ -90,12 +90,21 @@ body {
   color: var(--muted);
   border-radius: 8px;
   cursor: pointer;
-  opacity: 0;
+  /* Faintly present at rest, not invisible: `opacity: 0` + reveal-on-hover
+     left this control permanently unreachable on touch, where `:hover` never
+     fires — the row could be tapped but showed no glyph to aim at. It also
+     made a one-way action (archive) undiscoverable on the pointer UI until
+     you happened to sweep the row. */
+  opacity: 0.4;
   transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
 }
 .nav-row:hover .row-action,
 .nav-row:focus-within .row-action,
-.project-header .row-action { opacity: 0.65; }
+.project-header .row-action { opacity: 0.75; }
+/* Fine-pointer devices keep the quieter resting state; touch keeps it visible. */
+@media (hover: hover) and (pointer: fine) {
+  .row-action { opacity: 0.28; }
+}
 .row-action:hover { background: var(--raised); color: var(--danger); opacity: 1; }
 .row-action svg { display: block; }
 
