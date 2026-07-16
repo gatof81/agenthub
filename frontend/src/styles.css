@@ -90,11 +90,8 @@ body {
   color: var(--muted);
   border-radius: 8px;
   cursor: pointer;
-  /* Faintly present at rest, not invisible: `opacity: 0` + reveal-on-hover
-     left this control permanently unreachable on touch, where `:hover` never
-     fires — the row could be tapped but showed no glyph to aim at. It also
-     made a one-way action (archive) undiscoverable on the pointer UI until
-     you happened to sweep the row. */
+  /* Faintly present at rest: touch has no `:hover`, so a reveal-on-hover
+     control is invisible yet tappable — unacceptable for a one-way action. */
   opacity: 0.4;
   transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
 }

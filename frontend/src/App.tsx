@@ -104,10 +104,7 @@ export function App(): React.JSX.Element {
 
   const archiveProject = useCallback(
     async (project: Project) => {
-      // Archiving stops the substrate session (FR-40) — confirm the
-      // destructive edge, and say plainly that it is one-way: the prompt used
-      // to imply the project merely "leaves the list", which reads as
-      // recoverable. It is not.
+      // FR-40 — archiving stops the session and is one-way; confirm first.
       if (
         !window.confirm(
           `Archive "${project.name}"? Its session stops and it cannot be restored.`,
@@ -124,10 +121,8 @@ export function App(): React.JSX.Element {
 
   const archiveConversation = useCallback(
     async (conversation: Conversation) => {
-      // Same confirmation the project path already had. Archiving is ONE-WAY
-      // (FR-40 specifies archive with no restore, and the API rejects any
-      // status other than "archived"), so the only thing standing between a
-      // misclick and a conversation the owner cannot get back is this prompt.
+      // Archiving is one-way (FR-40; the API rejects any status other than
+      // "archived") — confirm before it is unrecoverable.
       if (
         !window.confirm(
           `Archive "${conversation.title}"? It leaves the list and cannot be restored.`,
