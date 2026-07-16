@@ -241,7 +241,7 @@ the database.
 | UC-08 | FR-17/25, FR-33 |
 | UC-09 | FR-19/31/32, UX-05 |
 | UC-10 | OPS-01/02/03 |
-| UC-11 | FR-40/43/44, I-12, UX-03 |
+| UC-11 | FR-40/43/44, I-12, UX-08 |
 
 Not flow-shaped (hence absent above): SEC-01/02/04/05/08/10 (enforcement and
 cross-cutting security properties, asserted in code review and tests, not in
