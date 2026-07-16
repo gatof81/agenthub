@@ -86,6 +86,7 @@ Surface consumed beyond the exec API (session routes verified at the same
 | `GET /api/sessions/:id` → `{ status: running \| stopped \| terminated \| failed }` | bootstrap hard-fail detection (`failed` also kills the container upstream) |
 | `GET /api/sessions/:id/bootstrap-log` → `{ log: string \| null }` | **bootstrap-completion signal**: upstream persists the log when the bootstrap runner finishes, success or failure — non-null ⇒ done. Chosen over the `/ws/bootstrap/:id` channel to avoid a WebSocket client dependency; `null` cannot mean "never ran" because a seeded create always bootstraps. **Not a runtime-readiness signal** — see the gap below |
 | `POST /api/sessions/:id/stop` | archive path (FR-30); `404` tolerated (already gone) |
+| `POST /api/sessions/:id/start` | restore path (FR-43): respawns the container from the stored config with the **same workspace bind mount**, so the files and the CLI transcripts under them come back (`dockerManager.ts:1010-1033`). **`404` is NOT tolerated** — unlike `stop`, where "already gone" satisfies the intent, here it defeats it: the session was hard-deleted and took its workspace, so the port raises `SessionGoneError` and the project stays archived (FR-44). Also answers `409` for a session that `failed` during postCreate (recreate to retry) — verified at `main @ c35b6da` |
 
 The bootstrap wait polls (default 1 s, 180 s cap) and surfaces failure as a
 typed provisioning error carrying a tail-capped bootstrap log. Session
