@@ -1,6 +1,6 @@
 # 04 — Requirements (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-14
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
 
 Scope: the Phase-1 MVP ([03-scope-and-phases.md](./03-scope-and-phases.md)).
 Later phases contribute only constraints that would be expensive to retrofit
@@ -29,9 +29,11 @@ open-question resolution — so the spec stays falsifiable. Sources:
 
 | ID | P | Requirement | Source |
 | --- | --- | --- | --- |
-| FR-40 | M | Create, list, rename, and archive projects. Creating a project provisions its substrate session (workspace); archiving stops it | ADR-005, UC-01 |
+| FR-40 | M | Create, list, rename, and archive projects. Creating a project provisions its substrate session (workspace); archiving stops it. Archive is reversible (FR-43), never a purge | ADR-005, UC-01 |
 | FR-41 | M | Conversations belong to exactly one project (immutable) and share its workspace; project `defaultAgentId` and `instructions` seed new conversations and the session | ADR-005, I-10 |
 | FR-42 | M | Every terminal run produces a persisted, **mechanically derived** `RunSummary` (objective excerpt, outcome, files, commands, denials, warnings, cost, duration, continuation handle) — written in the terminal transition's transaction | owner direction (2026-07-14), 06 §RunSummary |
+| FR-43 | M | List archived projects and conversations, and **restore** them. Restoring a project **restarts its substrate session** — the symmetric inverse of FR-40's stop. The workspace survives the stop (it is a host directory, not container state), so restoring returns the same workspace and the CLI transcripts under it, and FR-24 `--resume` continuity is preserved | owner decision (2026-07-16), UC-11 |
+| FR-44 | M | A restore whose substrate session no longer exists **fails with a typed error and leaves the project archived** — it never silently provisions a fresh workspace. A hard-deleted session takes its workspace with it; presenting an empty workspace as a restored project would misrepresent lost work, and the conversations' `runtimeSessionId` would dangle | owner decision (2026-07-16), UC-11, FR-33 |
 
 ## 2. Functional — runs & the runner
 
@@ -118,6 +120,7 @@ open-question resolution — so the spec stays falsifiable. Sources:
 | UX-05 | M | The terminal is reachable from the conversation without losing chat context | FR-31 |
 | UX-06 | S | Cost per run visible in the activity view; `unknown` shown honestly for cancelled runs | FR-18 |
 | UX-07 | M | Primary devices are **Mac and iPhone**: the full API is usable without a terminal or desktop session; the iPhone experience never requires one (FR-31 stays optional). Approvals/notifications arrive with autonomy levels ≥ 2 (Phase 2+; the run state machine reserves `awaiting_approval` for it) | owner direction (2026-07-14) |
+| UX-08 | M | Archived projects and conversations stay **reachable and restorable** from the UI, and the archive confirmation states what actually happens (the session stops; the item can be restored). "Reversible" must be true on screen, not only in the database — and the wording must never claim more permanence, or less, than the system delivers | FR-43, 11 §3 |
 
 ## 9. Traceability notes
 

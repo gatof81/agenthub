@@ -1,6 +1,6 @@
 # 09 — Persistence (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-14
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
 
 The concrete storage design behind [ADR-002](./adr/ADR-002-hub-persistence.md)
 (SQLite local + R2 snapshots): schema, invariant enforcement, transactions,
@@ -189,10 +189,13 @@ restores compose but never depend on each other.
 - Payload cap enforced at ingestion (08 §2); message `content` capped at
   256 KiB (a full pasted file is plausible; beyond that, truncate with
   marker).
-- No row deletion in Phase 1 — archive is a status, not a purge. Growth
-  math: a heavy day ≈ 50 turns × ~25 events × ~2 KiB ≈ 2.5 MB/day; years of
-  headroom before size management is a real problem (revisit with evidence,
-  R-10).
+- No row deletion in Phase 1 — archive is a status, not a purge. This is a
+  **retention** statement: rows stay in the database. It is *not* on its own
+  a promise that the owner can get an archived item back — that is FR-43's
+  job (restore), and the distinction was misread once, so it is spelled out
+  here. Growth math: a heavy day ≈ 50 turns × ~25 events × ~2 KiB ≈
+  2.5 MB/day; years of headroom before size management is a real problem
+  (revisit with evidence, R-10).
 - `VACUUM INTO` doubles as compaction; no separate VACUUM schedule needed.
 
 ## 7. Test obligations (feeds doc 13)

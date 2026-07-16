@@ -1,6 +1,6 @@
 # 11 — UX Specification (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-15
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
 
 The model-relevant UX: device targets, information architecture, the surfaces
 each device needs, and how the client consumes the event stream. This is a
@@ -73,6 +73,22 @@ Project (the workspace unit — ADR-005)
 Navigation entry point is the **project**, matching the mental model
 (ADR-005). A conversation is always viewed inside its project; the activity
 inspector is a peel-back detail (UX-01/02), never imposed.
+
+**Archive is the product's delete, and it is reversible (FR-43).** Two
+consequences the UI owes the owner, both learned from him losing work to it:
+
+- **Archived items stay reachable** — an archived view (projects and
+  conversations, `?archived=true`) with a restore action. Without it,
+  "reversible" is true only of the database, which is no comfort to the
+  person looking at the screen.
+- **The confirmation says what will actually happen** — that archiving a
+  project stops its session and that it can be restored later. It must not
+  imply an item merely "leaves the list" (reads as recoverable when it was
+  not) nor claim permanence once FR-43 lands.
+
+Restoring a project restarts its session; a project whose session no longer
+exists upstream cannot be restored and says so (FR-44) rather than coming
+back as an empty workspace wearing the old project's name.
 
 ## 4. Surfaces
 

@@ -1,6 +1,6 @@
 # 06 — Domain Model (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-15
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
 
 The entities, relationships, and invariants behind
 [04-requirements.md](./04-requirements.md) and the flows in
@@ -163,6 +163,7 @@ model-authored fields are a later enrichment, not Phase 1.
 | — | (I-9 is a retired draft-era number — assigned to the FR-22 cancel counter and withdrawn with it before merge; invariant IDs, like requirement IDs, are never reused) | — |
 | I-10 | `Conversation.projectId` never changes | ADR-005 |
 | I-11 | Every terminal run has exactly one `RunSummary`, written in the terminal transition's transaction | FR-42 |
+| I-12 | An active conversation never belongs to an archived project — archiving a project stops the session its conversations share (FR-40), so an active conversation there could not take a turn. Archiving a project archives its conversations with it; restoring a conversation requires its project to be restored first | FR-43 |
 
 ## 4. Ports (domain boundaries)
 

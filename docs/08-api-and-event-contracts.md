@@ -1,6 +1,6 @@
 # 08 — API & Event Contracts (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-14
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
 
 The Hub's own wire contracts: HTTP API, SSE projection, persisted `RunEvent`
 schema, the runner's command contract, the initial agent allowlist, and the
@@ -27,12 +27,12 @@ All routes under `/api`, behind the single-credential gateway middleware
 | `GET /api/health` | liveness + backup freshness signal | unauthenticated liveness, authenticated detail |
 | `GET /api/agents` | list config-defined agents | id, name, allowlist, caps — read-only in Phase 1 (FR-02) |
 | `POST /api/projects` | create project → provisions its session (UC-01, FR-40) | body `{name, defaultAgentId, instructions?}`; returns `202` with `status: "provisioning"` |
-| `GET /api/projects` / `GET /api/projects/:id` | list / detail incl. session state + conversations | archived filtered by default |
-| `PATCH /api/projects/:id` | rename / archive (archiving stops the session) | FR-40 |
+| `GET /api/projects` / `GET /api/projects/:id` | list / detail incl. session state + conversations | archived filtered by default; `?archived=true` lists them (FR-43) |
+| `PATCH /api/projects/:id` | rename / archive / **restore** | `{name?}` or `{status: "archived"}` (stops the session, FR-40) or `{status: "ready"}` (restarts it, FR-43). Restore when the session is gone upstream → `409 session_gone`, project stays archived (FR-44) |
 | `POST /api/projects/:id/conversations` | create conversation in the project (instant — no provisioning, ADR-005) | body `{title?, agentId?}` (agent defaults from project) |
-| `GET /api/conversations` | list across projects with status + last message | archived filtered by default |
+| `GET /api/conversations` | list across projects with status + last message | archived filtered by default; `?archived=true` lists them (FR-43) |
 | `GET /api/conversations/:id` | detail + messages (paged) | `?before=<messageId>&limit=` |
-| `PATCH /api/conversations/:id` | rename / archive | `{title?}` or `{status: "archived"}` (FR-01) |
+| `PATCH /api/conversations/:id` | rename / archive / **restore** | `{title?}` or `{status: "archived"}` (FR-01) or `{status: "active"}` (FR-43). Restoring into an archived project → `409 project_archived` (I-12) |
 | `POST /api/conversations/:id/messages` | send message → creates the run (FR-03) | body `{content}`; returns `202 {messageId, runId, runState}` — `queued` or `starting` (UC-03); `409` while the **project** is `provisioning`/`error` |
 | `GET /api/runs/:id` | run detail: state, snapshots, activity projection, usage, **summary**, error | activity derived on read (06 §2); summary per FR-42 |
 | `POST /api/runs/:id/cancel` | cancel active or queued run (FR-20) | returns `202`; final state + `killOutcome`/`sweepResult` arrive via SSE and `GET /api/runs/:id` |
@@ -145,6 +145,8 @@ Machine-readable `code` on run errors and API error bodies:
 | `budget_exceeded` | lagging budget estimate crossed (ADR-003) | run `failed` |
 | `cancelled` | user cancel (FR-20) | run `cancelled` (not an error code on the API) |
 | `runtime_error` | CLI exited non-zero without result / `error` event | run `failed`, stderr excerpt attached (capped) |
+| `session_gone` | restore target's substrate session no longer exists upstream — its workspace went with it (FR-44) | `409` on `PATCH /api/projects/:id {status:"ready"}`; the project **stays archived** |
+| `project_archived` | restoring a conversation whose project is still archived (I-12) — the shared session is stopped | `409` on `PATCH /api/conversations/:id {status:"active"}` |
 | `internal` | anything else | run `failed`; alert-worthy |
 
 `completed_with_denials` is a **state**, not an error — the denial list rides
