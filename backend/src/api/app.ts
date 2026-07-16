@@ -149,8 +149,12 @@ export function buildApp(deps: ApiDeps): express.Express {
       res.status(404).json({ code: 'not_found' });
       return;
     }
-    if (status !== undefined && status !== 'archived') {
-      res.status(422).json({ code: 'validation', detail: 'status may only be set to "archived"' });
+    // archive stops the session (FR-40); restore restarts it (FR-43)
+    if (status !== undefined && status !== 'archived' && status !== 'ready') {
+      res.status(422).json({
+        code: 'validation',
+        detail: 'status may only be set to "archived" (archive) or "ready" (restore)',
+      });
       return;
     }
     (async () => {
@@ -160,6 +164,9 @@ export function buildApp(deps: ApiDeps): express.Express {
       }
       if (status === 'archived') {
         updated = await orchestrator.archiveProject(project.id); // stops the session (FR-30)
+      }
+      if (status === 'ready') {
+        updated = await orchestrator.restoreProject(project.id); // restarts it (FR-43)
       }
       res.json({ project: updated });
     })().catch(next);
@@ -204,14 +211,33 @@ export function buildApp(deps: ApiDeps): express.Express {
 
   app.patch('/api/conversations/:id', (req, res) => {
     const { title, status } = (req.body ?? {}) as Record<string, unknown>;
-    if (status !== undefined && status !== 'archived') {
-      res.status(422).json({ code: 'validation', detail: 'status may only be set to "archived"' });
+    if (status !== undefined && status !== 'archived' && status !== 'active') {
+      res.status(422).json({
+        code: 'validation',
+        detail: 'status may only be set to "archived" (archive) or "active" (restore)',
+      });
       return;
     }
-    const conversation = store.updateConversation(req.params.id, {
-      ...(typeof title === 'string' && title.trim() !== '' ? { title } : {}),
-      ...(status === 'archived' ? { status: 'archived' as const } : {}),
-    });
+    // restore goes through the orchestrator: it enforces I-12 (a conversation
+    // cannot be active while its project is archived — the shared session is
+    // stopped, so it could not take a turn)
+    let conversation =
+      status === 'active'
+        ? orchestrator.restoreConversation(req.params.id)
+        : store.getConversation(req.params.id);
+    if (!conversation) {
+      res.status(404).json({ code: 'not_found' });
+      return;
+    }
+    if (
+      (typeof title === 'string' && title.trim() !== '') ||
+      status === 'archived'
+    ) {
+      conversation = store.updateConversation(req.params.id, {
+        ...(typeof title === 'string' && title.trim() !== '' ? { title } : {}),
+        ...(status === 'archived' ? { status: 'archived' as const } : {}),
+      });
+    }
     res.json({ conversation });
   });
 
@@ -321,7 +347,8 @@ export function buildApp(deps: ApiDeps): express.Express {
           ? 404
           : err.code === 'unknown_agent'
             ? 422
-            : 409; // project_not_ready | run_not_cancellable — body carries state
+            : 409; // project_not_ready | run_not_cancellable | session_gone (FR-44)
+            //       | project_archived (I-12) — the body carries the code
       res.status(status).json({ code: err.code, detail: err.message });
       return;
     }

@@ -32,6 +32,7 @@ import type {
   SubstrateExecPort,
 } from '../domain/ports.js';
 import type { KillOutcome } from '../domain/types.js';
+import { SessionGoneError } from '../domain/ports.js';
 import type { SeamAuth } from './seamAuth.js';
 
 export class SeamHttpError extends Error {
@@ -294,6 +295,24 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
     const res = await this.request('POST', `/api/sessions/${sessionId}/stop`);
     if (res.status === 404) return;
     if (!res.ok) throw await SeamHttpError.from(res, 'stopSession');
+  }
+
+  /**
+   * Restore path (FR-43): restart a stopped session. Upstream respawns the
+   * container from the stored config with the same workspace bind mount, so
+   * the files and the CLI transcripts under them come back with it.
+   *
+   * 404 is NOT tolerated here, unlike `stopSession`. For a stop, "already
+   * gone" satisfies the caller's intent; for a restore it defeats it — the
+   * session was hard-deleted and took its workspace, so there is nothing to
+   * bring back. Surfacing that as its own error is what lets the orchestrator
+   * keep the project archived instead of quietly standing up an empty
+   * replacement (FR-44).
+   */
+  async startSession(sessionId: string): Promise<void> {
+    const res = await this.request('POST', `/api/sessions/${sessionId}/start`);
+    if (res.status === 404) throw new SessionGoneError(sessionId);
+    if (!res.ok) throw await SeamHttpError.from(res, 'startSession');
   }
 
   private async awaitBootstrap(sessionId: string): Promise<void> {
