@@ -58,8 +58,8 @@ Phase 1; expose on an internal endpoint or log-derive):
 
 | Situation | Procedure |
 | --- | --- |
-| **Deploy / restart** | stop → deploy → start; the boot **reconciler heals in-flight runs** (UC-06) and rebuilds the queue — no manual run cleanup |
-| **Backup** | automatic (`VACUUM INTO` → R2, 6 h + on clean shutdown, OPS-01). A manual on-demand trigger is deferred — its interface (admin route vs CLI) is specified with the backup implementation, not here |
+| **Deploy / restart** | stop → deploy → `npm ci && npm run build` → start (`npm start` = `node dist/main.js`); the boot **reconciler heals in-flight runs** (UC-06) and rebuilds the queue — no manual run cleanup. **The production entrypoint is compiled JS, never `tsx`** (B3-09): under the `tsx` loader the clean-shutdown snapshot's first R2 request never completes, so SIGTERM hangs and the snapshot is silently lost. `npm run start:tsx` exists for dev convenience only |
+| **Backup** | automatic (`VACUUM INTO` → R2, 6 h + on clean shutdown, OPS-01). The shutdown snapshot is deadline-bounded and always logs its outcome — `backup.shutdown_snapshot` (with the key), `backup.shutdown_snapshot_failed`, or `backup.shutdown_snapshot_timeout`. A manual on-demand trigger is deferred — its interface (admin route vs CLI) is specified with the backup implementation, not here |
 | **Restore** | stop → fetch snapshot from R2 → replace DB file (no WAL/SHM) → start → reconciler heals (09 §5); drilled once before Phase-1 exit (OPS-03) |
 | **CLI version bump** (substrate updates 2.1.207) | re-run the S-01 package → sanitize → refresh fixtures → run the `RuntimeAdapter` contract test; only then accept the new version (R-02) |
 | **Session recycle** | pre-`Init:true` containers need one recycle (shared-terminal #387); new sessions are fine |

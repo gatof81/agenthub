@@ -50,6 +50,11 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - run: npm run build
+      # Booting the artifact is the point, not compiling it: the production
+      # build shipped broken (missing migration SQL in dist) precisely because
+      # nothing ever ran it. `tsc` exiting 0 would not have caught that.
+      - run: npm run smoke
 
   frontend:
     runs-on: ubuntu-latest

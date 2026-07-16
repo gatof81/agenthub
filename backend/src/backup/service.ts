@@ -14,6 +14,12 @@ import type { SnapshotFreshness, SnapshotSink } from './types.js';
 
 const SNAPSHOT_PREFIX = 'snapshots';
 
+/** Verdict of a deadline-bounded snapshot (B3-09) — always loggable. */
+export type ShutdownSnapshotOutcome =
+  | { outcome: 'ok'; key: string }
+  | { outcome: 'failed' }
+  | { outcome: 'timeout' };
+
 export interface BackupServiceDeps {
   /** Runs `VACUUM INTO destPath` against the live db (wired from SqliteHubStore). */
   snapshot: (destPath: string) => void;
@@ -82,6 +88,29 @@ export class BackupService {
     } finally {
       rmSync(tmpPath, { force: true });
     }
+  }
+
+  /**
+   * `snapshotOnce` bounded by a deadline (B3-09): a sink that wedges must
+   * not hang the process forever. `snapshotOnce` already swallows failures,
+   * but a put that never settles is not a failure it can catch — it simply
+   * never returns, and an unbounded await of it left shutdown hung with an
+   * empty log (observed against R2 under `tsx`). The caller gets a verdict
+   * either way, so the outcome is always loggable.
+   *
+   * The snapshot is abandoned, not cancelled: if the put later succeeds the
+   * object still lands in the sink. That is harmless (retention prunes it)
+   * and is the honest trade — the alternative is holding shutdown open.
+   */
+  async snapshotOnceBounded(timeoutMs: number): Promise<ShutdownSnapshotOutcome> {
+    const timedOut = Symbol('timeout');
+    const deadline = new Promise<typeof timedOut>((resolve) => {
+      setTimeout(() => resolve(timedOut), timeoutMs).unref();
+    });
+    const result = await Promise.race([this.snapshotOnce(), deadline]);
+    if (result === timedOut) return { outcome: 'timeout' };
+    if (result === null) return { outcome: 'failed' };
+    return { outcome: 'ok', key: result };
   }
 
   /** Retention: keep the newest `recent`, plus the newest per day for `dailyDays`. */
