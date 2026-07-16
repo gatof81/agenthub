@@ -72,6 +72,21 @@ Goal: survive the failure modes (12 §Increment 3, UC-06/07/08).
 **Increment-3 done:** clean recovery from Hub restart, container recreate, and
 seam outage; backup/restore drilled.
 
+## Increment 4 — restore (owner-driven, 2026-07-16)
+
+Goal: make archive honest. Archive is the product's delete and was specified
+one-way (FR-40 had no restore); the owner lost projects and conversations to
+it with no way back. FR-43/44 close that.
+
+| ID | Item | Traces | Done when |
+| --- | --- | --- | --- |
+| B4-01 | `SubstrateExecPort.startSession` + restore in the orchestrator | FR-43, ADR-001 | restoring a project restarts its session and returns the **same** workspace; a restored project takes a turn with `--resume` continuity intact (the CLI transcripts live under the workspace, which survives the stop) |
+| B4-02 | API: `archived → ready/active` transitions + `?archived=true` listing | FR-43/44, 08 §1 | the reverse transition is accepted; a restore whose session is gone upstream returns `409 session_gone` and leaves the project archived (FR-44 — never a fresh workspace wearing the old name); restoring a conversation into an archived project is rejected (I-12) |
+| B4-03 | UI: archived view + restore; truthful confirmations | FR-43, 11 §3 | archived projects and conversations are reachable and restorable; the archive confirmation states that the session stops and the item can be restored later |
+
+**Increment-4 done:** nothing the owner archives is unreachable, and the UI
+never claims more permanence — or less — than the system delivers.
+
 ## Cross-cutting (throughout)
 
 | ID | Item | Traces |
