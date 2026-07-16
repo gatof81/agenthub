@@ -647,8 +647,20 @@ export class Orchestrator {
     if (resultMeta && !resultMeta.isError) {
       const outcome: TerminalRunState =
         resultMeta.permissionDenialCount > 0 ? 'completed_with_denials' : 'completed'; // FR-15: never plain completed
+      // The conversation gets everything the assistant SAID, in order — not
+      // the CLI's closing summary.
+      //
+      // `result.result` is the CLI's final text only. Preferring it dropped
+      // every earlier text block of a multi-step turn, and those blocks are
+      // routinely where the answer lives: a `gh auth login` turn emitted the
+      // device link and one-time code mid-turn, then closed with "I'll let
+      // you know when it's done" — and only that closing line reached the
+      // chat, so the code was unrecoverable from the UI (the events had it
+      // all along). Assembling the blocks includes the final one, so this
+      // adds the missing text rather than duplicating it; `resultText` stays
+      // as the fallback for a turn that produced no text blocks at all.
       const text =
-        resultMeta.resultText || assembleAssistantText(this.store.getEvents(run.id));
+        assembleAssistantText(this.store.getEvents(run.id)) || resultMeta.resultText;
       this.finalize(current, from, outcome, {
         usageSource: 'result-event',
         usage: {
