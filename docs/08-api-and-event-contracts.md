@@ -32,7 +32,7 @@ All routes under `/api`, behind the single-credential gateway middleware
 | `POST /api/projects/:id/conversations` | create conversation in the project (instant — no provisioning, ADR-005) | body `{title?, agentId?}` (agent defaults from project) |
 | `GET /api/conversations` | list across projects with status + last message | archived filtered by default; `?archived=true` lists them (FR-43) |
 | `GET /api/conversations/:id` | detail + messages (paged) | `?before=<messageId>&limit=` |
-| `PATCH /api/conversations/:id` | rename / archive / **restore** | `{title?}` or `{status: "archived"}` (FR-01) or `{status: "active"}` (FR-43). Restoring into an archived project → `409` (I-12) |
+| `PATCH /api/conversations/:id` | rename / archive / **restore** | `{title?}` or `{status: "archived"}` (FR-01) or `{status: "active"}` (FR-43). Restoring into an archived project → `409 project_archived` (I-12) |
 | `POST /api/conversations/:id/messages` | send message → creates the run (FR-03) | body `{content}`; returns `202 {messageId, runId, runState}` — `queued` or `starting` (UC-03); `409` while the **project** is `provisioning`/`error` |
 | `GET /api/runs/:id` | run detail: state, snapshots, activity projection, usage, **summary**, error | activity derived on read (06 §2); summary per FR-42 |
 | `POST /api/runs/:id/cancel` | cancel active or queued run (FR-20) | returns `202`; final state + `killOutcome`/`sweepResult` arrive via SSE and `GET /api/runs/:id` |
