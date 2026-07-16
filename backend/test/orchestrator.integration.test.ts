@@ -56,7 +56,7 @@ const MULTI_STEP: string[] = [
   jline({
     type: 'assistant',
     message: {
-      content: [{ type: 'text', text: 'Open https://github.com/login/device and enter F5C6-31B1.' }],
+      content: [{ type: 'text', text: 'Open https://github.com/login/device and enter ABCD-1234.' }],
       usage: { input_tokens: 10, output_tokens: 5 },
     },
   }),
@@ -292,7 +292,7 @@ function suite(name: string, makeStore: () => HubStore): void {
      * earlier assistant text must reach the conversation.
      *
      * The `gh auth login` turn that exposed this emitted the device link and
-     * a one-time code mid-turn, then closed with "I'll let you know when it's
+     * a one-time code mid-turn (fabricated here), then closed with "I'll let you know when it's
      * done". `result.result` carries only that closing line, and preferring
      * it meant the code never reached the chat — the owner could not
      * authenticate and had no way to recover the code from the UI, even
@@ -314,7 +314,7 @@ function suite(name: string, makeStore: () => HubStore): void {
       const assistant = store.listMessages(conversation.id).at(-1)!;
       expect(assistant.role).toBe('assistant');
       // the load-bearing part: the code the user actually needed
-      expect(assistant.content).toContain('F5C6-31B1');
+      expect(assistant.content).toContain('ABCD-1234');
       expect(assistant.content).toContain('https://github.com/login/device');
       // ...and the closing line, once — assembling includes the final block,
       // so this must not double it
