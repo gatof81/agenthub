@@ -142,3 +142,57 @@ describe('BackupService', () => {
     expect(a).not.toContain(':');
   });
 });
+
+describe('deadline-bounded shutdown snapshot (B3-09)', () => {
+  /**
+   * The bug this pins: `snapshotOnce` swallows *failures*, but a sink whose
+   * put never SETTLES is not a failure — it never returns. main.ts awaited it
+   * unbounded on SIGTERM, so a wedged sink hung shutdown forever and logged
+   * nothing (observed against R2 under `tsx`, where the shutdown snapshot's
+   * first request never completes).
+   */
+  const sinkWith = (put: () => Promise<void>) => ({
+    put,
+    get: () => Promise.resolve(new Uint8Array()),
+    delete: () => Promise.resolve(),
+    list: () => Promise.resolve([]),
+  });
+
+  const serviceWithSink = (sink: ReturnType<typeof sinkWith>) => {
+    const tmp = join(dir, 'tmp-b');
+    mkdirSync(tmp, { recursive: true });
+    return new BackupService({
+      snapshot: fakeSnapshot('DBBYTES'),
+      sink,
+      tmpDir: tmp,
+      intervalMs: 6 * 3600_000,
+      log: () => {},
+    });
+  };
+
+  it('a put that never settles resolves to timeout instead of hanging', async () => {
+    const svc = serviceWithSink(sinkWith(() => new Promise<void>(() => {})));
+    const r = await svc.snapshotOnceBounded(30);
+    expect(r).toEqual({ outcome: 'timeout' });
+  });
+
+  it('a healthy snapshot returns its key, not a timeout', async () => {
+    const svc = serviceWithSink(sinkWith(() => Promise.resolve()));
+    const r = await svc.snapshotOnceBounded(5_000);
+    expect(r.outcome).toBe('ok');
+    expect(r.outcome === 'ok' && r.key).toMatch(/^snapshots\/.*\.sqlite\.gz$/);
+  });
+
+  it('a failing put is reported as failed, distinctly from a timeout', async () => {
+    const svc = serviceWithSink(sinkWith(() => Promise.reject(new Error('R2 502'))));
+    const r = await svc.snapshotOnceBounded(5_000);
+    expect(r).toEqual({ outcome: 'failed' });
+  });
+
+  it('freshness stays degraded after a timeout — the operator sees it (OPS-02)', async () => {
+    const svc = serviceWithSink(sinkWith(() => new Promise<void>(() => {})));
+    await svc.snapshotOnceBounded(30);
+    expect(svc.freshness().degraded).toBe(true);
+    expect(svc.freshness().lastSnapshotAt).toBeNull();
+  });
+});

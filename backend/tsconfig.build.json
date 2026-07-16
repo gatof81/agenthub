@@ -1,0 +1,13 @@
+// Production build (B3-09): the base config is `noEmit` because it also
+// covers tests and type-checking; this one emits `src` to `dist`. Tests are
+// deliberately excluded — nothing under test/ ships.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "sourceMap": true
+  },
+  "include": ["src"]
+}
