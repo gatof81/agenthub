@@ -104,8 +104,12 @@ export function App(): React.JSX.Element {
 
   const archiveProject = useCallback(
     async (project: Project) => {
-      // archiving stops the substrate session (FR-40) — confirm the destructive edge
-      if (!window.confirm(`Archive "${project.name}"? Its session stops and it leaves the list.`)) {
+      // FR-40 — archiving stops the session and is one-way; confirm first.
+      if (
+        !window.confirm(
+          `Archive "${project.name}"? Its session stops and it cannot be restored.`,
+        )
+      ) {
         return;
       }
       await api.archiveProject(project.id);
@@ -117,6 +121,15 @@ export function App(): React.JSX.Element {
 
   const archiveConversation = useCallback(
     async (conversation: Conversation) => {
+      // Archiving is one-way (FR-40; the API rejects any status other than
+      // "archived") — confirm before it is unrecoverable.
+      if (
+        !window.confirm(
+          `Archive "${conversation.title}"? It leaves the list and cannot be restored.`,
+        )
+      ) {
+        return;
+      }
       await api.archiveConversation(conversation.id);
       setConversations((prev) => prev.filter((c) => c.id !== conversation.id));
       setSelectedConversation((cur) => (cur?.id === conversation.id ? null : cur));
