@@ -200,7 +200,23 @@ describe('SSE stream (ADR-004)', () => {
     expect((raw.match(/: hb/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 
-  it('a client that missed everything rebuilds the full projection from index -1', async () => {
+  /**
+   * Regression (found in production 2026-07-16): a page load showed the
+   * assistant's answer twice and sat on "working" for a run that had long
+   * finished, and reloading reproduced it every time.
+   *
+   * Replay exists to hand a dropped connection what it MISSED. A cold
+   * connect missed nothing — the client just loaded the conversation over
+   * REST, history included. Replaying there re-streamed every past run's
+   * deltas on top of the REST messages (the duplicate), and since state
+   * events are deliberately not replayed (11 §5), the client saw live deltas
+   * with no terminal `run.state` and stayed on "working".
+   *
+   * NFR-07 says a client that missed everything rebuilds from REST — the
+   * store is the source of truth. It does NOT say the SSE stream re-narrates
+   * history. The test this replaces asserted the opposite and pinned the bug.
+   */
+  it('a cold connect (no Last-Event-ID) replays nothing — history came from REST', async () => {
     const h = makeApiHarness();
     const { server, base } = await listen(h);
     servers.push(server);
@@ -211,15 +227,37 @@ describe('SSE stream (ADR-004)', () => {
     h.port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
     h.orch.send(conv.id, 'hello');
     await h.orch.idle();
+    // the run is over and its events ARE in the store — the point is that a
+    // fresh connection does not re-narrate them
+    expect(h.store.getReplayableEvents(conv.id).length).toBeGreaterThan(0);
 
     const client = new SseClient(`${base}/api/conversations/${conv.id}/events`);
-    const total = h.store.getReplayableEvents(conv.id).length;
-    expect(total).toBeGreaterThan(0);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(client.frames.filter((f) => f.event === 'message.delta')).toHaveLength(0);
+    expect(client.frames.filter((f) => f.id !== undefined)).toHaveLength(0);
+    await client.close();
+  });
+
+  it('an explicit Last-Event-ID still replays what came after it (resume)', async () => {
+    const h = makeApiHarness();
+    const { server, base } = await listen(h);
+    servers.push(server);
+    h.orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+    await h.orch.idle();
+    const project = h.store.listProjects()[0]!;
+    const conv = h.orch.createConversation({ projectId: project.id });
+    h.port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+    h.orch.send(conv.id, 'hello');
+    await h.orch.idle();
+    expect(h.store.getReplayableEvents(conv.id).length).toBeGreaterThan(0);
+
+    // "-1" = I have nothing; give me everything. The resume path is unchanged.
+    const client = new SseClient(`${base}/api/conversations/${conv.id}/events`, -1);
     await client.until(
       (f) => f.filter((x) => x.id !== undefined).length >= 1 && f.some((x) => x.event === 'message.delta'),
     );
     const ids = client.frames.filter((f) => f.id !== undefined).map((f) => f.id as number);
-    expect(Math.min(...ids)).toBe(0); // full replay from the beginning
+    expect(Math.min(...ids)).toBe(0);
     await client.close();
   });
 });
