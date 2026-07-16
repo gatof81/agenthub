@@ -119,8 +119,8 @@ open-question resolution — so the spec stays falsifiable. Sources:
 | UX-04 | M | Cancellation is available whenever a run is active and reflects the real kill outcome | FR-20 |
 | UX-05 | M | The terminal is reachable from the conversation without losing chat context | FR-31 |
 | UX-06 | S | Cost per run visible in the activity view; `unknown` shown honestly for cancelled runs | FR-18 |
-| UX-08 | M | Archived projects and conversations stay **reachable and restorable** from the UI, and the archive confirmation states what actually happens (the session stops; the item can be restored). "Reversible" must be true on screen, not only in the database — and the wording must never claim more permanence, or less, than the system delivers | FR-43, 11 §3 |
 | UX-07 | M | Primary devices are **Mac and iPhone**: the full API is usable without a terminal or desktop session; the iPhone experience never requires one (FR-31 stays optional). Approvals/notifications arrive with autonomy levels ≥ 2 (Phase 2+; the run state machine reserves `awaiting_approval` for it) | owner direction (2026-07-14) |
+| UX-08 | M | Archived projects and conversations stay **reachable and restorable** from the UI, and the archive confirmation states what actually happens (the session stops; the item can be restored). "Reversible" must be true on screen, not only in the database — and the wording must never claim more permanence, or less, than the system delivers | FR-43, 11 §3 |
 
 ## 9. Traceability notes
 
