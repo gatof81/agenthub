@@ -12,6 +12,7 @@ predate the separate-repos decision and are superseded by the list below.
 | [ADR-003](./ADR-003-claude-cli-runner.md) | Claude CLI runner integration (per-turn command construction, event mapping, marker-based post-cancel sweep, budget strategy — S-01 lessons encoded) | **accepted** (2026-07-14) |
 | [ADR-004](./ADR-004-ui-streaming-transport.md) | Hub↔frontend streaming: SSE with `Last-Event-ID` replay from the store | **accepted** (2026-07-14) |
 | [ADR-005](./ADR-005-project-aggregate.md) | Project as the organizing aggregate (one workspace/container per project; conversations share it; minimal shape with an explicit deferred list) | **accepted** (2026-07-14) |
+| [ADR-006](./ADR-006-workspace-belongs-to-the-project.md) | The workspace belongs to the project, not the agent (`sessionTemplateId` moves off `Agent`; `Project` gains `repo`) — the code catching up to 18 §2's two axes | **accepted** (2026-07-16) |
 
 Remaining candidate (deliberately deferred, non-blocking): Hub user/auth model
 (Q-07) — written when multi-user pressure is real.
