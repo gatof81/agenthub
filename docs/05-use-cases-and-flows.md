@@ -1,6 +1,6 @@
 # 05 — Use Cases and Flows (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-14
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
 
 Flows for the Phase-1 MVP, traceable to [04-requirements.md](./04-requirements.md).
 Participants: **UI** (frontend) · **Hub** (backend: API, run orchestrator,
@@ -201,6 +201,32 @@ contract replica-agnostic (NFR-05).
    exit (OPS-03).
 4. Accepted loss window = snapshot cadence (R-16 residual).
 
+## UC-11 — Archive a project, then restore it
+
+The product's "delete" and its inverse. Archive is reversible by design
+(FR-40/43); this flow is what makes that true for the person, not just for
+the database.
+
+1. The owner archives a project. The Hub stops its substrate session
+   (FR-40) and the project leaves the default lists; its conversations are
+   archived with it (I-12). Nothing is purged — rows stay (09 §6).
+2. The owner opens the archived view (`?archived=true`) and restores the
+   project. The Hub **restarts the same session** (FR-43): the workspace is
+   a host directory, so it survived the stop, and the CLI transcripts under
+   it survive with it.
+3. The project returns to `ready` and the next turn `--resume`s exactly
+   where it left off (FR-24) — the continuity handle still refers to a
+   transcript that exists.
+4. **Failure path (FR-44):** if the session no longer exists upstream (it
+   was hard-deleted, taking its workspace), restore fails with
+   `409 session_gone` and the project **stays archived**. The Hub does not
+   provision a fresh session in its place: an empty workspace wearing the
+   old project's name would misrepresent lost work and leave every
+   `runtimeSessionId` dangling.
+5. Restoring a conversation whose project is still archived is rejected
+   (`409 project_archived`, I-12) — its session is stopped, so it could not
+   take a turn.
+
 ## Coverage map
 
 | Flow | Requirements exercised |
@@ -215,6 +241,7 @@ contract replica-agnostic (NFR-05).
 | UC-08 | FR-17/25, FR-33 |
 | UC-09 | FR-19/31/32, UX-05 |
 | UC-10 | OPS-01/02/03 |
+| UC-11 | FR-40/43/44, I-12, UX-03 |
 
 Not flow-shaped (hence absent above): SEC-01/02/04/05/08/10 (enforcement and
 cross-cutting security properties, asserted in code review and tests, not in

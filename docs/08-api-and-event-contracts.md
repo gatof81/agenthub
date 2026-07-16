@@ -145,6 +145,8 @@ Machine-readable `code` on run errors and API error bodies:
 | `budget_exceeded` | lagging budget estimate crossed (ADR-003) | run `failed` |
 | `cancelled` | user cancel (FR-20) | run `cancelled` (not an error code on the API) |
 | `runtime_error` | CLI exited non-zero without result / `error` event | run `failed`, stderr excerpt attached (capped) |
+| `session_gone` | restore target's substrate session no longer exists upstream — its workspace went with it (FR-44) | `409` on `PATCH /api/projects/:id {status:"ready"}`; the project **stays archived** |
+| `project_archived` | restoring a conversation whose project is still archived (I-12) — the shared session is stopped | `409` on `PATCH /api/conversations/:id {status:"active"}` |
 | `internal` | anything else | run `failed`; alert-worthy |
 
 `completed_with_denials` is a **state**, not an error — the denial list rides
