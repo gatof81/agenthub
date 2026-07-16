@@ -8,6 +8,7 @@
  * between events to interleave cancellation mid-stream.
  */
 
+import { SessionGoneError } from '../domain/ports.js';
 import type {
   ExecRequest,
   ExecStatus,
@@ -61,6 +62,8 @@ export class FakeSubstrateExecPort implements SubstrateExecPort {
   readonly execRequests: Array<{ sessionId: string; req: ExecRequest }> = [];
   readonly seededSessions: Array<{ templateId: string; seed: SessionSeed }> = [];
   readonly stoppedSessions: string[] = [];
+  readonly startedSessions: string[] = [];
+  private readonly goneSessions = new Set<string>();
 
   constructor(opts: FakeExecPortOptions = {}) {
     this.gate = opts.gate ?? (() => Promise.resolve());
@@ -71,6 +74,25 @@ export class FakeSubstrateExecPort implements SubstrateExecPort {
   stopSession(sessionId: string): Promise<void> {
     this.stoppedSessions.push(sessionId);
     return Promise.resolve();
+  }
+
+  /**
+   * Restore (FR-43). A session id in `goneSessions` behaves like one
+   * hard-deleted upstream: the real port turns that 404 into
+   * `SessionGoneError`, so the fake raises the same type — the FR-44 branch
+   * is only testable offline if the fake can produce it.
+   */
+  startSession(sessionId: string): Promise<void> {
+    if (this.goneSessions.has(sessionId)) {
+      return Promise.reject(new SessionGoneError(sessionId));
+    }
+    this.startedSessions.push(sessionId);
+    return Promise.resolve();
+  }
+
+  /** Tests mark a session as hard-deleted upstream (FR-44 branch). */
+  markSessionGone(sessionId: string): void {
+    this.goneSessions.add(sessionId);
   }
 
   /** Tests enqueue the fixture each subsequent exec will replay. */

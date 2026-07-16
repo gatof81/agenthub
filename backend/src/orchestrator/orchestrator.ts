@@ -17,6 +17,7 @@ import {
   NOOP_LOGGER,
   NOOP_METRICS,
   NOOP_NOTIFIER,
+  SessionGoneError,
   type AdapterItem,
   type HubNotifier,
   type Logger,
@@ -45,7 +46,14 @@ import type { HubStore, NewRunEvent } from '../store/types.js';
 
 export class OrchestratorError extends Error {
   constructor(
-    readonly code: 'unknown_agent' | 'project_not_ready' | 'run_not_cancellable' | 'not_found',
+    readonly code:
+      | 'unknown_agent'
+      | 'project_not_ready'
+      | 'run_not_cancellable'
+      | 'not_found'
+      // restore (FR-44 / I-12): the API maps both to 409 with the code
+      | 'session_gone'
+      | 'project_archived',
     message: string,
   ) {
     super(message);
@@ -215,6 +223,72 @@ export class Orchestrator {
     const updated = this.store.updateProject(projectId, { status: 'archived' });
     this.notify.projectState(projectId, 'archived');
     return updated;
+  }
+
+  /**
+   * Restore an archived project (FR-43) — the inverse of archiving: restart
+   * the session archiving stopped. The workspace is a host directory, so it
+   * survived, and the CLI transcripts under it with it: the next turn
+   * `--resume`s where it left off (FR-24).
+   *
+   * Unlike `archiveProject`, a seam failure is NOT swallowed. Archiving can
+   * shrug at a session it cannot stop — the intent is satisfied either way.
+   * Restoring cannot: a project marked `ready` whose session never came back
+   * would fail its next turn instead of here, where the user can see why. A
+   * `SessionGoneError` (FR-44) propagates for the API to map to
+   * `409 session_gone`, and the project stays archived.
+   */
+  async restoreProject(projectId: string): Promise<Project> {
+    const project = this.store.getProject(projectId);
+    if (!project) throw new OrchestratorError('not_found', `project ${projectId}`);
+    if (project.status !== 'archived') return project; // idempotent
+    const sessionId = project.sessionBinding.sessionId;
+    if (!sessionId) {
+      throw new OrchestratorError(
+        'session_gone',
+        `project ${projectId} has no session to restore (FR-44)`,
+      );
+    }
+    // Translate the port's error into the orchestrator's own vocabulary: the
+    // API depends on the orchestrator, not on the substrate (07 §2), so it
+    // must not have to know SessionGoneError. A seam/transport failure is
+    // deliberately NOT translated — it propagates as-is (500), because it is
+    // transient and retryable, unlike a session that is gone for good.
+    try {
+      await this.execPort.startSession(sessionId);
+    } catch (err) {
+      if (err instanceof SessionGoneError) {
+        throw new OrchestratorError('session_gone', err.message);
+      }
+      throw err;
+    }
+    this.store.setProjectSession(projectId, { lastKnownState: 'ready' });
+    const updated = this.store.updateProject(projectId, { status: 'ready' });
+    this.notify.projectState(projectId, 'ready');
+    this.logger.info('project.restored', { projectId, sessionId });
+    return updated;
+  }
+
+  /**
+   * Restore an archived conversation (FR-43). Trivial next to a project's:
+   * conversations own no session, they share the project's — which is
+   * exactly why I-12 must be enforced here. An active conversation in an
+   * archived project could not take a turn (the shared session is stopped),
+   * so restoring it while the project is archived is rejected rather than
+   * silently producing that dead state.
+   */
+  restoreConversation(conversationId: string): Conversation {
+    const conversation = this.store.getConversation(conversationId);
+    if (!conversation) throw new OrchestratorError('not_found', `conversation ${conversationId}`);
+    if (conversation.status !== 'archived') return conversation; // idempotent
+    const project = this.store.getProject(conversation.projectId);
+    if (project?.status === 'archived') {
+      throw new OrchestratorError(
+        'project_archived',
+        `restore project ${conversation.projectId} first — its session is stopped (I-12)`,
+      );
+    }
+    return this.store.updateConversation(conversationId, { status: 'active' });
   }
 
   createConversation(input: {

@@ -48,11 +48,40 @@ export interface SessionSeed {
   claudeMd?: string;
 }
 
+/**
+ * The session a restore targets no longer exists upstream (FR-44). Lives in
+ * domain, not substrate: it is part of the port's contract, and the
+ * orchestrator must catch it — `orchestrator → substrate` is not a legal
+ * dependency arrow (07 §2), `→ domain` is.
+ *
+ * Distinct from a transport failure: retrying never helps, and the workspace
+ * is gone with it, so the project must stay archived rather than be handed a
+ * fresh, empty session wearing its name.
+ */
+export class SessionGoneError extends Error {
+  constructor(readonly sessionId: string) {
+    super(`session ${sessionId} no longer exists upstream — its workspace is gone (FR-44)`);
+    this.name = 'SessionGoneError';
+  }
+}
+
 export interface SubstrateExecPort {
   /** UC-01: provision the project's substrate session from a template. */
   createSession(templateId: string, seed: SessionSeed): Promise<{ sessionId: string }>;
   /** Archiving a project stops its session (08 §1 PATCH semantics, FR-30). */
   stopSession(sessionId: string): Promise<void>;
+  /**
+   * Restoring a project restarts its session — the inverse of `stopSession`
+   * (FR-43). The workspace is a host directory, so it survived the stop: the
+   * session comes back with the same files and the same CLI transcripts
+   * under them, which is what preserves FR-24 `--resume` continuity.
+   *
+   * Rejects with `SessionGoneError` when the session no longer exists
+   * upstream (hard-deleted, taking its workspace). That is a distinct
+   * outcome from a transport failure, and callers must not paper over it by
+   * provisioning a replacement (FR-44).
+   */
+  startSession(sessionId: string): Promise<void>;
   exec(sessionId: string, req: ExecRequest): AsyncIterable<SeamEvent>;
   status(sessionId: string, execId: string): Promise<ExecStatus>;
   kill(sessionId: string, execId: string, graceMs: number): Promise<{ outcome: KillOutcome }>;
