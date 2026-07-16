@@ -119,8 +119,8 @@ but nothing exposed it — so the Hub did not trust the seam here:
 marked ready (B3-08). The probe lives in the runtime adapter, not this port
 — only the adapter knows what its runtime needs on PATH.
 
-**CLOSED UPSTREAM 2026-07-16** (filed as shared-terminal#393, shipped in
-#399 = `c35b6da`, deployed). The seam now answers the question directly:
+**CLOSED UPSTREAM 2026-07-16** (filed as shared-terminal#393, shipped as
+shared-terminal#399 = `c35b6da`, deployed). The seam now answers the question directly:
 `GET /api/sessions/:id` carries **`runtimeReady`** (`routes/sessions.ts:483-490`),
 backed by a boot sentinel the entrypoint writes as its last step —
 `dockerManager.ts:164` states the contract: its presence means `docker exec`
