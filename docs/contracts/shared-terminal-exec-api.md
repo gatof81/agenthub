@@ -86,7 +86,7 @@ Surface consumed beyond the exec API (session routes verified at the same
 | `GET /api/sessions/:id` → `{ status: running \| stopped \| terminated \| failed }` | bootstrap hard-fail detection (`failed` also kills the container upstream) |
 | `GET /api/sessions/:id/bootstrap-log` → `{ log: string \| null }` | **bootstrap-completion signal**: upstream persists the log when the bootstrap runner finishes, success or failure — non-null ⇒ done. Chosen over the `/ws/bootstrap/:id` channel to avoid a WebSocket client dependency; `null` cannot mean "never ran" because a seeded create always bootstraps. **Not a runtime-readiness signal** — see the gap below |
 | `POST /api/sessions/:id/stop` | archive path (FR-30); `404` tolerated (already gone) |
-| `POST /api/sessions/:id/start` | restore path (FR-43). **All claims below verified at `main @ c35b6da`** ([#399](https://github.com/gatof81/shared-terminal/commit/c35b6da), *runtime-readiness signal*, 2026-07-16 — `main` head at the time of writing). On a session with no live container it respawns from the stored config (`dockerManager.ts:1023` `loadConfigForSpawn` → `:1029` `spawnWithConfig`), and the workspace bind is derived from the **session id**, not the container — `${WORKSPACE_ROOT}/${sessionId}:/home/developer/workspace` (`dockerManager.ts:440`). That is why the files, and the CLI transcripts symlinked under them, come back: the workspace is a host directory that outlives any container. **`404` is NOT tolerated** — unlike `stop`, where "already gone" satisfies the intent, here it defeats it: the row is gone (`sessionManager.ts` `assertOwnership` throws `NotFoundError`), so the session was hard-deleted and took its workspace; the port raises `SessionGoneError` and the project stays archived (FR-44). `409` = the session `failed` during postCreate (recreate to retry) |
+| `POST /api/sessions/:id/start` | restore path (FR-43). **All claims below verified at `main @ c35b6da`** ([`c35b6da`](https://github.com/gatof81/shared-terminal/commit/c35b6da) = shared-terminal#399, 2026-07-16 — `main` head at the time of writing). On a session with no live container it respawns from the stored config (`dockerManager.ts:1023` `loadConfigForSpawn` → `:1029` `spawnWithConfig`), and the workspace bind is derived from the **session id**, not the container — `${WORKSPACE_ROOT}/${sessionId}:/home/developer/workspace` (`dockerManager.ts:440`). That is why the files, and the CLI transcripts symlinked under them, come back: the workspace is a host directory that outlives any container. **`404` is NOT tolerated** — unlike `stop`, where "already gone" satisfies the intent, here it defeats it: the row is gone (`sessionManager.ts` `assertOwnership` throws `NotFoundError`), so the session was hard-deleted and took its workspace; the port raises `SessionGoneError` and the project stays archived (FR-44). `409` = the session `failed` during postCreate (recreate to retry) |
 
 The bootstrap wait polls (default 1 s, 180 s cap) and surfaces failure as a
 typed provisioning error carrying a tail-capped bootstrap log. Session
@@ -114,11 +114,24 @@ at `main @ 3f1b9e7`:
   `claude: command not found` on a fresh session's first turn.
 
 The entrypoint already knows when it is done (`:405` logs `container ready`)
-but nothing exposes it; a queryable marker upstream would close this properly
-(filed with the substrate). Until then the Hub does **not** trust the seam
-here: `RuntimeAdapter.awaitReady` probes the runtime itself before a project
-is marked ready (B3-08). The probe lives in the runtime adapter, not this
-port — only the adapter knows what its runtime needs on PATH.
+but nothing exposed it — so the Hub did not trust the seam here:
+`RuntimeAdapter.awaitReady` probes the runtime itself before a project is
+marked ready (B3-08). The probe lives in the runtime adapter, not this port
+— only the adapter knows what its runtime needs on PATH.
+
+**CLOSED UPSTREAM 2026-07-16** (filed as shared-terminal#393, shipped in
+#399 = `c35b6da`, deployed). The seam now answers the question directly:
+`GET /api/sessions/:id` carries **`runtimeReady`** (`routes/sessions.ts:483-490`),
+backed by a boot sentinel the entrypoint writes as its last step —
+`dockerManager.ts:164` states the contract: its presence means `docker exec`
+can resolve the image's binaries. Verified at `main @ c35b6da`.
+
+The Hub still probes: the seam's answer and the adapter's question are not
+the same one — `runtimeReady` says the entrypoint finished, the probe says
+*this runtime's* binary resolves, which is what a turn actually needs. But
+the probe can now start from the seam's signal instead of polling blind, and
+a session that never reports ready can fail fast rather than at the deadline.
+Tracked as a follow-up to B3-08; the probe is correct as-is meanwhile.
 
 ## Related upstream closures
 
