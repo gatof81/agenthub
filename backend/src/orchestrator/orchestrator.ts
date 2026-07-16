@@ -179,11 +179,19 @@ export class Orchestrator {
         settings: { allowedTools: agent.allowedTools },
         claudeMd: [agent.instructions, instructions].filter(Boolean).join('\n\n'),
       });
+      // Bind BEFORE the readiness wait: from here on a session exists
+      // upstream, and a project that fails the wait must still carry the id
+      // so archiving can stop it (otherwise the container leaks — the seam
+      // is the authority on session state, but only we know the id).
       this.store.setProjectSession(projectId, {
         sessionId,
         templateId: agent.sessionTemplateId,
-        lastKnownState: 'ready',
+        lastKnownState: 'provisioning',
       });
+      // A provisioned session is not yet a runnable one (B3-08): ask the
+      // runtime, not the seam, whether it can actually take a turn.
+      await this.adapter.awaitReady(sessionId);
+      this.store.setProjectSession(projectId, { lastKnownState: 'ready' });
       this.store.updateProject(projectId, { status: 'ready' });
       this.notify.projectState(projectId, 'ready');
     } catch {

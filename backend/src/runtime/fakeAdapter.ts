@@ -48,4 +48,15 @@ export class FakeRuntimeAdapter implements RuntimeAdapter {
   status(sessionId: string, execId: string): Promise<ExecStatus> {
     return this.port.status(sessionId, execId);
   }
+
+  /**
+   * The fake runtime has no binary to resolve, so a provisioned session is
+   * always runnable (B3-08). Not a stub for the real probe: it is the honest
+   * answer for this runtime, and it keeps the fake's provisioning path free
+   * of a wait the real adapter needs only because of the session image's
+   * entrypoint (see ClaudeCliRuntimeAdapter.awaitReady).
+   */
+  awaitReady(): Promise<void> {
+    return Promise.resolve();
+  }
 }

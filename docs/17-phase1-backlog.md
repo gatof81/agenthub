@@ -1,6 +1,6 @@
 # 17 — Phase-1 Backlog
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-15
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
 
 The actionable work items for the Phase-1 MVP, grouped by the three increments
 of [12-mvp-implementation-plan.md](./12-mvp-implementation-plan.md), each
@@ -64,6 +64,8 @@ Goal: survive the failure modes (12 §Increment 3, UC-06/07/08).
 | B3-05 | Restore drill (production, once before exit) | OPS-03 | a prod snapshot restores into scratch and takes a turn |
 | B3-06 | Error taxonomy surfacing + timeouts + lagging budget | 08 §6, FR-17/25, ADR-003, R-06 | every code surfaces; caps enforced — **met 2026-07-15**: Hub wall-clock backstop over the seam's own cap kills a hung stream → `run_timeout` (also classified from a seam `exit reason:"timeout"`); lagging budget estimate from streamed per-message token usage trips `budget_exceeded` on crossing `caps.budgetUsd` (prices configurable, conservative defaults); seam 409/429 → `exec_refused` (with FR-33 session-state context) vs unreachable → `seam_unavailable`. Timeout/budget kills classify as `failed` (not `cancelled`) and run the FR-21 sweep. **Live-verified on the deployment host**: a real turn under a $0.001 cap tripped `budget_exceeded`; the `runtime_error` path (CLI exit 127) also surfaced correctly with its stderr |
 | B3-07 | Observability floor (correlation ids, counters, health) | 14, OPS-04 | logs carry ids; no payloads logged (13 §5) — **met 2026-07-15**: structured JSON logger with a per-request correlation id propagated via `AsyncLocalStorage` (joins to the seam's `X-Request-Id` on the run row); the `Logger` type forbids arbitrary objects so payloads/secrets can't be logged (test: a canary prompt never appears in any log line); process-local `CountingMetrics` (run-transition + seam-error counters, live active/queued gauges, DB/WAL size) surfaced on authenticated `/api/health` |
+
+| B3-08 | Runtime readiness probe before a project is `ready` | UC-01, R-02 | a fresh session never takes a turn before its runtime resolves — **met 2026-07-16**: root-caused the `claude: command not found` seen on fresh sessions to the session image's entrypoint swapping `~/.npm-global` (which holds the CLI) for a workspace symlink on every boot, unsynchronised with the session lifecycle — the seam's bootstrap-completion signals are true throughout that window (upstream citations: contracts doc §Gap, verified at shared-terminal `3f1b9e7`). `RuntimeAdapter.awaitReady` polls `command -v claude` through the seam until it resolves; provisioning binds the session id **before** the wait so a failed probe can't leak the container, and a runtime that never resolves fails the project instead of failing a billed turn. The durable fix is an upstream readiness marker (filed) |
 
 **Increment-3 done:** clean recovery from Hub restart, container recreate, and
 seam outage; backup/restore drilled.

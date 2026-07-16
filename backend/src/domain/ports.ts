@@ -109,6 +109,17 @@ export interface RuntimeAdapter {
   runTurn(sessionId: string, turn: TurnRequest): AsyncIterable<AdapterItem>;
   kill(sessionId: string, execId: string, graceMs: number): Promise<{ outcome: KillOutcome }>;
   status(sessionId: string, execId: string): Promise<ExecStatus>;
+  /**
+   * Resolves once this runtime can actually run a turn in `sessionId`, or
+   * rejects when it cannot within the adapter's deadline (B3-08).
+   *
+   * A provisioned session is NOT the same as a runnable one: the seam's
+   * readiness signals (bootstrap log persisted, status not `failed`) say the
+   * Hub's own bootstrap finished, not that the runtime's binary resolves.
+   * Only the adapter knows what its runtime needs, so the check lives here
+   * rather than in the substrate port.
+   */
+  awaitReady(sessionId: string): Promise<void>;
 }
 
 // — HubNotifier (ADR-004 delivery projection; the store stays the truth) —

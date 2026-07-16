@@ -1,6 +1,6 @@
 # 14 — Observability & Operations (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-15
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
 
 How the running Hub is observed and operated: logs, signals, health, the
 runbooks a single operator needs, and the alerting floor. Scoped to a
@@ -63,6 +63,7 @@ Phase 1; expose on an internal endpoint or log-derive):
 | **Restore** | stop → fetch snapshot from R2 → replace DB file (no WAL/SHM) → start → reconciler heals (09 §5); drilled once before Phase-1 exit (OPS-03) |
 | **CLI version bump** (substrate updates 2.1.207) | re-run the S-01 package → sanitize → refresh fixtures → run the `RuntimeAdapter` contract test; only then accept the new version (R-02) |
 | **Session recycle** | pre-`Init:true` containers need one recycle (shared-terminal #387); new sessions are fine |
+| **Project `error` at provisioning, runtime never ready** | the readiness probe (B3-08) timed out: the session exists but `claude` never resolved on PATH — the session image's entrypoint failed its `~/.npm-global` swap. Its own WARN in `docker logs` names the case; recovery is a container recreate (DELETE + `POST /sessions/:id/start`) so the image's npm-global is re-applied. The project keeps its session id, so archiving it still stops the container |
 | **Capacity check** | before creating a project, the Hub queries the substrate's `GET /quotas` for headroom (02 §6) — surface low-headroom in the UI |
 | **Seam outage** | runs fail with `seam_unavailable` (08 §6) and are re-sendable; no data loss (store is authority). Check substrate health, not the Hub |
 
