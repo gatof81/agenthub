@@ -1,6 +1,6 @@
 # 10 — Security Threat Model (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-14
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
 
 Asset/attacker/vector analysis for the Phase-1 MVP, plus the open-source
 hygiene posture for a public repo describing a personal deployment. Extends
@@ -39,6 +39,7 @@ flowchart TB
 | Substrate JWT (Hub's dedicated account) | Hub memory/config | control of Hub-created sessions (SEC-06) |
 | Workspace secrets (`.env`, PATs, deploy keys) | session workspace | lateral movement into the owner's other systems |
 | Conversation data + transcripts | Hub SQLite, `.st/claude-state` (plaintext on host) | disclosure of everything discussed/done |
+| **Repo PATs (one per project, fine-grained)** | seam session config, **encrypted in D1**; never in Hub storage (SEC-11) | **write access to that one repository** — the Hub's only credential that can alter the owner's source. Per-repo scope is the blast-radius bound: a leak cannot reach the other repos, and revocation is per project (ADR-006) |
 | The deployment's shape | host, tunnel, hostnames | targeting information (R-09) |
 
 ## 3. Attackers

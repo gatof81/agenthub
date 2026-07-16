@@ -87,6 +87,24 @@ it with no way back. FR-43/44 close that.
 **Increment-4 done:** nothing the owner archives is unreachable, and the UI
 never claims more permanence — or less — than the system delivers.
 
+## Increment 5 — repo in project (owner-driven, 2026-07-16)
+
+Goal: make the two axes real. An agent is a role, reusable across projects; a
+project is a workspace with a repository. This is what turns "ask QA-AGENT to
+review the last PR of Agent Hub" from impossible into a sentence
+(ADR-006, FR-45/46/47).
+
+| ID | Item | Traces | Done when |
+| --- | --- | --- | --- |
+| B5-01 | Move `sessionTemplateId` from `Agent` to `Project`; migration 003 | ADR-006, FR-45, 09 §4 | provisioning reads the template from the project; the agent config no longer accepts one; existing projects adopt their default agent's template at migration, so nothing re-provisions |
+| B5-02 | `Project.repo` → the seam's session config (clone at bootstrap) | FR-45, 02 §2 | a project created with a repo provisions a workspace with that repo cloned at the requested ref; a project without one provisions an empty workspace exactly as today |
+| B5-03 | Per-repo PAT plumbing (config → seam encrypted auth) | FR-47, SEC-11, 10 §2 | the PAT reaches the seam's encrypted session config and appears **nowhere** else: not in the Hub DB, not in logs, not in run events, not in the agentSeed — pinned by a canary test in the 13 §5 style |
+| B5-04 | Per-turn role instructions | ADR-006 consequence, FR-11 pattern | a QA conversation and a DEV conversation in the **same** project each run under their own agent's instructions. **Blocked on verifying `--append-system-prompt` (or equivalent) against CLI 2.1.207** — the mechanism is unverified; do not assume it |
+
+**Increment-5 done:** one `DEV-Agent` works on two different repositories, and
+two different roles work on one repository, without either borrowing the
+other's workspace or instructions.
+
 ## Cross-cutting (throughout)
 
 | ID | Item | Traces |

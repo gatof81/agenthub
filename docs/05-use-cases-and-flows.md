@@ -47,10 +47,15 @@ deliberately does not show the state — nothing in Phase 1 may implement it.
 
 ## UC-01 — Create a project (and its session), then conversations
 
-1. User creates a **project**, picking a default agent and optional
-   instructions (FR-40/41, FR-02).
-2. Hub provisions the project's substrate session from the agent's template,
-   with agentSeed carrying agent settings + project instructions (FR-30).
+1. User creates a **project**, declaring its **workspace** — a substrate
+   template and an optional repo — plus a default agent and optional
+   instructions (FR-40/41, FR-02, FR-45).
+2. Hub provisions the project's substrate session **from the project's own
+   template** (never the agent's — an agent is a stateless role that carries
+   no workspace; ADR-006, FR-45), cloning `project.repo` when declared, with
+   agentSeed carrying agent settings + project instructions (FR-30). Any repo
+   credential is provisioned here, never authenticated from inside a later
+   turn (FR-46).
 3. Bootstrap streams; Hub records session id ↔ project binding.
 4. The project is usable when the session reports ready; conversations under
    it are created instantly (no per-conversation provisioning — they share
@@ -231,7 +236,7 @@ the database.
 
 | Flow | Requirements exercised |
 | --- | --- |
-| UC-01 | FR-01/02/04/25/30/33, FR-40/41 |
+| UC-01 | FR-01/02/04/25/30/33, FR-40/41, FR-45/46 |
 | UC-02 | FR-03/05/10–14/16/17/18/42, NFR-01/06, SEC-06/07, OPS-04 |
 | UC-03 | FR-04/19, UX-03 |
 | UC-04 | FR-18/20/21, UX-04/06 (FR-22 retired) |

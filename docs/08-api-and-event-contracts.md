@@ -26,7 +26,7 @@ All routes under `/api`, behind the single-credential gateway middleware
 | --- | --- | --- |
 | `GET /api/health` | liveness + backup freshness signal | unauthenticated liveness, authenticated detail |
 | `GET /api/agents` | list config-defined agents | id, name, allowlist, caps — read-only in Phase 1 (FR-02) |
-| `POST /api/projects` | create project → provisions its session (UC-01, FR-40) | body `{name, defaultAgentId, instructions?}`; returns `202` with `status: "provisioning"` |
+| `POST /api/projects` | create + provision (202) | `{name, defaultAgentId, sessionTemplateId?, repo?, instructions?}` — `repo` = `{url, ref?, target?, auth}` (FR-45). The workspace comes from the **project**, not the agent (ADR-006). Credentials are provisioned here, never authenticated inside a turn (FR-46) |
 | `GET /api/projects` / `GET /api/projects/:id` | list / detail incl. session state + conversations | archived filtered by default; `?archived=true` lists them (FR-43) |
 | `PATCH /api/projects/:id` | rename / archive / **restore** | `{name?}` or `{status: "archived"}` (stops the session, FR-40) or `{status: "ready"}` (restarts it, FR-43). Restore when the session is gone upstream → `409 session_gone`, project stays archived (FR-44) |
 | `POST /api/projects/:id/conversations` | create conversation in the project (instant — no provisioning, ADR-005) | body `{title?, agentId?}` (agent defaults from project) |
