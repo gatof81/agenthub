@@ -49,6 +49,55 @@ function makeHarness(store: HubStore, gate?: () => Promise<void>): Harness {
   return { store, port, orch, readyProject };
 }
 
+const jline = (o: unknown): string => JSON.stringify(o);
+
+/** A turn that says something load-bearing, calls a tool, then signs off. */
+const MULTI_STEP: string[] = [
+  jline({
+    type: 'assistant',
+    message: {
+      content: [{ type: 'text', text: 'Open https://github.com/login/device and enter ABCD-1234.' }],
+      usage: { input_tokens: 10, output_tokens: 5 },
+    },
+  }),
+  jline({
+    type: 'assistant',
+    message: {
+      content: [{ type: 'tool_use', id: 'toolu_1', name: 'Bash', input: { command: 'gh auth status' } }],
+    },
+  }),
+  jline({
+    type: 'assistant',
+    message: { content: [{ type: 'text', text: " I'll let you know when it's done." }] },
+  }),
+  jline({
+    type: 'result',
+    subtype: 'success',
+    result: " I'll let you know when it's done.",
+    total_cost_usd: 0.01,
+    num_turns: 2,
+    session_id: 'sess_multi',
+    is_error: false,
+  }),
+];
+
+/** A turn that produces no text at all — the resultText fallback's reason to exist. */
+const TOOL_ONLY: string[] = [
+  jline({
+    type: 'assistant',
+    message: { content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'ls' } }] },
+  }),
+  jline({
+    type: 'result',
+    subtype: 'success',
+    result: 'Done — nothing to report.',
+    total_cost_usd: 0.01,
+    num_turns: 1,
+    session_id: 's2',
+    is_error: false,
+  }),
+];
+
 function suite(name: string, makeStore: () => HubStore): void {
   describe(`spine on fake runtime — ${name}`, () => {
     it('project → conversation → send → stream → activity → summary (UC-01/02)', async () => {
@@ -237,100 +286,56 @@ function suite(name: string, makeStore: () => HubStore): void {
       expect(store.getEvents(run.id)).toHaveLength(events.length);
       store.close();
     });
+
+    /**
+     * Regression (2026-07-16, found in production): a multi-step turn's
+     * earlier assistant text must reach the conversation.
+     *
+     * The `gh auth login` turn that exposed this emitted the device link and
+     * a one-time code mid-turn (fabricated here), then closed with "I'll let you know when it's
+     * done". `result.result` carries only that closing line, and preferring
+     * it meant the code never reached the chat — the owner could not
+     * authenticate and had no way to recover the code from the UI, even
+     * though `run_events` held it the whole time.
+     *
+     * Runs against BOTH stores deliberately: the fix reads events back
+     * through `getEvents()`, so the assembled text depends on store ordering
+     * — and the bug was found on SQLite, not on the in-memory fake.
+     */
+    it('keeps every assistant text block of a multi-step turn, not just the CLI result summary', async () => {
+      const { store, port, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject();
+      const conversation = orch.createConversation({ projectId: project.id });
+      port.enqueueFixture({ streamLines: MULTI_STEP });
+      const { run } = orch.send(conversation.id, 'setup gh credentials');
+      await orch.idle();
+
+      expect(store.getRun(run.id)!.state).toBe('completed');
+      const assistant = store.listMessages(conversation.id).at(-1)!;
+      expect(assistant.role).toBe('assistant');
+      // the load-bearing part: the code the user actually needed
+      expect(assistant.content).toContain('ABCD-1234');
+      expect(assistant.content).toContain('https://github.com/login/device');
+      // ...and the closing line, once — assembling includes the final block,
+      // so this must not double it
+      expect(assistant.content).toContain("I'll let you know when it's done.");
+      expect(assistant.content.match(/let you know/g)).toHaveLength(1);
+      store.close();
+    });
+
+    it('falls back to the result text when the turn produced no text blocks', async () => {
+      const { store, port, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject();
+      const conversation = orch.createConversation({ projectId: project.id });
+      port.enqueueFixture({ streamLines: TOOL_ONLY });
+      const { run } = orch.send(conversation.id, 'do a thing');
+      await orch.idle();
+      expect(store.getRun(run.id)!.state).toBe('completed');
+      expect(store.listMessages(conversation.id).at(-1)!.content).toBe('Done — nothing to report.');
+      store.close();
+    });
   });
 }
 
 suite('sqlite (:memory:)', () => new SqliteHubStore(':memory:'));
 suite('in-memory fake', () => new MemoryHubStore());
-
-/**
- * Regression (2026-07-16, found in production): a multi-step turn's earlier
- * assistant text must reach the conversation.
- *
- * The `gh auth login` turn that exposed this emitted the device link and a
- * one-time code mid-turn, then closed with "I'll let you know when it's
- * done". `result.result` carries only that closing line, and preferring it
- * meant the code never reached the chat — the owner could not authenticate
- * and had no way to recover the code from the UI, even though `run_events`
- * held it the whole time.
- */
-describe('assistant text of a multi-step turn (no silent loss)', () => {
-  const line = (o: unknown): string => JSON.stringify(o);
-
-  /** A turn that says something load-bearing, calls a tool, then signs off. */
-  const MULTI_STEP: string[] = [
-    line({
-      type: 'assistant',
-      message: {
-        content: [{ type: 'text', text: 'Open https://github.com/login/device and enter F5C6-31B1.' }],
-        usage: { input_tokens: 10, output_tokens: 5 },
-      },
-    }),
-    line({
-      type: 'assistant',
-      message: {
-        content: [{ type: 'tool_use', id: 'toolu_1', name: 'Bash', input: { command: 'gh auth status' } }],
-      },
-    }),
-    line({
-      type: 'assistant',
-      message: { content: [{ type: 'text', text: " I'll let you know when it's done." }] },
-    }),
-    line({
-      type: 'result',
-      subtype: 'success',
-      result: " I'll let you know when it's done.",
-      total_cost_usd: 0.01,
-      num_turns: 2,
-      session_id: 'sess_multi',
-      is_error: false,
-    }),
-  ];
-
-  it('keeps every text block, not just the CLI result summary', async () => {
-    const { store, port, orch, readyProject } = makeHarness(new MemoryHubStore());
-    const project = await readyProject();
-    const conversation = orch.createConversation({ projectId: project.id });
-    port.enqueueFixture({ streamLines: MULTI_STEP });
-    const { run } = orch.send(conversation.id, 'setup gh credentials');
-    await orch.idle();
-
-    expect(store.getRun(run.id)!.state).toBe('completed');
-    const assistant = store.listMessages(conversation.id).at(-1)!;
-    expect(assistant.role).toBe('assistant');
-    // the load-bearing part: the code the user actually needed
-    expect(assistant.content).toContain('F5C6-31B1');
-    expect(assistant.content).toContain('https://github.com/login/device');
-    // ...and the closing line, once — assembling includes the final block,
-    // so this must not double it
-    expect(assistant.content).toContain("I'll let you know when it's done.");
-    expect(assistant.content.match(/let you know/g)).toHaveLength(1);
-  });
-
-  it('falls back to the result text when the turn produced no text blocks', async () => {
-    const { store, port, orch, readyProject } = makeHarness(new MemoryHubStore());
-    const project = await readyProject();
-    const conversation = orch.createConversation({ projectId: project.id });
-    port.enqueueFixture({
-      streamLines: [
-        line({
-          type: 'assistant',
-          message: { content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'ls' } }] },
-        }),
-        line({
-          type: 'result',
-          subtype: 'success',
-          result: 'Done — nothing to report.',
-          total_cost_usd: 0.01,
-          num_turns: 1,
-          session_id: 's2',
-          is_error: false,
-        }),
-      ],
-    });
-    const { run } = orch.send(conversation.id, 'do a thing');
-    await orch.idle();
-    expect(store.getRun(run.id)!.state).toBe('completed');
-    expect(store.listMessages(conversation.id).at(-1)!.content).toBe('Done — nothing to report.');
-  });
-});
