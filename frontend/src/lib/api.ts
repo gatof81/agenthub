@@ -114,6 +114,21 @@ export interface SessionRow {
   lastConnectedAt: string | null;
   projectId: string | null;
   projectName: string | null;
+  /**
+   * Lifecycle owner of the bound project's session (ADR-007): `owner` = the
+   * owner's own account; `legacy-technical` = the Hub's generic account, always
+   * project-bound while alive; `null` = not bound to any Hub project.
+   */
+  ownership: 'owner' | 'legacy-technical' | null;
+}
+
+/**
+ * The sessions the owner cares to see: their own account's sessions, bound or
+ * not. It hides the Hub's own generic `legacy-technical` sessions — those exist
+ * only to back a project and carry no owner-facing identity of their own.
+ */
+export function ownerVisibleSessions(listing: SessionListing): SessionRow[] {
+  return listing.sessions.filter((s) => s.ownership !== 'legacy-technical');
 }
 
 export interface SessionListing {

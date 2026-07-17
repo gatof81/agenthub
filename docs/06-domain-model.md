@@ -104,7 +104,7 @@ Correction (ADR-007, lands in N2 as `ProjectSessionBinding`): gains
 `ownerAccountId` and `bindingMode: existing | created` — the session belongs
 to the owner's admin account, whether the Hub attached to one the owner
 already had or created one there (shared-terminal#420). Pre-correction rows
-migrate as `legacy-technical-ownership` (migration 004) and keep working
+migrate as `legacy-technical` (migration 004) and keep working
 until deliberately rebound.
 
 ### Message
