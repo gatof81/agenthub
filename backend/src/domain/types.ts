@@ -53,14 +53,7 @@ export interface Caps {
   timeoutMs: number;
 }
 
-/**
- * A reusable professional identity — config-defined in Phase 1 (FR-02), a
- * stateless template (18 §2); ADR-008 calls it a **Specialist**. No workspace
- * of its own (ADR-006). `role` and `capabilities` (N3, ADR-008) describe what
- * it is and what it can do — the inputs the future router (N4) selects on;
- * both optional so pre-N3 configs still load. Kept named `Agent` here to avoid
- * a repo-wide rename mid-flight; the API surfaces it as `/api/specialists`.
- */
+/** Reusable professional identity (FR-02, 18 §2, ADR-008); named `Agent` to avoid a mid-flight rename — surfaced as `/api/specialists`. */
 export interface Agent {
   id: string;
   name: string;

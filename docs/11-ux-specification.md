@@ -74,6 +74,13 @@ Navigation entry point is the **project**, matching the mental model
 (ADR-005). A conversation is always viewed inside its project; the activity
 inspector is a peel-back detail (UX-01/02), never imposed.
 
+The projects home also lists, read-only, the owner's **Sessions** (N1,
+FR-48 — name, owner, state, bound project) and **Specialists** (N3a,
+ADR-008 — name, role, capabilities). Both are informational in their first
+slice: opening a session's terminal (shared-terminal#419) and starting a
+direct conversation with a specialist arrive later (N3b). A discovery/list
+failure leaves the section absent rather than blocking the home.
+
 **Archive is the product's delete, and it is reversible (FR-43).** Two
 consequences the UI owes the owner, both learned from him losing work to it:
 
