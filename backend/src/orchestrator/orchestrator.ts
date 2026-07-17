@@ -42,6 +42,8 @@ import type {
   Run,
   RunErrorCode,
   SessionOwnership,
+  SpecialistSessionBinding,
+  SpecialistSessionStatus,
   SweepResult,
   TerminalRunState,
   UsageSource,
@@ -120,6 +122,15 @@ for p in $REMAIN; do kill -KILL "$p" 2>/dev/null || true; done
 FINAL="$(list)"
 echo "HUB_SWEEP|\${FOUND% }|\${REMAIN% }|\${FINAL% }"
 `;
+
+/**
+ * Map a seam session state to a specialist-session status (N3b-1). `busy` (a
+ * run is active in it) is not derivable here — it arrives with N3b-2 when
+ * specialist conversations execute.
+ */
+function statusFromSeamState(state: string): SpecialistSessionStatus {
+  return state === 'running' ? 'available' : 'offline';
+}
 
 export class Orchestrator {
   private readonly store: HubStore;
@@ -309,6 +320,73 @@ export class Orchestrator {
       this.store.updateProject(projectId, { status: 'error' });
       this.notify.projectState(projectId, 'error');
     }
+  }
+
+  // — N3b-1: a specialist's optional personal session (ADR-008) —
+
+  /**
+   * Bind or create a specialist's personal session in the owner's account,
+   * reusing the N2 machinery (ADR-007): exactly one of `sessionId` (bind an
+   * existing owner session) or `sessionTemplateId` (create one on-behalf,
+   * #420). The specialist is config (agents.yaml); only this binding is
+   * state. Back-linked via `external_ref = agenthub:specialist:<id>`.
+   * Synchronous end-to-end (unlike project provisioning's 202) — the caller
+   * gets the final binding or a thrown error.
+   */
+  async bindSpecialistSession(
+    specialistId: string,
+    input: { sessionId?: string | null; sessionTemplateId?: string | null },
+  ): Promise<SpecialistSessionBinding> {
+    this.mustAgent(specialistId); // must name a real specialist (config)
+    const bindTo = input.sessionId ?? null;
+    const template = input.sessionTemplateId ?? null;
+    if ((bindTo === null) === (template === null)) {
+      // API validates first (422); this is the defensive guard, like createProject
+      throw new Error('bindSpecialistSession: exactly one of sessionId and sessionTemplateId');
+    }
+    const externalRef = `agenthub:specialist:${specialistId}`;
+
+    if (bindTo !== null) {
+      const info = await this.execPort.getSession(bindTo);
+      if (info === null) {
+        throw new OrchestratorError('session_gone', `session ${bindTo} not found upstream`);
+      }
+      try {
+        await this.execPort.setSessionExternalRef(bindTo, externalRef);
+      } catch {
+        this.logger.warn('specialist.bind_external_ref_failed', { specialistId, sessionId: bindTo });
+      }
+      const binding = this.store.setSpecialistSession({
+        specialistId,
+        sessionId: bindTo,
+        ownerAccountId: info.ownerUsername,
+        ownership: 'owner',
+        bindingMode: 'existing',
+        lastKnownState: info.status,
+        status: statusFromSeamState(info.status),
+      });
+      this.logger.info('specialist.session_bound', { specialistId, sessionId: bindTo });
+      return binding;
+    }
+
+    // create-on-behalf: the personal session lands in the owner's account
+    // (#420 when SEAM_OWNER_USER_ID is configured), else self-owned. No repo
+    // and no instructions seed — the specialist's craft travels per turn
+    // (B5-04); the template is its base workspace.
+    const { sessionId, ownerUserId } = await this.execPort.createSession(template!, { externalRef });
+    await this.adapter.awaitReady(sessionId);
+    const onBehalf = ownerUserId !== null;
+    const binding = this.store.setSpecialistSession({
+      specialistId,
+      sessionId,
+      ownerAccountId: ownerUserId,
+      ownership: onBehalf ? 'owner' : 'legacy-technical',
+      bindingMode: 'created',
+      lastKnownState: 'ready',
+      status: 'available',
+    });
+    this.logger.info('specialist.session_created', { specialistId, sessionId });
+    return binding;
   }
 
   private async provision(

@@ -248,3 +248,83 @@ describe('create-on-behalf lifecycle (N2, #420)', () => {
     expect(port.stoppedSessions).toHaveLength(0);
   });
 });
+
+describe('specialist session binding (N3b-1, ADR-008)', () => {
+  it('binds an existing owner session: records ownership, back-links the ref, creates nothing', async () => {
+    const store = new MemoryHubStore();
+    const port = new FakeSubstrateExecPort();
+    port.seedSession({ ...OWNED_SESSION, sessionId: 's_claudio' });
+    const orch = new Orchestrator({
+      store,
+      adapter: new FakeRuntimeAdapter(port),
+      execPort: port,
+      agents: new Map([[DEV.id, DEV]]),
+    });
+    const binding = await orch.bindSpecialistSession('dev', { sessionId: 's_claudio' });
+    expect(binding).toMatchObject({
+      specialistId: 'dev',
+      sessionId: 's_claudio',
+      ownership: 'owner',
+      bindingMode: 'existing',
+      status: 'available',
+    });
+    expect(port.seededSessions).toHaveLength(0); // nothing created
+    expect((await port.getSession('s_claudio'))?.externalRef).toBe('agenthub:specialist:dev');
+    expect(store.getSpecialistSession('dev')?.sessionId).toBe('s_claudio');
+  });
+
+  it('a stopped session binds as offline (state surfaced, not judged)', async () => {
+    const store = new MemoryHubStore();
+    const port = new FakeSubstrateExecPort();
+    port.seedSession({ ...OWNED_SESSION, sessionId: 's_stop', status: 'stopped' });
+    const orch = new Orchestrator({
+      store,
+      adapter: new FakeRuntimeAdapter(port),
+      execPort: port,
+      agents: new Map([[DEV.id, DEV]]),
+    });
+    const binding = await orch.bindSpecialistSession('dev', { sessionId: 's_stop' });
+    expect(binding.status).toBe('offline');
+  });
+
+  it('creates a session on-behalf (ownership owner) when configured', async () => {
+    const store = new MemoryHubStore();
+    const port = new FakeSubstrateExecPort();
+    port.createOnBehalfUserId = 'owner-uuid-1';
+    const orch = new Orchestrator({
+      store,
+      adapter: new FakeRuntimeAdapter(port),
+      execPort: port,
+      agents: new Map([[DEV.id, DEV]]),
+    });
+    const binding = await orch.bindSpecialistSession('dev', { sessionTemplateId: 'tpl' });
+    expect(binding).toMatchObject({
+      bindingMode: 'created',
+      ownership: 'owner',
+      ownerAccountId: 'owner-uuid-1',
+      status: 'available',
+    });
+    expect(port.seededSessions[0]?.seed.externalRef).toBe('agenthub:specialist:dev');
+  });
+
+  it('rejects an unknown session (session_gone) and both-or-neither', async () => {
+    const store = new MemoryHubStore();
+    const port = new FakeSubstrateExecPort();
+    const orch = new Orchestrator({
+      store,
+      adapter: new FakeRuntimeAdapter(port),
+      execPort: port,
+      agents: new Map([[DEV.id, DEV]]),
+    });
+    await expect(orch.bindSpecialistSession('dev', { sessionId: 's_nope' })).rejects.toMatchObject({
+      code: 'session_gone',
+    });
+    await expect(
+      orch.bindSpecialistSession('dev', { sessionId: 's', sessionTemplateId: 'tpl' }),
+    ).rejects.toThrow(/exactly one/);
+    // unknown specialist
+    await expect(
+      orch.bindSpecialistSession('ghost', { sessionTemplateId: 'tpl' }),
+    ).rejects.toBeTruthy();
+  });
+});

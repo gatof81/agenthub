@@ -21,6 +21,7 @@ import type {
   RunState,
   RunSummary,
   SessionBinding,
+  SpecialistSessionBinding,
   SweepResult,
   TerminalRunState,
   UsageRecord,
@@ -124,6 +125,12 @@ export interface HubStore {
     patch: { name?: string; status?: ProjectStatus; instructions?: string | null },
   ): Project;
   setProjectSession(id: string, binding: Partial<SessionBinding>): Project;
+
+  // — specialist sessions (N3b-1, ADR-008) — the specialist is config; only
+  // its optional personal-session binding is state. Upsert by specialistId.
+  setSpecialistSession(binding: SpecialistSessionBinding): SpecialistSessionBinding;
+  getSpecialistSession(specialistId: string): SpecialistSessionBinding | undefined;
+  listSpecialistSessions(): SpecialistSessionBinding[];
 
   // — conversations —
   createConversation(input: CreateConversationInput): Conversation;

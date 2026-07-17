@@ -19,6 +19,7 @@ import type {
   RunState,
   RunSummary,
   SessionBinding,
+  SpecialistSessionBinding,
   UsageRecord,
 } from '../domain/types.js';
 import { capMessageContent, serializePayloadCapped, validateSendMessage } from './shared.js';
@@ -53,6 +54,7 @@ export class MemoryHubStore implements HubStore {
   private readonly now: Clock;
 
   private projects: Project[] = [];
+  private specialistSessions = new Map<string, SpecialistSessionBinding>();
   private conversations: Conversation[] = [];
   private messages: Message[] = [];
   private runs: Run[] = [];
@@ -137,6 +139,24 @@ export class MemoryHubStore implements HubStore {
     if (binding.ownership !== undefined) p.sessionBinding.ownership = binding.ownership;
     p.updatedAt = this.now();
     return clone(p);
+  }
+
+  // — specialist sessions (N3b-1, ADR-008) —
+
+  setSpecialistSession(binding: SpecialistSessionBinding): SpecialistSessionBinding {
+    this.specialistSessions.set(binding.specialistId, { ...binding });
+    return clone(binding);
+  }
+
+  getSpecialistSession(specialistId: string): SpecialistSessionBinding | undefined {
+    const b = this.specialistSessions.get(specialistId);
+    return b ? clone(b) : undefined;
+  }
+
+  listSpecialistSessions(): SpecialistSessionBinding[] {
+    return [...this.specialistSessions.values()]
+      .sort((a, b) => a.specialistId.localeCompare(b.specialistId))
+      .map(clone);
   }
 
   // — conversations —

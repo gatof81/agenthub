@@ -80,6 +80,29 @@ export type SessionOwnership = 'owner' | 'legacy-technical';
 /** How the project got its session (ADR-007, FR-49). */
 export type BindingMode = 'existing' | 'created';
 
+/** A specialist's personal-session usability (ADR-008). `busy` (a run is active) arrives with N3b-2. */
+export type SpecialistSessionStatus = 'available' | 'busy' | 'offline' | 'error';
+
+/**
+ * A specialist's optional personal session (ADR-008, N3b): a standing session
+ * in the owner's account for the specialist's general, project-less work.
+ * Bound or created exactly like a project's (ADR-007) — reusing the N2
+ * machinery — so `ownership`/`bindingMode` mean the same thing. At most one
+ * per specialist (specialistId is the key). Project work does NOT run here
+ * (18 §2 knowledge-isolation): it uses the project's session or a worktree.
+ */
+export interface SpecialistSessionBinding {
+  /** the config specialist's id (agents.yaml) — not a stored entity */
+  specialistId: string;
+  sessionId: string;
+  ownerAccountId: string | null;
+  ownership: SessionOwnership;
+  bindingMode: BindingMode;
+  /** seam status cache (FR-33); the substrate stays the authority */
+  lastKnownState: string | null;
+  status: SpecialistSessionStatus;
+}
+
 /** SessionBinding value object on Project (06 §2): the substrate seam reference. */
 export interface SessionBinding {
   sessionId: string | null;

@@ -21,6 +21,7 @@ import type {
   RunState,
   RunSummary,
   SessionBinding,
+  SpecialistSessionBinding,
   UsageRecord,
 } from '../domain/types.js';
 import { migrate } from './migrations.js';
@@ -142,6 +143,30 @@ function toProject(r: ProjectRow): Project {
     },
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+  };
+}
+
+interface SpecialistSessionRow {
+  specialist_id: string;
+  session_id: string;
+  owner_account_id: string | null;
+  session_ownership: string;
+  binding_mode: string;
+  last_known_state: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function toSpecialistSession(r: SpecialistSessionRow): SpecialistSessionBinding {
+  return {
+    specialistId: r.specialist_id,
+    sessionId: r.session_id,
+    ownerAccountId: r.owner_account_id,
+    ownership: r.session_ownership as SpecialistSessionBinding['ownership'],
+    bindingMode: r.binding_mode as SpecialistSessionBinding['bindingMode'],
+    lastKnownState: r.last_known_state,
+    status: r.status as SpecialistSessionBinding['status'],
   };
 }
 
@@ -318,6 +343,53 @@ export class SqliteHubStore implements HubStore {
         id,
       );
     return this.mustProject(id);
+  }
+
+  // — specialist sessions (N3b-1, ADR-008) — upsert by specialistId (1:1) —
+
+  setSpecialistSession(b: SpecialistSessionBinding): SpecialistSessionBinding {
+    const now = this.now();
+    this.db
+      .prepare(
+        `INSERT INTO specialist_sessions
+           (specialist_id, session_id, owner_account_id, session_ownership,
+            binding_mode, last_known_state, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(specialist_id) DO UPDATE SET
+           session_id = excluded.session_id,
+           owner_account_id = excluded.owner_account_id,
+           session_ownership = excluded.session_ownership,
+           binding_mode = excluded.binding_mode,
+           last_known_state = excluded.last_known_state,
+           status = excluded.status,
+           updated_at = excluded.updated_at`,
+      )
+      .run(
+        b.specialistId,
+        b.sessionId,
+        b.ownerAccountId,
+        b.ownership,
+        b.bindingMode,
+        b.lastKnownState,
+        b.status,
+        now,
+        now,
+      );
+    return this.getSpecialistSession(b.specialistId)!;
+  }
+
+  getSpecialistSession(specialistId: string): SpecialistSessionBinding | undefined {
+    const row = this.db
+      .prepare(`SELECT * FROM specialist_sessions WHERE specialist_id = ?`)
+      .get(specialistId) as SpecialistSessionRow | undefined;
+    return row ? toSpecialistSession(row) : undefined;
+  }
+
+  listSpecialistSessions(): SpecialistSessionBinding[] {
+    const rows = this.db
+      .prepare(`SELECT * FROM specialist_sessions ORDER BY specialist_id`)
+      .all() as SpecialistSessionRow[];
+    return rows.map(toSpecialistSession);
   }
 
   // — conversations —
