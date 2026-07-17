@@ -56,6 +56,31 @@ function TokenGate({ onReady }: { onReady: () => void }): React.JSX.Element {
 
 export function App(): React.JSX.Element {
   const [authed, setAuthed] = useState(getToken() !== null);
+  // Behind Cloudflare Access (ADR-011), the browser's requests carry a signed
+  // Access JWT that the backend verifies — no pasted token needed. Probe an
+  // authenticated endpoint once with no token; a 200 means Access already
+  // authorized us, so skip the token gate. A 401 (dev/local, no Access) falls
+  // through to the gate. `probed` gates the first render so the form doesn't
+  // flash before the probe resolves.
+  const [probed, setProbed] = useState(getToken() !== null);
+  useEffect(() => {
+    if (authed) return;
+    let cancelled = false;
+    void api
+      .agents()
+      .then(() => {
+        if (!cancelled) setAuthed(true);
+      })
+      .catch(() => {
+        /* not behind Access → show the token gate */
+      })
+      .finally(() => {
+        if (!cancelled) setProbed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authed]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
   const [templates, setTemplates] = useState<WorkspaceTemplate[]>([]);
@@ -282,6 +307,8 @@ export function App(): React.JSX.Element {
     archiveConversation,
   ]);
 
+  // wait for the Access probe before deciding gate-vs-app (avoids a flash)
+  if (!authed && !probed) return <div className="token-gate" />;
   if (!authed) return <TokenGate onReady={() => setAuthed(true)} />;
 
   if (archivedOpen) {

@@ -14,6 +14,7 @@ import { Orchestrator, OrchestratorError } from '../orchestrator/orchestrator.js
 import { NOOP_LOGGER, type Logger } from '../domain/ports.js';
 import { NotFoundError, ValidationError, type HubStore } from '../store/types.js';
 import { withCorrelation } from '../observability/logger.js';
+import type { AccessVerifier } from './accessAuth.js';
 import type { Broadcaster, OutboundSse } from './broadcaster.js';
 
 export interface ApiDeps {
@@ -21,8 +22,17 @@ export interface ApiDeps {
   orchestrator: Orchestrator;
   agents: ReadonlyMap<string, Agent>;
   broadcaster: Broadcaster;
-  /** the single credential (Q-07); requests must send `Authorization: Bearer <token>` */
+  /**
+   * Bearer credential for localhost/programmatic callers (and the SPA's dev
+   * fallback). A request with this token is authorized regardless of Access.
+   */
   authToken: string;
+  /**
+   * Cloudflare Access JWT verifier (Q-07, ADR-011). When set, a browser
+   * request carrying a valid signed `Cf-Access-Jwt-Assertion` is authorized
+   * without the bearer token. Absent (dev/local, no Access) → bearer only.
+   */
+  accessVerifier?: AccessVerifier;
   /** SSE heartbeat interval; tests shrink it (default 25 s, 08 §3) */
   heartbeatMs?: number;
   /** backup freshness (OPS-02, B3-04); absent when backups are disabled */
@@ -107,13 +117,31 @@ export function buildApp(deps: ApiDeps): express.Express {
     });
   });
 
-  // the auth gateway — one middleware, in front of EVERYTHING else (V-3)
+  // the auth gateway — one middleware, in front of EVERYTHING else (V-3).
+  // Two accepted credentials (ADR-011): the bearer token (localhost /
+  // programmatic / SPA dev fallback), or — behind Cloudflare Access — a
+  // valid signed Access JWT for browser traffic. The signed JWT is verified,
+  // never the forgeable email header. Fail closed on any verification error.
   app.use('/api', (req, res, next) => {
-    if (!tokenMatches(req.headers.authorization, authToken)) {
-      res.status(401).json({ code: 'unauthorized' });
+    if (tokenMatches(req.headers.authorization, authToken)) {
+      next();
       return;
     }
-    next();
+    const assertion = req.headers['cf-access-jwt-assertion'];
+    if (deps.accessVerifier && typeof assertion === 'string') {
+      deps.accessVerifier
+        .verify(assertion)
+        .then((identity) => {
+          if (identity) {
+            next();
+            return;
+          }
+          res.status(401).json({ code: 'unauthorized' });
+        })
+        .catch(() => res.status(401).json({ code: 'unauthorized' }));
+      return;
+    }
+    res.status(401).json({ code: 'unauthorized' });
   });
 
   // — agents (read-only, FR-02) —
