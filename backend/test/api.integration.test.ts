@@ -2,6 +2,7 @@
 
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_CONVERSATION_TITLE } from '../src/domain/projections.js';
 import { AUTH, makeApiHarness } from './apiHarness.js';
 import { FIXTURES, fixtureStreamLines } from './fixtures.js';
 
@@ -105,6 +106,42 @@ describe('HTTP API (08 §1)', () => {
 
     const thread = await request(app).get(`/api/conversations/${conv.id}`).set(AUTH);
     expect(thread.body.messages.at(-1).role).toBe('assistant');
+  });
+
+  it('auto-titles a conversation from its first message; leaves later ones and renames alone', async () => {
+    const { app, orch, port } = makeApiHarness();
+    const project = (
+      await request(app).post('/api/projects').set(AUTH).send({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' })
+    ).body.project;
+    await orch.idle();
+    const title = async (id: string): Promise<string> =>
+      (await request(app).get(`/api/conversations/${id}`).set(AUTH)).body.conversation.title;
+
+    // born with the default, earns a name from the first message
+    const conv = (
+      await request(app).post(`/api/projects/${project.id}/conversations`).set(AUTH).send({})
+    ).body.conversation;
+    expect(conv.title).toBe(DEFAULT_CONVERSATION_TITLE);
+    port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.toolshape) });
+    await request(app).post(`/api/conversations/${conv.id}/messages`).set(AUTH).send({ content: 'Fix the login bug' });
+    await orch.idle();
+    expect(await title(conv.id)).toBe('Fix the login bug');
+
+    // a second message never re-titles
+    port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.toolshape) });
+    await request(app).post(`/api/conversations/${conv.id}/messages`).set(AUTH).send({ content: 'and add a test' });
+    await orch.idle();
+    expect(await title(conv.id)).toBe('Fix the login bug');
+
+    // an explicit rename BEFORE the first message is never overwritten
+    const named = (
+      await request(app).post(`/api/projects/${project.id}/conversations`).set(AUTH).send({})
+    ).body.conversation;
+    await request(app).patch(`/api/conversations/${named.id}`).set(AUTH).send({ title: 'Design notes' });
+    port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.toolshape) });
+    await request(app).post(`/api/conversations/${named.id}/messages`).set(AUTH).send({ content: 'first message here' });
+    await orch.idle();
+    expect(await title(named.id)).toBe('Design notes');
   });
 
   it('409 while the project is provisioning (08 §1) with the state in the body', async () => {

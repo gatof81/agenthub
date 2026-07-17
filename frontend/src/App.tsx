@@ -147,6 +147,10 @@ export function App(): React.JSX.Element {
     const detail = await api.getProject(project.id);
     setSelectedProject(detail.project);
     setConversations(detail.conversations);
+    // Land directly in a conversation: a project almost always has one and the
+    // empty-state placeholder is a needless extra click (11 §9). With no
+    // conversations, this stays null and the placeholder invites one.
+    setSelectedConversation(detail.conversations[0] ?? null);
   }, []);
 
   const createProject = useCallback(
@@ -190,6 +194,14 @@ export function App(): React.JSX.Element {
     setSelectedProject(null);
     setSelectedConversation(null);
     setConversations([]);
+  }, []);
+
+  // A conversation's title changed — by the backend auto-titling it from its
+  // first message, or by an explicit rename. Reflect it in both the sidebar
+  // list and the open thread so every surface agrees.
+  const applyConversationRename = useCallback((updated: Conversation) => {
+    setConversations((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    setSelectedConversation((cur) => (cur?.id === updated.id ? updated : cur));
   }, []);
 
   const archiveProject = useCallback(
@@ -369,6 +381,7 @@ export function App(): React.JSX.Element {
           conversation={selectedConversation}
           projectStatus={selectedProject?.status ?? 'ready'}
           onBack={() => setSelectedConversation(null)}
+          onRenamed={applyConversationRename}
           registerCommands={setThreadCommands}
         />
       ) : (

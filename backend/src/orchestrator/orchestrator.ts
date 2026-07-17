@@ -30,6 +30,8 @@ import {
 import {
   assembleAssistantText,
   deriveRunSummary,
+  deriveConversationTitle,
+  DEFAULT_CONVERSATION_TITLE,
 } from '../domain/projections.js';
 import type {
   Agent,
@@ -588,7 +590,7 @@ export class Orchestrator {
     this.mustAgent(agentId);
     return this.store.createConversation({
       projectId: input.projectId,
-      title: input.title ?? 'New conversation',
+      title: input.title ?? DEFAULT_CONVERSATION_TITLE,
       agentId,
     });
   }
@@ -606,6 +608,12 @@ export class Orchestrator {
       );
     }
     const agent = this.mustAgent(conversation.agentId);
+    // A conversation earns its name from its first message, so the sidebar
+    // reads as distinct threads instead of a wall of "New conversation"
+    // (11 §9). Only when nothing has been said yet AND the title is still the
+    // birth default — an explicit rename, or any later message, is never
+    // overwritten.
+    const isFirstMessage = this.store.listMessages(conversationId, { limit: 1 }).length === 0;
     const result = this.store.sendMessage({
       conversationId,
       content,
@@ -613,6 +621,10 @@ export class Orchestrator {
       policy: agent.allowedTools,
       instructions: agent.instructions,
     });
+    if (isFirstMessage && conversation.title === DEFAULT_CONVERSATION_TITLE) {
+      const title = deriveConversationTitle(content);
+      if (title !== '') this.store.updateConversation(conversationId, { title });
+    }
     this.notify.runState(conversationId, { runId: result.run.id, state: 'queued' });
     this.pump(conversation.projectId);
     const run = this.store.getRun(result.run.id) ?? result.run;

@@ -1,6 +1,6 @@
 # 11 — UX Specification (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-17
 
 The model-relevant UX: device targets, information architecture, the surfaces
 each device needs, and how the client consumes the event stream. This is a
@@ -178,3 +178,23 @@ evolution of one surface, never a Phase-1 deliverable.
 - Push-notification channel design — deferred with approvals (Phase 2+); the
   model already emits the right events (SSE `run.state`), only a push sink is
   missing (noted in the backlog).
+
+## 9. Conversation-view refinements (owner decision 2026-07-17)
+
+Three refinements to the conversation surface (§4), from the owner working the
+Phase-1 UI. Recorded here so the code that implements them has a normative home,
+the same way the 2026-07-15 sidebar feedback refined §4.
+
+- **Composer pinned, thread scrolls.** The message input stays fixed at the
+  bottom of the conversation on both device targets (§2); only the message list
+  scrolls. On iPhone the input clears the browser chrome / on-screen keyboard
+  and the home-indicator safe area — it never floats behind them.
+- **First conversation selected on open.** Opening a project lands directly in
+  its first conversation instead of the empty placeholder. A project with no
+  conversations still shows the "pick or create a conversation" placeholder,
+  which invites creating one.
+- **Conversations earn a name.** A conversation is titled from its first user
+  message (a short, single-line summary) instead of staying "New conversation",
+  and can be renamed inline from its header. The first message titles it only
+  while the title is still the birth default — an explicit rename, or any later
+  message, is never overwritten.

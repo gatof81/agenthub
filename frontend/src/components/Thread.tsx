@@ -39,6 +39,8 @@ interface Props {
   conversation: Conversation;
   projectStatus: Project['status'];
   onBack: () => void;
+  /** the title changed — backend auto-title after the first message, or a rename */
+  onRenamed: (conversation: Conversation) => void;
   registerCommands: (commands: ThreadCommands | null) => void;
 }
 
@@ -48,6 +50,7 @@ export function Thread({
   conversation,
   projectStatus,
   onBack,
+  onRenamed,
   registerCommands,
 }: Props): React.JSX.Element {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -56,15 +59,37 @@ export function Thread({
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  // Read through refs so refetch stays stable (keyed on conversation.id) and
+  // the SSE subscription is not torn down every time the title updates.
+  const onRenamedRef = useRef(onRenamed);
+  onRenamedRef.current = onRenamed;
+  const titleRef = useRef(conversation.title);
+  titleRef.current = conversation.title;
 
   const refetch = useCallback(async () => {
     const detail = await api.getConversation(conversation.id);
     setMessages(detail.messages);
+    // The backend auto-titles a conversation from its first message; surface
+    // that (and any out-of-band rename) once the run's refetch brings it back.
+    if (detail.conversation.title !== titleRef.current) onRenamedRef.current(detail.conversation);
     const lastRunId = detail.messages.findLast((m) => m.runId)?.runId;
     if (lastRunId) setRunDetail(await api.getRun(lastRunId));
   }, [conversation.id]);
+
+  const saveTitle = useCallback(async () => {
+    const next = (editingTitle ?? '').trim();
+    setEditingTitle(null);
+    if (next === '' || next === conversation.title) return;
+    try {
+      const { conversation: updated } = await api.renameConversation(conversation.id, next);
+      onRenamedRef.current(updated);
+    } catch {
+      /* a failed rename is non-critical — the old title stays */
+    }
+  }, [editingTitle, conversation.id, conversation.title]);
 
   useEffect(() => {
     const onEvent = (e: SseEvent): void => {
@@ -153,7 +178,32 @@ export function Thread({
           <button className="back" onClick={onBack} aria-label="Back">
             ‹
           </button>
-          <h2>{conversation.title}</h2>
+          {editingTitle === null ? (
+            <h2
+              className="thread-title"
+              title="Rename conversation"
+              onClick={() => setEditingTitle(conversation.title)}
+            >
+              {conversation.title}
+            </h2>
+          ) : (
+            <input
+              className="thread-title-edit"
+              aria-label="Conversation name"
+              autoFocus
+              value={editingTitle}
+              onChange={(e) => setEditingTitle(e.target.value)}
+              onBlur={() => void saveTitle()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void saveTitle();
+                } else if (e.key === 'Escape') {
+                  setEditingTitle(null);
+                }
+              }}
+            />
+          )}
           <button className="mini" onClick={() => setInspectorOpen((v) => !v)}>
             {inspectorOpen ? 'Hide activity' : 'Activity'}
           </button>
