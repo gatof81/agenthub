@@ -1,6 +1,6 @@
 # 04 — Requirements (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-17
 
 Scope: the Phase-1 MVP ([03-scope-and-phases.md](./03-scope-and-phases.md)).
 Later phases contribute only constraints that would be expensive to retrofit

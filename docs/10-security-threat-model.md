@@ -1,6 +1,6 @@
 # 10 — Security Threat Model (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-17
 
 Asset/attacker/vector analysis for the Phase-1 MVP, plus the open-source
 hygiene posture for a public repo describing a personal deployment. Extends
