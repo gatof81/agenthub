@@ -128,7 +128,10 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export const api = {
   health: () => call<{ status: string }>('GET', '/api/health'),
   agents: () => call<{ agents: Array<{ id: string; name: string }> }>('GET', '/api/agents'),
-  listProjects: () => call<{ projects: Project[] }>('GET', '/api/projects'),
+  listProjects: (opts?: { archived?: boolean }) =>
+    call<{ projects: Project[] }>('GET', `/api/projects${opts?.archived ? '?archived=true' : ''}`),
+  listArchivedConversations: () =>
+    call<{ conversations: Conversation[] }>('GET', '/api/conversations?archived=true'),
   createProject: (name: string, defaultAgentId: string, instructions?: string) =>
     call<{ project: Project }>('POST', '/api/projects', { name, defaultAgentId, instructions }),
   getProject: (id: string) =>
@@ -147,13 +150,22 @@ export const api = {
     ),
   getRun: (id: string) => call<RunDetail>('GET', `/api/runs/${id}`),
   cancelRun: (id: string) => call<{ accepted: boolean }>('POST', `/api/runs/${id}/cancel`),
-  // archive = the product's "delete": reversible, keeps history; archiving a
-  // project stops its substrate session (FR-40). Archived items drop out of
-  // the default lists.
+  // Archive is the product's "delete" and is REVERSIBLE (FR-43): archiving a
+  // project stops its substrate session, restoring restarts it. The workspace
+  // is a host directory, so it survives the stop — a restored project comes
+  // back with the same files and the same transcripts, and its next turn
+  // resumes where it left off.
   archiveProject: (id: string) =>
     call<{ project: Project }>('PATCH', `/api/projects/${id}`, { status: 'archived' }),
   archiveConversation: (id: string) =>
     call<{ conversation: Conversation }>('PATCH', `/api/conversations/${id}`, {
       status: 'archived',
     }),
+  // Restore. A project whose session was hard-deleted upstream cannot come
+  // back — the API answers 409 `session_gone` and leaves it archived rather
+  // than handing over a fresh empty workspace wearing the old name (FR-44).
+  restoreProject: (id: string) =>
+    call<{ project: Project }>('PATCH', `/api/projects/${id}`, { status: 'ready' }),
+  restoreConversation: (id: string) =>
+    call<{ conversation: Conversation }>('PATCH', `/api/conversations/${id}`, { status: 'active' }),
 };

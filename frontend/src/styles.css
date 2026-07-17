@@ -391,3 +391,37 @@ button.mini:hover { background: var(--raised); }
     box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
   }
 }
+
+/* — archived view (B4-03, UX-08): archive is reversible (FR-43), so the way
+     back has to be reachable, not just present in the database — */
+.archived-link {
+  width: 100%;
+  margin-top: auto;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.archived-link:hover { background: var(--raised); color: var(--text); border-color: var(--accent); }
+.app.archived-only { grid-template-columns: 1fr; }
+.archived-view { max-width: 44em; margin: 0 auto; padding: 24px 20px; overflow-y: auto; width: 100%; }
+.archived-view header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.archived-view header h2 { flex: 1; margin: 0; font-size: 18px; text-transform: none; letter-spacing: 0; }
+.archived-view h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 20px 2px 6px; }
+.archived-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  background: var(--panel);
+}
+.archived-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.archived-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* a restore that cannot happen (FR-44) is information, not a toast to miss */
+.archived-error { color: var(--danger); font-size: 12px; }

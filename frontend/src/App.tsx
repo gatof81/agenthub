@@ -9,6 +9,7 @@ import { api, clearToken, getToken, setToken, type Conversation, type Project } 
 import { Sidebar } from './components/Sidebar.js';
 import { Thread, type ThreadCommands } from './components/Thread.js';
 import { CommandPalette, type PaletteCommand } from './components/CommandPalette.js';
+import { ArchivedView } from './components/ArchivedView.js';
 
 function TokenGate({ onReady }: { onReady: () => void }): React.JSX.Element {
   const [value, setValue] = useState('');
@@ -52,6 +53,7 @@ export function App(): React.JSX.Element {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [threadCommands, setThreadCommands] = useState<ThreadCommands | null>(null);
+  const [archivedOpen, setArchivedOpen] = useState(false);
 
   const refreshProjects = useCallback(async () => {
     const { projects } = await api.listProjects();
@@ -96,6 +98,21 @@ export function App(): React.JSX.Element {
     setSelectedConversation(conversation);
   }, [selectedProject]);
 
+  // A restore has to land in the view the user returns to, not just vanish
+  // from the archived list. Projects reappear via refreshProjects(); a
+  // restored CONVERSATION would not — `conversations` is populated only by
+  // openProject(), so without re-reading the open project the sidebar keeps
+  // its pre-restore snapshot and the user has to re-navigate to see the item
+  // they just restored. "Restorable" has to mean it comes back where you look.
+  const refreshAfterRestore = useCallback(async () => {
+    await refreshProjects();
+    if (selectedProject) {
+      const detail = await api.getProject(selectedProject.id);
+      setSelectedProject(detail.project);
+      setConversations(detail.conversations);
+    }
+  }, [refreshProjects, selectedProject]);
+
   const backToProjects = useCallback(() => {
     setSelectedProject(null);
     setSelectedConversation(null);
@@ -104,10 +121,12 @@ export function App(): React.JSX.Element {
 
   const archiveProject = useCallback(
     async (project: Project) => {
-      // FR-40 — archiving stops the session and is one-way; confirm first.
+      // FR-40 — archiving stops the session; confirm before that happens.
+      // Reversible since FR-43, and the prompt must say so: claiming false
+      // permanence is as misleading as implying it merely leaves the list.
       if (
         !window.confirm(
-          `Archive "${project.name}"? Its session stops and it cannot be restored.`,
+          `Archive "${project.name}"? Its session stops. You can restore it later from Archived.`,
         )
       ) {
         return;
@@ -121,11 +140,10 @@ export function App(): React.JSX.Element {
 
   const archiveConversation = useCallback(
     async (conversation: Conversation) => {
-      // Archiving is one-way (FR-40; the API rejects any status other than
-      // "archived") — confirm before it is unrecoverable.
+      // Confirm, and say it is recoverable (FR-43) — parity with the project path.
       if (
         !window.confirm(
-          `Archive "${conversation.title}"? It leaves the list and cannot be restored.`,
+          `Archive "${conversation.title}"? You can restore it later from Archived.`,
         )
       ) {
         return;
@@ -228,9 +246,21 @@ export function App(): React.JSX.Element {
 
   if (!authed) return <TokenGate onReady={() => setAuthed(true)} />;
 
+  if (archivedOpen) {
+    return (
+      <div className="app archived-only">
+        <ArchivedView
+          onClose={() => setArchivedOpen(false)}
+          onRestored={() => void refreshAfterRestore()}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={`app ${selectedConversation ? 'has-conversation' : ''}`}>
       <Sidebar
+        onOpenArchived={() => setArchivedOpen(true)}
         projects={projects}
         conversations={conversations}
         selectedProject={selectedProject}

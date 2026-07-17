@@ -24,6 +24,8 @@ interface Props {
   onBackToProjects: () => void;
   onArchiveProject: (p: Project) => void;
   onArchiveConversation: (c: Conversation) => void;
+  /** archive is reversible (FR-43) — the way back has to be reachable (UX-08) */
+  onOpenArchived: () => void;
 }
 
 export function Sidebar(props: Props): React.JSX.Element {
@@ -76,6 +78,9 @@ function ProjectsHome(props: Props): React.JSX.Element {
           }}
         />
       </div>
+      <button className="archived-link" onClick={props.onOpenArchived}>
+        Archived
+      </button>
       <p className="palette-hint muted">⌘K / Ctrl+K — commands</p>
     </nav>
   );
@@ -185,6 +190,9 @@ function ProjectPane(props: Props & { project: Project }): React.JSX.Element {
       </ul>
       <button className="new-conversation" onClick={props.onCreateConversation}>
         + New conversation
+      </button>
+      <button className="archived-link" onClick={props.onOpenArchived}>
+        Archived
       </button>
       <p className="palette-hint muted">⌘K / Ctrl+K — commands</p>
     </nav>
