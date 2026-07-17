@@ -1,6 +1,6 @@
 # 18 — Agent Collaboration Model (vision)
 
-**Status:** vision — non-normative (approved by owner, 2026-07-15) · **Last updated:** 2026-07-15
+**Status:** vision — non-normative (approved by owner, 2026-07-15) · **Last updated:** 2026-07-17
 
 How agents will collaborate as the phases unfold. This document is the
 **canonical home for the collaboration direction** — the place where the
@@ -158,7 +158,7 @@ and this document reserves it as vocabulary. What it must **not** become:
   violate the non-negotiable backend-as-authority principle. The Coordinator
   *proposes* plans and delegations; the Orchestrator *enforces* the bounds.
 
-The coordination ADR (candidate ADR-006) is written when Phase 3 is designed,
+The coordination ADR is written when Phase 3 is designed,
 not before.
 
 ## 4. Work Products

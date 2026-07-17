@@ -49,9 +49,8 @@ normative:**
 | Field | Notes |
 | --- | --- |
 | `id`, `name` | stable slug; referenced by conversations |
-| `instructions` | seeded into the session via agentSeed at provisioning (FR-30) |
+| `instructions` | the role's craft. Seeded via agentSeed at provisioning today; once several roles share one project it will need to travel **per turn** instead, as tools already do — **blocked pending B5-04**, whose mechanism (`--append-system-prompt` or equivalent) is unverified against CLI 2.1.207 (ADR-006 consequence) |
 | `allowedTools` | the curated allowlist — **mandatory, never empty-meaning-all** (FR-11, SEC-02) |
-| `sessionTemplateId` | substrate template the agent's sessions are created from |
 | `runtime` | `claude-cli` (only value in P1); the discriminator for the `RuntimeAdapter` |
 | `defaultCaps` | `{maxTurns, budgetUsd, timeoutMs}` — every run gets a caps snapshot (FR-17) |
 
@@ -67,6 +66,8 @@ history) binds to the *(project, agent)* pair, never to the agent alone
 | --- | --- |
 | `id`, `name`, `status` | status: `provisioning \| ready \| error \| archived` — session provisioning lives here (UC-01) |
 | `sessionBinding` | see below — one workspace/container per project (ADR-005) |
+| `sessionTemplateId` | the substrate template this project's session is created from — **the project's, not the agent's** (ADR-006, FR-45) |
+| `repo?` | `{url, ref?, target?, auth}` — the repository cloned into the workspace. `auth` is a fine-grained PAT scoped to this one repo, held encrypted in the seam's session config, never in the Hub (FR-47, SEC-11) |
 | `defaultAgentId` | seeds new conversations; overridable per conversation |
 | `instructions?` | project-level context seeded into the session (agentSeed) |
 

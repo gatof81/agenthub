@@ -34,8 +34,15 @@ CREATE TABLE projects (
   default_agent_id   TEXT NOT NULL,
   instructions       TEXT,                        -- seeded via agentSeed (FR-41); sensitive → never logged
   session_id         TEXT,                        -- SessionBinding (ADR-005: one workspace per project)
-  session_template_id TEXT,
+  session_template_id TEXT,                       -- the PROJECT's template, not the agent's (ADR-006, FR-45)
   session_last_state TEXT,                        -- UX cache only (06 §2)
+  -- Project.repo (FR-45): the non-sensitive half only. `auth` is ABSENT by
+  -- design, not by omission — the PAT lives solely in the seam's encrypted
+  -- session config (FR-47, SEC-11), so the Hub cannot leak a credential it
+  -- never holds. Adding a repo_auth column here would defeat SEC-11.
+  repo_url           TEXT,
+  repo_ref           TEXT,
+  repo_target        TEXT,
   created_at         TEXT NOT NULL,
   updated_at         TEXT NOT NULL
 );
