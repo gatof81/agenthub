@@ -58,10 +58,10 @@ describe('the project declares its workspace (ADR-006, FR-45)', () => {
     // the owner's actual case: one DEV-Agent, two repositories
     const { port, orch } = harness();
     orch.createProject({
-      name: 'educativa',
+      name: 'home-automation',
       defaultAgentId: 'dev',
       sessionTemplateId: 'tpl',
-      repo: { url: 'https://github.com/o/educativa' },
+      repo: { url: 'https://github.com/o/home-automation' },
     });
     await orch.idle();
     orch.createProject({
@@ -72,7 +72,7 @@ describe('the project declares its workspace (ADR-006, FR-45)', () => {
     });
     await orch.idle();
     expect(port.seededSessions.map((s) => s.seed.repo?.url)).toEqual([
-      'https://github.com/o/educativa',
+      'https://github.com/o/home-automation',
       'https://github.com/o/shared-terminal',
     ]);
   });
