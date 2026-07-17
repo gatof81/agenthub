@@ -353,3 +353,45 @@ describe('GET /api/specialists (N3, ADR-008)', () => {
     expect((await request(app).get('/api/specialists')).status).toBe(401);
   });
 });
+
+describe('specialist sessions (N3b-1)', () => {
+  it('binds an existing session and reflects it in GET /api/specialists', async () => {
+    const { app, port } = makeApiHarness();
+    port.seedSession({
+      sessionId: 's_dev',
+      name: 'Claudio session',
+      status: 'running',
+      ownerUsername: 'owner-admin',
+      createdAt: null,
+      lastConnectedAt: null,
+      externalRef: null,
+    });
+    const bind = await request(app)
+      .post('/api/specialists/dev/session')
+      .set(AUTH)
+      .send({ sessionId: 's_dev' });
+    expect(bind.status).toBe(201);
+    expect(bind.body.session).toMatchObject({ sessionId: 's_dev', status: 'available', ownership: 'owner' });
+
+    const list = await request(app).get('/api/specialists').set(AUTH);
+    const dev = (list.body.specialists as Array<Record<string, unknown>>).find((s) => s.id === 'dev');
+    expect(dev!.session).toMatchObject({ sessionId: 's_dev', status: 'available' });
+  });
+
+  it('422 on both-or-neither, 404 on unknown specialist, 401 without auth', async () => {
+    const { app } = makeApiHarness();
+    expect((await request(app).post('/api/specialists/dev/session').set(AUTH).send({})).status).toBe(422);
+    expect(
+      (await request(app).post('/api/specialists/dev/session').set(AUTH).send({ sessionId: 's', sessionTemplateId: 'tpl' })).status,
+    ).toBe(422);
+    expect((await request(app).post('/api/specialists/ghost/session').set(AUTH).send({ sessionId: 's' })).status).toBe(404);
+    expect((await request(app).post('/api/specialists/dev/session').send({ sessionId: 's' })).status).toBe(401);
+  });
+
+  it('an unbound specialist reports session: null', async () => {
+    const { app } = makeApiHarness();
+    const list = await request(app).get('/api/specialists').set(AUTH);
+    const dev = (list.body.specialists as Array<Record<string, unknown>>).find((s) => s.id === 'dev');
+    expect(dev!.session).toBeNull();
+  });
+});

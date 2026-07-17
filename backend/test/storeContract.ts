@@ -549,5 +549,56 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       expect(beforeThat.map((m) => m.content)).toEqual(['m1', 'm2']);
       store.close();
     });
+
+    it('upserts, reads, and lists specialist sessions (N3b-1)', () => {
+      const store = makeStore();
+      expect(store.getSpecialistSession('claudio')).toBeUndefined();
+      expect(store.listSpecialistSessions()).toEqual([]);
+
+      const bound = store.setSpecialistSession({
+        specialistId: 'claudio',
+        sessionId: 's_owned',
+        ownerAccountId: 'owner-admin',
+        ownership: 'owner',
+        bindingMode: 'existing',
+        lastKnownState: 'running',
+        status: 'available',
+      });
+      expect(bound.sessionId).toBe('s_owned');
+      expect(store.getSpecialistSession('claudio')).toEqual({
+        specialistId: 'claudio',
+        sessionId: 's_owned',
+        ownerAccountId: 'owner-admin',
+        ownership: 'owner',
+        bindingMode: 'existing',
+        lastKnownState: 'running',
+        status: 'available',
+      });
+
+      // upsert by specialistId (1:1): rebinding replaces, never duplicates
+      store.setSpecialistSession({
+        specialistId: 'claudio',
+        sessionId: 's_new',
+        ownerAccountId: null,
+        ownership: 'legacy-technical',
+        bindingMode: 'created',
+        lastKnownState: 'ready',
+        status: 'available',
+      });
+      store.setSpecialistSession({
+        specialistId: 'claudia',
+        sessionId: 's_qa',
+        ownerAccountId: 'owner-admin',
+        ownership: 'owner',
+        bindingMode: 'existing',
+        lastKnownState: 'stopped',
+        status: 'offline',
+      });
+      const all = store.listSpecialistSessions();
+      expect(all.map((b) => b.specialistId)).toEqual(['claudia', 'claudio']); // sorted
+      expect(store.getSpecialistSession('claudio')!.sessionId).toBe('s_new');
+      expect(store.getSpecialistSession('claudia')!.status).toBe('offline');
+      store.close();
+    });
   });
 }

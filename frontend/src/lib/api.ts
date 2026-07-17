@@ -31,6 +31,14 @@ export type WorkspaceChoice =
   | { kind: 'template'; id: string }
   | { kind: 'session'; id: string };
 
+/** A specialist's optional personal session (N3b-1, ADR-008). */
+export interface SpecialistSession {
+  sessionId: string;
+  status: 'available' | 'busy' | 'offline' | 'error';
+  ownership: 'owner' | 'legacy-technical';
+  bindingMode: 'existing' | 'created';
+}
+
 /** A reusable professional identity (N3, ADR-008). */
 export interface Specialist {
   id: string;
@@ -38,6 +46,8 @@ export interface Specialist {
   role: string | null;
   capabilities: string[];
   allowedTools: string[];
+  /** the specialist's personal session (N3b-1), or null when unbound */
+  session: SpecialistSession | null;
 }
 
 export interface Conversation {
@@ -202,6 +212,13 @@ export const api = {
     call<{ workspaceTemplates: WorkspaceTemplate[] }>('GET', '/api/workspace-templates'),
   listSessions: () => call<SessionListing>('GET', '/api/sessions'),
   listSpecialists: () => call<{ specialists: Specialist[] }>('GET', '/api/specialists'),
+  // bind or create a specialist's personal session (N3b-1): exactly one arg
+  bindSpecialistSession: (specialistId: string, workspace: WorkspaceChoice) =>
+    call<{ session: SpecialistSession }>('POST', `/api/specialists/${specialistId}/session`, {
+      ...(workspace.kind === 'session'
+        ? { sessionId: workspace.id }
+        : { sessionTemplateId: workspace.id }),
+    }),
   // The workspace is the project's and has no default (ADR-006, FR-45):
   // either a template to create from, or an existing owner-account session
   // to bind (FR-49, N2) — exactly one, enforced server-side.

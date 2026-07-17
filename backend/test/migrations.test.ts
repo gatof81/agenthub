@@ -18,6 +18,7 @@ const TABLES = [
   'usage_records',
   'sse_cursor',
   'run_summaries',
+  'specialist_sessions',
   'meta',
 ];
 
@@ -84,7 +85,7 @@ describe('migration runner (09 §4)', () => {
                 '2026-07-16T00:00:00.000Z');
     `);
 
-    expect(migrate(db, real)).toBe(4);
+    expect(migrate(db, real)).toBe(5);
 
     // The legacy run survives, and its role reads NULL: nothing truthful could
     // be backfilled (agents.yaml is gitignored, SEC-10), so 003 records the gap

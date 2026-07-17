@@ -25,6 +25,8 @@ interface Props {
   sessionListing: SessionListing | null;
   /** reusable professional identities (N3, ADR-008) */
   specialists: Specialist[];
+  /** bind/create a specialist's personal session (N3b-1) */
+  onBindSpecialistSession: (specialistId: string, workspace: WorkspaceChoice) => void;
   projects: Project[];
   conversations: Conversation[];
   selectedProject: Project | null;
@@ -141,7 +143,13 @@ function ProjectsHome(props: Props): React.JSX.Element {
           </p>
         )}
       </div>
-      {props.specialists.length > 0 && <SpecialistsSection specialists={props.specialists} />}
+      {props.specialists.length > 0 && (
+        <SpecialistsSection
+          specialists={props.specialists}
+          workspaceOptions={workspaceOptions}
+          onBind={props.onBindSpecialistSession}
+        />
+      )}
       {props.sessionListing !== null && <SessionsSection listing={props.sessionListing} />}
       <button className="archived-link" onClick={props.onOpenArchived}>
         Archived
@@ -153,10 +161,19 @@ function ProjectsHome(props: Props): React.JSX.Element {
 
 /**
  * Specialists (N3, ADR-008): reusable professional identities — name, role,
- * and capabilities. Read-only in N3; direct conversation and personal
- * sessions arrive in N3b.
+ * capabilities, and their optional personal session (N3b-1). An unbound
+ * specialist offers a bind control (an existing owner session, or create one).
+ * Direct conversation with a specialist arrives in N3b-2.
  */
-function SpecialistsSection({ specialists }: { specialists: Specialist[] }): React.JSX.Element {
+function SpecialistsSection({
+  specialists,
+  workspaceOptions,
+  onBind,
+}: {
+  specialists: Specialist[];
+  workspaceOptions: Array<{ key: string; label: string; choice: WorkspaceChoice }>;
+  onBind: (specialistId: string, workspace: WorkspaceChoice) => void;
+}): React.JSX.Element {
   return (
     <>
       <h2>Specialists</h2>
@@ -171,11 +188,62 @@ function SpecialistsSection({ specialists }: { specialists: Specialist[] }): Rea
               {s.capabilities.length > 0 && (
                 <span className="muted session-meta">{s.capabilities.join(' · ')}</span>
               )}
+              {s.session !== null ? (
+                <span className={`badge session-${s.session.status === 'available' ? 'running' : 'stopped'}`}>
+                  session: {s.session.status}
+                </span>
+              ) : (
+                <SpecialistBind
+                  workspaceOptions={workspaceOptions}
+                  onBind={(w) => onBind(s.id, w)}
+                />
+              )}
             </div>
           </li>
         ))}
       </ul>
     </>
+  );
+}
+
+/** Compact bind control for an unbound specialist (N3b-1). */
+function SpecialistBind({
+  workspaceOptions,
+  onBind,
+}: {
+  workspaceOptions: Array<{ key: string; label: string; choice: WorkspaceChoice }>;
+  onBind: (workspace: WorkspaceChoice) => void;
+}): React.JSX.Element {
+  const [key, setKey] = useState('');
+  const effectiveKey = key || (workspaceOptions[0]?.key ?? '');
+  const choice = workspaceOptions.find((o) => o.key === effectiveKey)?.choice ?? null;
+  if (workspaceOptions.length === 0) {
+    return <span className="muted session-meta">no session or template to bind</span>;
+  }
+  return (
+    <div className="specialist-bind">
+      {workspaceOptions.length > 1 && (
+        <select
+          className="template-select"
+          value={effectiveKey}
+          onChange={(e) => setKey(e.target.value)}
+          aria-label="Specialist session"
+        >
+          {workspaceOptions.map((o) => (
+            <option key={o.key} value={o.key}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      )}
+      <button
+        className="row-action"
+        onClick={() => choice !== null && onBind(choice)}
+        disabled={choice === null}
+      >
+        Bind session
+      </button>
+    </div>
   );
 }
 

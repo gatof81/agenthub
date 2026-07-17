@@ -56,12 +56,11 @@ Option 3.
   SEC-10): `{id, name, role, instructions, allowedTools, capabilities}`.
   Identity and behavior rules only — never credentials, repos, or workspaces
   (ADR-006 unchanged on that axis).
-- **SpecialistSessionBinding** (new, optional): `{specialistId, sessionId,
-  ownerAccountId, capabilities, status: available|busy|offline|error}` — a
-  standing session in the owner's admin account (ADR-007 ownership). A
-  specialist and a session are not the same thing: a specialist may execute
-  in a project's primary session, in its own personal session, or in a
-  task worktree.
+- **SpecialistSessionBinding** (new, optional): a standing session in the
+  owner's admin account (ADR-007 ownership). A specialist and a session are
+  not the same thing: a specialist may execute in a project's primary
+  session, in its own personal session, or in a task worktree. (Shape
+  refined at implementation — see the N3b-1 amendment in Consequences.)
 - **ConversationMode**: `automatic` (default once increment N4 lands) ·
   `preferred-specialist` · `direct`. I-6's immutability survives only in
   `direct` mode; in `automatic` mode no immutable agentId exists — each
@@ -112,3 +111,12 @@ Option 3.
 - The router/supervisor design work planned for Phases 3–4 (18 §3) is pulled
   forward into increments N4–N5 with deliberately narrow scope: one concrete
   flow (ADR-009), not a general planner.
+- **`SpecialistSessionBinding` shape refined at N3b-1 (2026-07-17):**
+  implemented as `{specialistId, sessionId, ownerAccountId, ownership,
+  bindingMode, lastKnownState, status: available|busy|offline|error}`.
+  `capabilities` was dropped from the binding — capabilities belong to the
+  **Specialist** identity (N3a), not to a session; and `ownership`,
+  `bindingMode`, and `lastKnownState` were added so a personal session binds
+  and is lifecycle-scoped exactly like a project's (ADR-007, migration 004),
+  which is what lets N3b-1 reuse the N2 machinery. `busy` is reserved until
+  N3b-2, when specialist conversations execute.

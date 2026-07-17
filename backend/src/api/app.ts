@@ -156,19 +156,80 @@ export function buildApp(deps: ApiDeps): express.Express {
     });
   });
 
-  // — specialists (N3, ADR-008): the same identities surfaced as reusable
-  // professional roles, with `role` + `capabilities`. Read-only in N3;
-  // personal sessions and direct conversations arrive in N3b.
+  // — specialists (N3, ADR-008): reusable professional roles with
+  // `role` + `capabilities`, plus their optional personal session (N3b-1).
+  // Direct conversation with a specialist is N3b-2.
   app.get('/api/specialists', (_req, res) => {
     res.json({
-      specialists: [...agents.values()].map((a) => ({
-        id: a.id,
-        name: a.name,
-        role: a.role ?? null,
-        capabilities: a.capabilities ?? [],
-        allowedTools: a.allowedTools,
-      })),
+      specialists: [...agents.values()].map((a) => {
+        const session = store.getSpecialistSession(a.id);
+        return {
+          id: a.id,
+          name: a.name,
+          role: a.role ?? null,
+          capabilities: a.capabilities ?? [],
+          allowedTools: a.allowedTools,
+          // the specialist's personal session (N3b-1), or null when unbound.
+          // Ownership/sessionId echoed so the UI can offer "open terminal"
+          // later (#419) — never a secret.
+          session: session
+            ? {
+                sessionId: session.sessionId,
+                status: session.status,
+                ownership: session.ownership,
+                bindingMode: session.bindingMode,
+              }
+            : null,
+        };
+      }),
     });
+  });
+
+  // Bind or create a specialist's personal session (N3b-1, ADR-008): exactly
+  // one of `sessionId` (bind an existing owner session) or `sessionTemplateId`
+  // (create one on-behalf, #420). Same validation shape as POST /api/projects.
+  app.post('/api/specialists/:id/session', (req, res, next) => {
+    const specialistId = req.params.id;
+    if (!agents.has(specialistId)) {
+      res.status(404).json({ code: 'not_found', detail: 'unknown specialist' });
+      return;
+    }
+    const { sessionId, sessionTemplateId } = (req.body ?? {}) as Record<string, unknown>;
+    const bindId = typeof sessionId === 'string' && sessionId.trim() !== '' ? sessionId.trim() : null;
+    const templateId =
+      typeof sessionTemplateId === 'string' && sessionTemplateId.trim() !== ''
+        ? sessionTemplateId.trim()
+        : null;
+    if ((bindId !== null) === (templateId !== null)) {
+      res.status(422).json({
+        code: 'validation',
+        detail: 'exactly one of sessionId (bind) and sessionTemplateId (create) is required',
+      });
+      return;
+    }
+    if (templateId !== null && !deps.workspaceTemplates.some((t) => t.id === templateId)) {
+      res.status(422).json({
+        code: 'validation',
+        detail: 'sessionTemplateId must be one of the deployment workspace templates',
+      });
+      return;
+    }
+    orchestrator
+      .bindSpecialistSession(specialistId, {
+        ...(bindId !== null ? { sessionId: bindId } : {}),
+        ...(templateId !== null ? { sessionTemplateId: templateId } : {}),
+      })
+      .then((binding) =>
+        res.status(201).json({
+          session: {
+            sessionId: binding.sessionId,
+            status: binding.status,
+            ownership: binding.ownership,
+            bindingMode: binding.bindingMode,
+          },
+        }),
+      )
+      .catch(next);
   });
 
   // The client cannot invent a template id: the workspace is the project's

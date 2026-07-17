@@ -92,7 +92,8 @@ erDiagram
   bindingMode: existing|created, lastKnownState, templateId?}` (ADR-007).
 - `Specialist {id, name, role, instructions, allowedTools, capabilities}` —
   config-defined (SEC-10); `SpecialistSessionBinding {specialistId,
-  sessionId, ownerAccountId, capabilities, status}` (ADR-008).
+  sessionId, ownerAccountId, ownership, bindingMode, lastKnownState, status}`
+  (ADR-008, refined N3b-1 — `capabilities` removed, see ADR-008 Consequences).
 - `Conversation.mode: automatic | preferred-specialist | direct`;
   `projectId` nullable (specialist general conversations, owner decision);
   `agentId` immutable only in direct mode.
@@ -127,8 +128,8 @@ inspector (ADR-009).
 | # | Migration | Contents |
 | --- | --- | --- |
 | 004 | project session binding | `projects` += `binding_mode` (backfill `created`), `owner_account_id` (NULL = legacy), `ownership` (backfill `legacy-technical` — ADR-007: rebound deliberately, never reassigned silently) |
-| 005 | conversation mode | `conversations` += `mode` (backfill `direct`); `agent_id` nullable (NULL legal only outside direct mode); `project_id` nullable (I-10 becomes "never changes once set") |
-| 006 | specialist sessions | new `specialist_sessions` (specialist identities stay in config) |
+| 005 | specialist sessions (N3b-1, **landed first**) | new `specialist_sessions` (specialist identities stay in config); the `busy` status awaits N3b-2 |
+| 006 | conversation mode (N3b-2) | `conversations` += `mode` (backfill `direct`); `agent_id` nullable (NULL legal only outside direct mode); `project_id` nullable (I-10 becomes "never changes once set"). The 005/006 order swapped from the original plan — specialist sessions shipped before conversation mode |
 | 007 | tasks | new `tasks`, `task_steps`, `work_products`; `runs` += `task_step_id?`, `target_session_id?` (NULL = project primary), `target_decision?` |
 
 Projects, conversations, runs, messages, and events are preserved untouched;
@@ -162,7 +163,8 @@ changes deliberately wait for their increment, mirroring how ADR-006 → spec
 | N1 ✅ | **Session discovery & ownership** (done, PR #60): list the owner's sessions with state/ownership; substrate re-pin. Terminal deep link ([#419](https://github.com/gatof81/shared-terminal/issues/419), shipped) is a follow-up | `domain/ports.ts` (+list/get), `substrate/real.ts` + double + conformance, `api/app.ts` (GET /api/sessions), frontend sessions view | none (#419 improves UX) | 02 re-verified at new pin; contract doc |
 | N2 ✅ | **Project binding** (done, PRs #61 bind + create-half): bind an existing owner session (create nothing) OR create one in the owner's account on their behalf; migration 004; lifecycle authority follows ownership | `domain/types.ts`, `orchestrator.ts` (bind + on-behalf in `createProject`/`provision`), `store/migrations/004`, `config/runtime.ts` (`SEAM_OWNER_USER_ID`), `api` (POST /api/projects), frontend session selector | [#416](https://github.com/gatof81/shared-terminal/issues/416) exec + [#418](https://github.com/gatof81/shared-terminal/issues/418) ref (bind) + [#420](https://github.com/gatof81/shared-terminal/issues/420) create-on-behalf — all shipped | 04 (FR-30/40/45), 05 (UC-01), 08, 09 |
 | N3a ✅ | **Specialists as identities** (done, PR #65): reusable `role` + `capabilities` on each; listed and visible. Config-only, no migration | `domain/types.ts` (+role/capabilities), `config/agents.ts`, `agents.example.yaml` (dev + qa), `api` (GET /api/specialists), frontend Specialists nav | none | 06, 08, 11 |
-| N3b | **Specialist sessions & direct conversation**: `SpecialistSessionBinding` (personal sessions in the owner's account), conversation mode + nullable `projectId`, direct conversation with a specialist; migrations 005–006 | `domain/types.ts`, `store/migrations/005-006`, `orchestrator`, `api`, frontend | inherited | 06, 08, 11 |
+| N3b-1 ✅ | **Specialist sessions** (done, PR #67): `SpecialistSessionBinding` — bind/create a specialist's personal session in the owner's account (reusing the N2 machinery); migration 005 | `domain/types.ts`, `store/migrations/005`, `store/{sqlite,memory}`, `orchestrator` (`bindSpecialistSession`), `api` (POST /api/specialists/:id/session, enriched GET), frontend bind control | inherited (#416/#418/#420) | 06, 08 |
+| N3b-2 | **Direct conversation with a specialist**: conversation `mode` + nullable `projectId` (migration 006), a conversation run resolves its session from the specialist's binding, frontend chat | `domain/types.ts`, `store/migrations/006`, `orchestrator` (session-resolution branch), `api`, frontend | inherited | 06, 08, 11 |
 | N4 | **Automatic routing**: default mode automatic; router + deterministic selector; decision recorded and inspectable | `orchestrator/` (router + selector modules), `domain/types.ts` (decision), frontend inspector | #416 for specialist-session execution | 05 (new UC), 07 §2, 08 |
 | N5 | **Developer → QA**: Task/TaskStep/work products; Claudio → Claudia with the correction loop; worktree strategy (ADR-010 B); migration 007 | `domain/` (task machine), `orchestrator/` (supervisor), `store/migrations/007`, frontend task view | inherited | 06, 09, 13 |
 | N6 | **Human approval**: `awaiting_human_approval`, approve / request-changes / reject; diff, reports, terminal wired | `api`, frontend approval UI | inherited | 05, 08, 11 |

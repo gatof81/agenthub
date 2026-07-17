@@ -102,6 +102,20 @@ export function App(): React.JSX.Element {
     return projects;
   }, []);
 
+  const refreshSpecialists = useCallback(async () => {
+    const { specialists } = await api.listSpecialists();
+    setSpecialists(specialists);
+  }, []);
+
+  // bind or create a specialist's personal session (N3b-1), then refresh
+  const bindSpecialistSession = useCallback(
+    async (specialistId: string, workspace: WorkspaceChoice) => {
+      await api.bindSpecialistSession(specialistId, workspace);
+      await refreshSpecialists();
+    },
+    [refreshSpecialists],
+  );
+
   useEffect(() => {
     if (!authed) return;
     void refreshProjects();
@@ -335,6 +349,7 @@ export function App(): React.JSX.Element {
         onOpenArchived={() => setArchivedOpen(true)}
         sessionListing={sessionListing}
         specialists={specialists}
+        onBindSpecialistSession={(id, w) => void bindSpecialistSession(id, w)}
         projects={projects}
         conversations={conversations}
         selectedProject={selectedProject}

@@ -63,10 +63,13 @@ history) binds to the *(project, agent)* pair, never to the agent alone
 ([18 §2](./18-agent-collaboration-model.md), knowledge-isolation rule).
 
 Correction (ADR-008, N3): `Agent` becomes **Specialist** — same stateless
-template extended with `role` and `capabilities` — and gains an optional
-**`SpecialistSessionBinding`** `{specialistId, sessionId, ownerAccountId,
-capabilities, status: available|busy|offline|error}`: a standing personal
-session in the owner's account for general/non-project work. The identity
+template extended with `role` and `capabilities` (N3a) — and gains an optional
+**`SpecialistSessionBinding`** (N3b-1): `{specialistId, sessionId,
+ownerAccountId, ownership, bindingMode, lastKnownState, status:
+available|busy|offline|error}`, a standing personal session in the owner's
+account for general/non-project work. Bound or created exactly like a
+project's (ADR-007) — one per specialist, back-linked
+`external_ref = agenthub:specialist:<id>`; `busy` awaits N3b-2. The identity
 and the session are distinct things; project work usually executes in the
 project's primary session or a task worktree (ADR-010), and repo
 access/credentials never attach to the specialist (ADR-006 unchanged).
