@@ -91,6 +91,11 @@ CREATE TABLE runs (
   seam_request_id TEXT,                           -- X-Request-Id join (OPS-04)
   caps_snapshot   TEXT NOT NULL,                  -- JSON; written at creation (I-8)
   policy_snapshot TEXT NOT NULL CHECK (length(policy_snapshot) > 2),  -- I-7: non-empty JSON array
+  instructions_snapshot TEXT,                     -- the role at send (B5-04, I-8; migration 003).
+                                                  -- NULL = pre-B5-04, UNRECORDED — never "no role":
+                                                  -- config load rejects a blank one, and agent
+                                                  -- configs are gitignored (SEC-10), so no truthful
+                                                  -- backfill exists and none was invented
   cli_version     TEXT,                           -- write-once at init event (I-8)
   model           TEXT,
   kill_outcome    TEXT,
@@ -170,6 +175,17 @@ Numbered forward-only SQL files (`001_init.sql`, …) applied at boot inside a
 transaction; `meta.schema_version` gates each. No down-migrations (restore
 from snapshot is the rollback story). A failed migration aborts startup —
 never a half-migrated serving process.
+
+| # | What it does |
+| --- | --- |
+| 001 | Phase-1 schema (this doc §2) |
+| 002 | The workspace moves from the agent to the project; `repo_*` columns (ADR-006, FR-45). Backfills `workspace_template_id` from the live binding, so nothing re-provisions |
+| 003 | `runs.instructions_snapshot` — the role travels per turn and is recorded per run (B5-04, I-8). No backfill: pre-B5-04 rows stay NULL, meaning *unrecorded* |
+
+A migration is exercised against a **populated prior-era database**, not only
+from empty (`test/migrations.test.ts`) — applying it to a fresh schema proves
+nothing about the rows it inherits, which is where 002's
+`workspace_template_id` / `session_template_id` distinction surfaced.
 
 ## 5. Backup & restore (OPS-01..03, R-16)
 

@@ -88,9 +88,16 @@ recurring surprise.
 is a real repo that several roles work on, baking one agent's instructions
 into the workspace at provisioning is wrong: the QA conversation would run
 under DEV's CLAUDE.md. The instructions must travel with the turn, as tools
-already do. The mechanism (`--append-system-prompt` or equivalent) is
-**unverified against CLI 2.1.207** and is deliberately left to its own
-implementation item rather than asserted here.
+already do. The mechanism (`--append-system-prompt` or equivalent) was
+**unverified against CLI 2.1.207** when this ADR was accepted and was
+deliberately left to its own implementation item rather than asserted here —
+**since verified and shipped** (B5-04, 2026-07-17): `--append-system-prompt`
+demonstrably reaches the model on the pinned version
+([S-04](../spikes/S-04/RESULTS.md)), and the role now travels per turn while
+the project's own instructions stay in the shared workspace. Leaving the
+mechanism unasserted was the right call: the flag turned out to work, but a
+version that parsed it and ignored it would have failed silently, with every
+offline test still green.
 
 **Existing projects keep working.** A project with no `repo` provisions an
 empty workspace exactly as today; `sessionTemplateId` moving is a migration
