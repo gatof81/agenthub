@@ -99,6 +99,9 @@ async function main(): Promise<void> {
       // own-scope discovery rows are attributed to the execution identity
       // itself (N1, FR-48) — the wire carries no owner for the caller's rows
       selfUsername: runtimeConfig.seamUsername,
+      // create new project sessions in the owner's account on their behalf
+      // (N2, #420) when configured; absent → self-owned (legacy-technical)
+      ...(runtimeConfig.seamOwnerUserId ? { ownerUserId: runtimeConfig.seamOwnerUserId } : {}),
     });
     adapter = new ClaudeCliRuntimeAdapter(execPort);
     // env-only credential path (SEC-07): the token rides each run's exec

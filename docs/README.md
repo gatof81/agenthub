@@ -127,6 +127,21 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-17** — **N2 complete: create-on-behalf half (doc 19 §7, FR-49).**
+  Upstream #420 (admin-only `ownerUserId` on `POST /api/sessions`) shipped and
+  was verified at `1a5af57`. A new deployment variable `SEAM_OWNER_USER_ID`
+  turns on create-in-the-owner's-account: when set, the Hub creates project
+  sessions **in the owner's admin account** on their behalf, so they appear in
+  the owner's own Shared Terminal sidebar and are usable manually — recorded
+  as `ownership: 'owner'` and treated exactly like a bound session (archive/
+  restore never stop or start them, ADR-007). Unset keeps the pre-#420
+  self-owned (`legacy-technical`) behavior. `createSession` now returns the
+  owner id it created for; a 429 (charged to the **owner's** quota, not the
+  Hub's) surfaces as a provisioning error naming the cap
+  (`{error, cap}`/`{error, quota}`). With this, N2's two paths — bind an
+  existing session, or create one in the owner's account — are both live, and
+  acceptance scenarios 1 and 2 are demonstrable end-to-end.
+
 - **2026-07-17** — **N2 project binding, bind-existing half (doc 19 §7,
   FR-49).** Upstream #416 (operate-tier exec) and #418 (`external_ref`)
   shipped and were verified at `c2db7f7` before consuming them. A project

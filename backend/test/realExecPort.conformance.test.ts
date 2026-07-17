@@ -413,7 +413,7 @@ describe('session provisioning (B2-02: template → create → agentSeed → boo
     expect((err as Error).message).toContain('did not finish');
   });
 
-  it('maps a quota 429 on create to SeamHttpError', async () => {
+  it('maps a quota 429 on create to a provisioning error naming the cap (N2)', async () => {
     double.templateResponses.push({ body: { config: {} } });
     double.createResponses.push({
       status: 429,
@@ -422,8 +422,12 @@ describe('session provisioning (B2-02: template → create → agentSeed → boo
     const err = await fastPort()
       .createSession('tpl', {})
       .catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(SeamHttpError);
-    expect((err as SeamHttpError).status).toBe(429);
+    // 429 is a quota/provisioning failure, not a generic transport error:
+    // it surfaces as SeamProvisioningError with the cap named (self-owned
+    // here → "account", vs "owner" for on-behalf; see the create-on-behalf
+    // suite). More descriptive than the pre-N2 bare SeamHttpError.
+    expect(err).toBeInstanceOf(SeamProvisioningError);
+    expect((err as Error).message).toMatch(/account maxSessions quota exceeded/);
   });
 
   it('propagates an unknown template as SeamHttpError 404', async () => {
@@ -677,5 +681,56 @@ describe('session external_ref (N2, shared-terminal#418)', () => {
     await fake.setSessionExternalRef(sessionId, null);
     expect((await fake.getSession(sessionId))?.externalRef).toBeNull();
     await expect(fake.setSessionExternalRef('s_unknown', 'x')).rejects.toThrow(/unknown session/);
+  });
+});
+
+describe('create-on-behalf (N2, shared-terminal#420)', () => {
+  it('sends ownerUserId when configured and returns it (owner-account create)', async () => {
+    const onBehalf = new RealSubstrateExecPort({
+      baseUrl: double.baseUrl,
+      auth: new CookieSeamAuth({
+        baseUrl: double.baseUrl,
+        username: double.username,
+        password: double.password,
+      }),
+      ownerUserId: 'owner-uuid-1',
+    });
+    double.templateResponses.push({ body: { config: {} } });
+    double.createResponses.push({ status: 201, body: { sessionId: 's_owned', status: 'running' } });
+    const created = await onBehalf.createSession('tpl', { externalRef: 'agenthub:project:p1' });
+    expect(created).toEqual({ sessionId: 's_owned', ownerUserId: 'owner-uuid-1' });
+    const body = double.createCalls[0] as Record<string, unknown>;
+    expect(body.ownerUserId).toBe('owner-uuid-1');
+    expect(body.externalRef).toBe('agenthub:project:p1');
+  });
+
+  it('omits ownerUserId and returns null when not configured (self-owned)', async () => {
+    double.templateResponses.push({ body: { config: {} } });
+    double.createResponses.push({ status: 201, body: { sessionId: 's_self', status: 'running' } });
+    const created = await port.createSession('tpl', {});
+    expect(created.ownerUserId).toBeNull();
+    expect((double.createCalls[0] as Record<string, unknown>).ownerUserId).toBeUndefined();
+  });
+
+  it('maps a 429 (owner quota) to a provisioning error naming the cap', async () => {
+    const onBehalf = new RealSubstrateExecPort({
+      baseUrl: double.baseUrl,
+      auth: new CookieSeamAuth({
+        baseUrl: double.baseUrl,
+        username: double.username,
+        password: double.password,
+      }),
+      ownerUserId: 'owner-uuid-1',
+    });
+    double.templateResponses.push({ body: { config: {} } });
+    double.createResponses.push({ status: 429, body: { error: 'cpu budget exceeded', cap: 'cpu' } });
+    await expect(onBehalf.createSession('tpl', {})).rejects.toThrow(/owner cpu quota exceeded/);
+  });
+
+  it('fake parity: createOnBehalfUserId flips the returned ownerUserId (R-12)', async () => {
+    const fake = new FakeSubstrateExecPort();
+    expect((await fake.createSession('tpl', {})).ownerUserId).toBeNull();
+    fake.createOnBehalfUserId = 'owner-uuid-1';
+    expect((await fake.createSession('tpl', {})).ownerUserId).toBe('owner-uuid-1');
   });
 });
