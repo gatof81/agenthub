@@ -30,8 +30,13 @@ export interface ApiDeps {
   logger?: Logger;
   /** metrics snapshot for /api/health detail (B3-07); absent → omitted */
   metricsSnapshot?: () => Record<string, unknown>;
-  /** what a project may declare as its workspace (ADR-006, FR-45) */
-  workspaceTemplates?: WorkspaceTemplate[];
+  /**
+   * What a project may declare as its workspace (ADR-006, FR-45). Required,
+   * not optional: the create route validates against it, and an optional dep
+   * would have let a harness skip it and quietly disable that validation —
+   * test convenience shaping production behaviour.
+   */
+  workspaceTemplates: WorkspaceTemplate[];
 }
 
 function requestId(): string {
@@ -115,7 +120,7 @@ export function buildApp(deps: ApiDeps): express.Express {
   // The client cannot invent a template id: the workspace is the project's
   // and has no default (ADR-006, FR-45), so it needs the list to choose from.
   app.get('/api/workspace-templates', (_req, res) => {
-    res.json({ workspaceTemplates: deps.workspaceTemplates ?? [] });
+    res.json({ workspaceTemplates: deps.workspaceTemplates });
   });
 
   // — projects —
@@ -130,11 +135,28 @@ export function buildApp(deps: ApiDeps): express.Express {
       res.status(422).json({ code: 'validation', detail: 'defaultAgentId must be a configured agent' });
       return;
     }
+    // The workspace is the project's (ADR-006, FR-45) and it has no sane
+    // default: falling back to the agent's template is exactly the conflation
+    // this replaced. Validated against the configured list the same way
+    // defaultAgentId is validated against the agents map — the comment on
+    // /api/workspace-templates claims a client "cannot invent a template id",
+    // and a claim the boundary does not enforce is just a wish. Unvalidated,
+    // a made-up or stale id returned 202 and the project failed later at the
+    // seam, with nothing pointing at the cause.
+    //
+    // No `length > 0` escape hatch: a deployment that configured none would
+    // then accept anything, which is precisely the confusing failure this
+    // prevents. Empty list ⇒ no project can be created, exactly as the
+    // contract says.
     if (typeof sessionTemplateId !== 'string' || sessionTemplateId.trim() === '') {
-      // The workspace is the project's (ADR-006, FR-45) and it has no sane
-      // default: falling back to the agent's template is exactly the
-      // conflation this replaced.
       res.status(422).json({ code: 'validation', detail: 'sessionTemplateId required' });
+      return;
+    }
+    if (!deps.workspaceTemplates.some((t) => t.id === sessionTemplateId.trim())) {
+      res.status(422).json({
+        code: 'validation',
+        detail: `sessionTemplateId must be one of the deployment's workspace templates (GET /api/workspace-templates)`,
+      });
       return;
     }
     const r = (repo ?? null) as { url?: unknown; ref?: unknown; target?: unknown; auth?: unknown } | null;

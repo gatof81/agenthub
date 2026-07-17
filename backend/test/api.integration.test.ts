@@ -133,6 +133,15 @@ describe('HTTP API (08 §1)', () => {
       .send({ name: 'x', defaultAgentId: 'dev' });
     expect(noTemplate.status).toBe(422);
     expect(noTemplate.body.detail).toContain('sessionTemplateId');
+    // an invented or stale id must be rejected at the boundary, the way
+    // defaultAgentId is — otherwise it 202s and dies at the seam later, with
+    // nothing pointing at the cause (ADR-006, FR-45)
+    const badTemplate = await request(app)
+      .post('/api/projects')
+      .set(AUTH)
+      .send({ name: 'x', defaultAgentId: 'dev', sessionTemplateId: 'not-a-real-template' });
+    expect(badTemplate.status).toBe(422);
+    expect(badTemplate.body.detail).toContain('workspace-templates');
     expect(
       (await request(app).post('/api/projects').set(AUTH).send({ name: 'x', defaultAgentId: 'nope', sessionTemplateId: 'tpl' }))
         .status,
