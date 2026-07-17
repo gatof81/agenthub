@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import type { Conversation, Project } from '../lib/api.js';
+import type { Conversation, Project, WorkspaceTemplate } from '../lib/api.js';
 import { ArchiveIcon, BackIcon } from './icons.js';
 
 interface Props {
@@ -19,7 +19,9 @@ interface Props {
   selectedConversation: Conversation | null;
   onOpenProject: (p: Project) => void;
   onOpenConversation: (c: Conversation) => void;
-  onCreateProject: (name: string) => void;
+  templates: WorkspaceTemplate[];
+  /** a project declares its workspace at creation (ADR-006, FR-45) */
+  onCreateProject: (name: string, sessionTemplateId: string) => void;
   onCreateConversation: () => void;
   onBackToProjects: () => void;
   onArchiveProject: (p: Project) => void;
@@ -43,6 +45,11 @@ function StatusBadge({ project }: { project: Project }): React.JSX.Element | nul
 
 function ProjectsHome(props: Props): React.JSX.Element {
   const [newProjectName, setNewProjectName] = useState('');
+  // The workspace has no default (ADR-006): the first template is a starting
+  // selection, not a fallback — if none are configured, creation is disabled
+  // rather than sending a guess the API would 422.
+  const [templateId, setTemplateId] = useState('');
+  const effectiveTemplateId = templateId || (props.templates[0]?.id ?? '');
   return (
     <nav className="sidebar">
       <h2>Projects</h2>
@@ -71,12 +78,35 @@ function ProjectsHome(props: Props): React.JSX.Element {
           onChange={(e) => setNewProjectName(e.target.value)}
           placeholder="New project name…"
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && newProjectName.trim() !== '') {
-              props.onCreateProject(newProjectName.trim());
+            if (e.key === 'Enter' && newProjectName.trim() !== '' && effectiveTemplateId !== '') {
+              props.onCreateProject(newProjectName.trim(), effectiveTemplateId);
               setNewProjectName('');
             }
           }}
         />
+        {/* The workspace is the project's and has no default (ADR-006, FR-45),
+            so it is chosen here. One template needs no menu — showing a
+            single-option select would be asking a question with one answer. */}
+        {props.templates.length > 1 && (
+          <select
+            className="template-select"
+            value={effectiveTemplateId}
+            onChange={(e) => setTemplateId(e.target.value)}
+            aria-label="Workspace template"
+          >
+            {props.templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {props.templates.length === 0 && (
+          <p className="empty-hint">
+            No workspace templates configured — a project cannot declare a workspace, so creation is
+            disabled. Add <code>workspaceTemplates:</code> to the deployment config.
+          </p>
+        )}
       </div>
       <button className="archived-link" onClick={props.onOpenArchived}>
         Archived

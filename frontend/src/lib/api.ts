@@ -6,6 +6,12 @@ export interface Caps {
   timeoutMs: number;
 }
 
+export interface WorkspaceTemplate {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -132,8 +138,22 @@ export const api = {
     call<{ projects: Project[] }>('GET', `/api/projects${opts?.archived ? '?archived=true' : ''}`),
   listArchivedConversations: () =>
     call<{ conversations: Conversation[] }>('GET', '/api/conversations?archived=true'),
-  createProject: (name: string, defaultAgentId: string, instructions?: string) =>
-    call<{ project: Project }>('POST', '/api/projects', { name, defaultAgentId, instructions }),
+  workspaceTemplates: () =>
+    call<{ workspaceTemplates: WorkspaceTemplate[] }>('GET', '/api/workspace-templates'),
+  // sessionTemplateId is required: the workspace is the project's and has no
+  // default — the agent no longer carries one (ADR-006, FR-45).
+  createProject: (
+    name: string,
+    defaultAgentId: string,
+    sessionTemplateId: string,
+    instructions?: string,
+  ) =>
+    call<{ project: Project }>('POST', '/api/projects', {
+      name,
+      defaultAgentId,
+      sessionTemplateId,
+      instructions,
+    }),
   getProject: (id: string) =>
     call<{ project: Project; conversations: Conversation[] }>('GET', `/api/projects/${id}`),
   createConversation: (projectId: string, title?: string) =>

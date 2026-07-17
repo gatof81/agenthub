@@ -8,6 +8,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { deriveActivity, sseFromRunEvent } from '../domain/projections.js';
 import type { Agent, RepoAuth } from '../domain/types.js';
+import type { WorkspaceTemplate } from '../config/workspaceTemplates.js';
 import { Orchestrator, OrchestratorError } from '../orchestrator/orchestrator.js';
 import { NOOP_LOGGER, type Logger } from '../domain/ports.js';
 import { NotFoundError, ValidationError, type HubStore } from '../store/types.js';
@@ -29,6 +30,8 @@ export interface ApiDeps {
   logger?: Logger;
   /** metrics snapshot for /api/health detail (B3-07); absent → omitted */
   metricsSnapshot?: () => Record<string, unknown>;
+  /** what a project may declare as its workspace (ADR-006, FR-45) */
+  workspaceTemplates?: WorkspaceTemplate[];
 }
 
 function requestId(): string {
@@ -107,6 +110,12 @@ export function buildApp(deps: ApiDeps): express.Express {
         defaultCaps: a.defaultCaps,
       })),
     });
+  });
+
+  // The client cannot invent a template id: the workspace is the project's
+  // and has no default (ADR-006, FR-45), so it needs the list to choose from.
+  app.get('/api/workspace-templates', (_req, res) => {
+    res.json({ workspaceTemplates: deps.workspaceTemplates ?? [] });
   });
 
   // — projects —

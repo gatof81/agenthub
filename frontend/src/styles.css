@@ -432,3 +432,15 @@ button.mini:hover { background: var(--raised); }
 .archived-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* a restore that cannot happen (FR-44) is information, not a toast to miss */
 .archived-error { color: var(--danger); font-size: 12px; }
+
+/* workspace template picker — only rendered when there is a real choice */
+.template-select {
+  width: 100%;
+  margin-top: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 9px;
+  font: inherit;
+}

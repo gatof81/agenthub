@@ -1,3 +1,12 @@
+# Workspace templates this deployment offers (ADR-006, FR-45). A project
+# declares which one its session is built from — the client picks from this
+# list, since the value has no sane default. Ids are substrate-side and
+# deployment-specific, so the repo ships only this example (SEC-10).
+workspaceTemplates:
+  - id: default
+    name: Default workspace
+    description: Plain session; a project can still declare its own repo.
+
 # Agent Hub — example agent configuration (SEC-10).
 #
 # Real agent definitions live in the DEPLOYMENT config (gitignored /
