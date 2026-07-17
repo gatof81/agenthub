@@ -432,3 +432,26 @@ describe('specialist sessions (N3b-1)', () => {
     expect(dev!.session).toBeNull();
   });
 });
+
+describe('POST /api/specialists/:id/conversations (N3b-2)', () => {
+  it('422 without a bound session; 201 after binding; runs in the specialist session', async () => {
+    const { app, port } = makeApiHarness();
+    // no session yet
+    const early = await request(app).post('/api/specialists/dev/conversations').set(AUTH).send({});
+    expect(early.status).toBe(422);
+    // bind a session
+    port.seedSession({
+      sessionId: 's_dev', name: 'n', status: 'running', ownerUsername: 'o',
+      createdAt: null, lastConnectedAt: null, externalRef: null,
+    });
+    await request(app).post('/api/specialists/dev/session').set(AUTH).send({ sessionId: 's_dev' });
+    const created = await request(app).post('/api/specialists/dev/conversations').set(AUTH).send({ title: 'chat' });
+    expect(created.status).toBe(201);
+    expect(created.body.conversation).toMatchObject({ projectId: null, agentId: 'dev', mode: 'direct' });
+  });
+
+  it('404 for an unknown specialist', async () => {
+    const { app } = makeApiHarness();
+    expect((await request(app).post('/api/specialists/ghost/conversations').set(AUTH).send({})).status).toBe(404);
+  });
+});

@@ -27,6 +27,8 @@ interface Props {
   specialists: Specialist[];
   /** bind/create a specialist's personal session (N3b-1) */
   onBindSpecialistSession: (specialistId: string, workspace: WorkspaceChoice) => void;
+  /** start a direct conversation with a specialist (N3b-2) */
+  onChatWithSpecialist: (specialistId: string) => void;
   projects: Project[];
   conversations: Conversation[];
   selectedProject: Project | null;
@@ -148,6 +150,7 @@ function ProjectsHome(props: Props): React.JSX.Element {
           specialists={props.specialists}
           workspaceOptions={workspaceOptions}
           onBind={props.onBindSpecialistSession}
+          onChat={props.onChatWithSpecialist}
         />
       )}
       {props.sessionListing !== null && <SessionsSection listing={props.sessionListing} />}
@@ -169,10 +172,12 @@ function SpecialistsSection({
   specialists,
   workspaceOptions,
   onBind,
+  onChat,
 }: {
   specialists: Specialist[];
   workspaceOptions: Array<{ key: string; label: string; choice: WorkspaceChoice }>;
   onBind: (specialistId: string, workspace: WorkspaceChoice) => void;
+  onChat: (specialistId: string) => void;
 }): React.JSX.Element {
   return (
     <>
@@ -189,9 +194,16 @@ function SpecialistsSection({
                 <span className="muted session-meta">{s.capabilities.join(' · ')}</span>
               )}
               {s.session !== null ? (
-                <span className={`badge session-${s.session.status === 'available' ? 'running' : 'stopped'}`}>
-                  session: {s.session.status}
-                </span>
+                <div className="specialist-bind">
+                  <span
+                    className={`badge session-${s.session.status === 'available' ? 'running' : 'stopped'}`}
+                  >
+                    session: {s.session.status}
+                  </span>
+                  <button className="row-action" onClick={() => onChat(s.id)}>
+                    Chat
+                  </button>
+                </div>
               ) : (
                 <SpecialistBind
                   workspaceOptions={workspaceOptions}

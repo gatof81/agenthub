@@ -33,6 +33,7 @@ import {
   deriveConversationTitle,
   DEFAULT_CONVERSATION_TITLE,
 } from '../domain/projections.js';
+import { workspaceKeyFor } from '../domain/types.js';
 import type {
   Agent,
   RepoAuth,
@@ -125,11 +126,7 @@ FINAL="$(list)"
 echo "HUB_SWEEP|\${FOUND% }|\${REMAIN% }|\${FINAL% }"
 `;
 
-/**
- * Map a seam session state to a specialist-session status (N3b-1). `busy` (a
- * run is active in it) is not derivable here — it arrives with N3b-2 when
- * specialist conversations execute.
- */
+/** Map a seam session state to a specialist-session status (N3b-1); `busy` is unused (I-2 is enforced by dispatch, not this status). */
 function statusFromSeamState(state: string): SpecialistSessionStatus {
   return state === 'running' ? 'available' : 'offline';
 }
@@ -569,12 +566,17 @@ export class Orchestrator {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) throw new OrchestratorError('not_found', `conversation ${conversationId}`);
     if (conversation.status !== 'archived') return conversation; // idempotent
-    const project = this.store.getProject(conversation.projectId);
-    if (project?.status === 'archived') {
-      throw new OrchestratorError(
-        'project_archived',
-        `restore project ${conversation.projectId} first — its session is stopped (I-12)`,
-      );
+    // I-12 applies to project conversations (they share the project's session).
+    // A direct specialist conversation (projectId null) has no project to be
+    // archived, so the check is skipped.
+    if (conversation.projectId !== null) {
+      const project = this.store.getProject(conversation.projectId);
+      if (project?.status === 'archived') {
+        throw new OrchestratorError(
+          'project_archived',
+          `restore project ${conversation.projectId} first — its session is stopped (I-12)`,
+        );
+      }
     }
     return this.store.updateConversation(conversationId, { status: 'active' });
   }
@@ -595,16 +597,49 @@ export class Orchestrator {
     });
   }
 
+  /**
+   * A direct conversation with a specialist (N3b-2, ADR-008): no project, runs
+   * in the specialist's personal session. Requires a bound session (N3b-1) —
+   * there is nowhere to run otherwise.
+   */
+  createSpecialistConversation(specialistId: string, title?: string): Conversation {
+    this.mustAgent(specialistId);
+    if (!this.store.getSpecialistSession(specialistId)) {
+      throw new OrchestratorError(
+        'project_not_ready',
+        `specialist ${specialistId} has no session bound — bind one first (N3b-1)`,
+      );
+    }
+    return this.store.createConversation({
+      projectId: null,
+      title: title ?? 'New conversation',
+      agentId: specialistId,
+      mode: 'direct',
+    });
+  }
+
   // — UC-02/03: send → queue → dispatch —
 
   send(conversationId: string, content: string): { message: Message; run: Run } {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) throw new OrchestratorError('not_found', `conversation ${conversationId}`);
-    const project = this.store.getProject(conversation.projectId);
-    if (!project || project.status !== 'ready') {
+    // Gate on the conversation's workspace being usable. A project
+    // conversation needs its project ready (existing 08 §1 rule). A direct
+    // specialist conversation (N3b-2) needs a bound session — whether it is
+    // running (or must be started) is handled at execution, so an offline
+    // session yields a failed run with a clear message, not a rejected send.
+    if (conversation.projectId !== null) {
+      const project = this.store.getProject(conversation.projectId);
+      if (!project || project.status !== 'ready') {
+        throw new OrchestratorError(
+          'project_not_ready',
+          `project is ${project?.status ?? 'missing'} (409 while provisioning/error, 08 §1)`,
+        );
+      }
+    } else if (!this.store.getSpecialistSession(conversation.agentId)) {
       throw new OrchestratorError(
         'project_not_ready',
-        `project is ${project?.status ?? 'missing'} (409 while provisioning/error, 08 §1)`,
+        `specialist ${conversation.agentId} has no session bound — bind one first (N3b-1)`,
       );
     }
     const agent = this.mustAgent(conversation.agentId);
@@ -626,14 +661,14 @@ export class Orchestrator {
       if (title !== '') this.store.updateConversation(conversationId, { title });
     }
     this.notify.runState(conversationId, { runId: result.run.id, state: 'queued' });
-    this.pump(conversation.projectId);
+    this.pump(workspaceKeyFor(conversation));
     const run = this.store.getRun(result.run.id) ?? result.run;
     return { message: result.message, run };
   }
 
-  /** Dispatch the project's queue (I-2 serialized, FIFO FR-04). */
-  pump(projectId: string): void {
-    const run = this.store.dispatchNextRun(projectId);
+  /** Dispatch the workspace's queue (I-2 serialized per workspace, FIFO FR-04). */
+  pump(workspaceKey: string): void {
+    const run = this.store.dispatchNextRun(workspaceKey);
     if (!run) return;
     this.notify.runState(run.conversationId, { runId: run.id, state: 'starting' });
     const promise = this.executeRun(run)
@@ -642,7 +677,7 @@ export class Orchestrator {
       })
       .finally(() => {
         this.inFlight.delete(run.id);
-        this.pump(projectId); // the queue survives every terminal outcome (FR-04)
+        this.pump(workspaceKey); // the queue survives every terminal outcome (FR-04)
       });
     this.inFlight.set(run.id, promise);
   }
@@ -668,16 +703,15 @@ export class Orchestrator {
         warnings: [],
         runtimeSessionId: conversation.runtimeSessionId,
       });
-      this.pump(conversation.projectId);
+      this.pump(workspaceKeyFor(conversation));
       return;
     }
     if (run.state === 'starting' || run.state === 'streaming') {
       this.cancelRequested.add(runId);
       if (run.execId) {
         const conversation = this.store.getConversation(run.conversationId)!;
-        const project = this.store.getProject(conversation.projectId)!;
         const pending = this.adapter.kill(
-          project.sessionBinding.sessionId!,
+          this.sessionMetaForConversation(conversation).sessionId!,
           run.execId,
           KILL_GRACE_MS,
         );
@@ -715,9 +749,8 @@ export class Orchestrator {
     // network probe between the two transactions; tx 2 resolves
     for (const run of this.store.listRunsByState(['interrupted'])) {
       const conversation = this.store.getConversation(run.conversationId)!;
-      const project = this.store.getProject(conversation.projectId)!;
       const message = this.store.getMessage(run.messageId)!;
-      const sessionId = project.sessionBinding.sessionId;
+      const sessionId = this.sessionMetaForConversation(conversation).sessionId;
       const probe =
         run.execId && sessionId
           ? await this.adapter.status(sessionId, run.execId)
@@ -781,34 +814,88 @@ export class Orchestrator {
         });
       }
     }
-    // queue rebuild: re-arm every project that still has queued runs
-    const projectIds = new Set<string>();
+    // queue rebuild: re-arm every WORKSPACE that still has queued runs
+    // (projects and specialist workspaces alike, N3b-2)
+    const keys = new Set<string>();
     for (const run of this.store.listRunsByState(['queued'])) {
       const conversation = this.store.getConversation(run.conversationId);
-      if (conversation) projectIds.add(conversation.projectId);
+      if (conversation) keys.add(workspaceKeyFor(conversation));
     }
-    for (const projectId of projectIds) this.pump(projectId);
+    for (const key of keys) this.pump(key);
   }
 
   // — the run loop —
 
-  private async executeRun(run: Run): Promise<void> {
-    const conversation = this.store.getConversation(run.conversationId)!;
-    const project = this.store.getProject(conversation.projectId)!;
-    const message = this.store.getMessage(run.messageId)!;
-    const sessionId = project.sessionBinding.sessionId;
+  /**
+   * The session a conversation's runs use, looked up (never started) plus its
+   * cached state — for kill/reconcile/error-context. Project conversation →
+   * the project's binding; direct specialist conversation → the specialist's
+   * (N3b-2). See `resolveRunSession` for the execution path that also starts it.
+   */
+  private sessionMetaForConversation(c: Conversation): {
+    sessionId: string | null;
+    lastKnownState: string | null;
+  } {
+    if (c.projectId !== null) {
+      const b = this.store.getProject(c.projectId)?.sessionBinding;
+      return { sessionId: b?.sessionId ?? null, lastKnownState: b?.lastKnownState ?? null };
+    }
+    const b = this.store.getSpecialistSession(c.agentId);
+    return { sessionId: b?.sessionId ?? null, lastKnownState: b?.lastKnownState ?? null };
+  }
 
-    if (!sessionId) {
+  private async resolveRunSession(
+    run: Run,
+    conversation: Conversation,
+    userMessageContent: string,
+  ): Promise<string | null> {
+    const fail = (detail: string): null => {
       this.finalize(run, 'starting', 'failed', {
         usageSource: 'error-partial',
         errorCode: 'exec_refused',
-        errorDetail: 'project has no substrate session (FR-33)',
-        userMessageContent: message.content,
+        errorDetail: detail,
+        userMessageContent,
         warnings: [],
         runtimeSessionId: conversation.runtimeSessionId,
       });
-      return;
+      return null;
+    };
+
+    if (conversation.projectId !== null) {
+      const sessionId = this.store.getProject(conversation.projectId)?.sessionBinding.sessionId ?? null;
+      return sessionId ?? fail('project has no substrate session (FR-33)');
     }
+
+    // direct specialist conversation
+    const binding = this.store.getSpecialistSession(conversation.agentId);
+    if (!binding) return fail(`specialist ${conversation.agentId} has no session bound (N3b-1)`);
+    const info = await this.execPort.getSession(binding.sessionId);
+    if (info === null) {
+      this.store.setSpecialistSession({ ...binding, status: 'error', lastKnownState: null });
+      return fail(`specialist session ${binding.sessionId} no longer exists upstream (FR-44)`);
+    }
+    if (info.status !== 'running') {
+      // start it on use (owner decision) — needs operate-tier start upstream
+      // (shared-terminal#429). Until that ships, an owner session 403s: report
+      // it honestly rather than silently. Auto-starts once #429 lands.
+      try {
+        await this.execPort.startSession(binding.sessionId);
+        this.store.setSpecialistSession({ ...binding, status: 'available', lastKnownState: 'running' });
+      } catch {
+        this.store.setSpecialistSession({ ...binding, status: 'offline', lastKnownState: info.status });
+        return fail(
+          `specialist session is ${info.status} and could not be started from the Hub — start it in Shared Terminal (auto-start pending shared-terminal#429)`,
+        );
+      }
+    }
+    return binding.sessionId;
+  }
+
+  private async executeRun(run: Run): Promise<void> {
+    const conversation = this.store.getConversation(run.conversationId)!;
+    const message = this.store.getMessage(run.messageId)!;
+    const sessionId = await this.resolveRunSession(run, conversation, message.content);
+    if (sessionId === null) return; // resolveRunSession finalized the run
 
     const turn: TurnRequest = {
       prompt: message.content,
@@ -946,7 +1033,8 @@ export class Orchestrator {
         // exec_refused: attach the session-state context FR-33 calls for, so a
         // client can retry provisioning without a second API call (matches the
         // no-session exec_refused path above; 08 §6)
-        const lastKnownState = project.sessionBinding.lastKnownState ?? 'unknown';
+        const lastKnownState =
+          this.sessionMetaForConversation(conversation).lastKnownState ?? 'unknown';
         this.finalize(current, current.state, 'failed', {
           usageSource: 'error-partial',
           errorCode: refused ? 'exec_refused' : 'seam_unavailable',

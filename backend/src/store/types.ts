@@ -9,6 +9,7 @@ import type {
   RepoSpec,
   Caps,
   Conversation,
+  ConversationMode,
   ConversationStatus,
   KillOutcome,
   Message,
@@ -45,9 +46,12 @@ export interface CreateProjectInput {
 }
 
 export interface CreateConversationInput {
-  projectId: string;
+  /** null = a direct conversation with a specialist (N3b-2), no project */
+  projectId: string | null;
   title: string;
   agentId: string;
+  /** defaults to 'direct' (N3b-2, ADR-008) */
+  mode?: ConversationMode;
 }
 
 export interface SendMessageInput {
@@ -155,7 +159,13 @@ export interface HubStore {
    * run of the project is active (I-2 per-project serialization, FIFO FR-04).
    * Returns undefined when nothing is dispatchable.
    */
-  dispatchNextRun(projectId: string): Run | undefined;
+  /**
+   * Dispatch the next queued run for a WORKSPACE (I-2 serialized, FIFO).
+   * The key is the project id for a project conversation, or
+   * `specialist:<agentId>` for a direct specialist conversation (N3b-2) —
+   * `workspaceKeyFor` computes it. One active run per workspace.
+   */
+  dispatchNextRun(workspaceKey: string): Run | undefined;
   /**
    * Guarded non-terminal transition (I-3): asserts legality against the 05
    * machine and that the row is currently in `from` (StaleStateError

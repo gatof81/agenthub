@@ -67,9 +67,10 @@ interface ProjectRow {
 
 interface ConversationRow {
   id: string;
-  project_id: string;
+  project_id: string | null;
   title: string;
   agent_id: string;
+  mode: Conversation['mode'];
   status: Conversation['status'];
   runtime_session_id: string | null;
   created_at: string;
@@ -176,6 +177,9 @@ function toConversation(r: ConversationRow): Conversation {
     projectId: r.project_id,
     title: r.title,
     agentId: r.agent_id,
+    // migration 006 backfills 'direct'; the ?? guards a pre-006 row read by a
+    // post-006 binary (defensive, same value)
+    mode: (r.mode ?? 'direct') as Conversation['mode'],
     status: r.status,
     runtimeSessionId: r.runtime_session_id,
     createdAt: r.created_at,
@@ -240,6 +244,8 @@ export class SqliteHubStore implements HubStore {
     this.db.pragma('synchronous = NORMAL');
     this.db.pragma('foreign_keys = ON');
     this.db.pragma('busy_timeout = 5000');
+    // migrate() toggles FK enforcement off around table rebuilds and checks
+    // integrity after (migration 006), so runtime writes stay FK-enforced.
     migrate(this.db);
     this.id = opts.idGen ?? randomIds;
     this.now = opts.clock ?? systemClock;
@@ -395,16 +401,16 @@ export class SqliteHubStore implements HubStore {
   // — conversations —
 
   createConversation(input: CreateConversationInput): Conversation {
-    this.mustProject(input.projectId);
+    if (input.projectId !== null) this.mustProject(input.projectId);
     if (!input.agentId?.trim()) throw new ValidationError('agentId required');
     const now = this.now();
     const id = this.id('conv');
     this.db
       .prepare(
-        `INSERT INTO conversations (id, project_id, title, agent_id, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'active', ?, ?)`,
+        `INSERT INTO conversations (id, project_id, title, agent_id, mode, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'active', ?, ?)`,
       )
-      .run(id, input.projectId, input.title, input.agentId, now, now);
+      .run(id, input.projectId, input.title, input.agentId, input.mode ?? 'direct', now, now);
     return this.mustConversation(id);
   }
 
@@ -516,22 +522,26 @@ export class SqliteHubStore implements HubStore {
     return { message: this.getMessage(messageId)!, run: this.mustRun(runId) };
   }
 
-  dispatchNextRun(projectId: string): Run | undefined {
-    this.mustProject(projectId);
+  dispatchNextRun(workspaceKey: string): Run | undefined {
+    // I-2 per workspace (N3b-2): a project conversation's key is its
+    // project_id; a direct specialist conversation's is `specialist:<agentId>`
+    // — COALESCE mirrors `workspaceKeyFor`. No `mustProject`: a specialist
+    // workspace has no project row.
+    const KEY = `COALESCE(c.project_id, 'specialist:' || c.agent_id)`;
     const tx = this.db.transaction((): Run | undefined => {
       const active = this.db
         .prepare(
           `SELECT r.id FROM runs r JOIN conversations c ON r.conversation_id = c.id
-           WHERE c.project_id = ? AND r.state IN ('starting','streaming') LIMIT 1`,
+           WHERE ${KEY} = ? AND r.state IN ('starting','streaming') LIMIT 1`,
         )
-        .get(projectId) as { id: string } | undefined;
+        .get(workspaceKey) as { id: string } | undefined;
       if (active) return undefined;
       const next = this.db
         .prepare(
           `SELECT r.id FROM runs r JOIN conversations c ON r.conversation_id = c.id
-           WHERE c.project_id = ? AND r.state = 'queued' ORDER BY r.rowid LIMIT 1`,
+           WHERE ${KEY} = ? AND r.state = 'queued' ORDER BY r.rowid LIMIT 1`,
         )
-        .get(projectId) as { id: string } | undefined;
+        .get(workspaceKey) as { id: string } | undefined;
       if (!next) return undefined;
       const res = this.db
         .prepare(`UPDATE runs SET state = 'starting' WHERE id = ? AND state = 'queued'`)

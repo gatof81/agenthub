@@ -23,16 +23,20 @@ export class Broadcaster implements HubNotifier {
   private readonly byConversation = new Map<string, Set<Subscriber>>();
   private readonly byProject = new Map<string, Set<Subscriber>>();
 
-  subscribe(conversationId: string, projectId: string, cb: Subscriber): () => void {
+  subscribe(conversationId: string, projectId: string | null, cb: Subscriber): () => void {
     const conv = this.byConversation.get(conversationId) ?? new Set();
     conv.add(cb);
     this.byConversation.set(conversationId, conv);
-    const proj = this.byProject.get(projectId) ?? new Set();
-    proj.add(cb);
-    this.byProject.set(projectId, proj);
+    // A direct specialist conversation (N3b-2) has no project, so no
+    // project.state routing — only the per-conversation index.
+    const proj = projectId !== null ? this.byProject.get(projectId) ?? new Set() : null;
+    if (proj) {
+      proj.add(cb);
+      this.byProject.set(projectId!, proj);
+    }
     return () => {
       conv.delete(cb);
-      proj.delete(cb);
+      if (proj) proj.delete(cb);
     };
   }
 

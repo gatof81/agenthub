@@ -16,6 +16,7 @@ import { MemoryHubStore } from '../src/store/memory.js';
 import { SqliteHubStore } from '../src/store/sqlite.js';
 import type { HubStore } from '../src/store/types.js';
 import { FakeSubstrateExecPort } from '../src/substrate/fake.js';
+import { FIXTURES, fixtureStreamLines } from './fixtures.js';
 
 const DEV: Agent = {
   id: 'dev',
@@ -326,5 +327,89 @@ describe('specialist session binding (N3b-1, ADR-008)', () => {
     await expect(
       orch.bindSpecialistSession('ghost', { sessionTemplateId: 'tpl' }),
     ).rejects.toBeTruthy();
+  });
+});
+
+describe('direct specialist conversation (N3b-2, ADR-008)', () => {
+  function boundHarness() {
+    const store = new MemoryHubStore();
+    const port = new FakeSubstrateExecPort();
+    port.seedSession({ ...OWNED_SESSION, sessionId: 's_claudio' });
+    const orch = new Orchestrator({
+      store,
+      adapter: new FakeRuntimeAdapter(port),
+      execPort: port,
+      agents: new Map([[DEV.id, DEV]]),
+    });
+    return { store, port, orch };
+  }
+
+  it('requires a bound session; then creates a project-less direct conversation', async () => {
+    const { orch } = boundHarness();
+    expect(() => orch.createSpecialistConversation('dev')).toThrow(/no session bound/);
+    await orch.bindSpecialistSession('dev', { sessionId: 's_claudio' });
+    const conv = orch.createSpecialistConversation('dev', 'chat');
+    expect(conv).toMatchObject({ projectId: null, agentId: 'dev', mode: 'direct', title: 'chat' });
+  });
+
+  it('a message runs in the specialist session and completes', async () => {
+    const { store, port, orch } = boundHarness();
+    await orch.bindSpecialistSession('dev', { sessionId: 's_claudio' });
+    const conv = orch.createSpecialistConversation('dev');
+    port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+    orch.send(conv.id, 'hola');
+    await orch.idle();
+    const runs = store.listRunsByState(['completed', 'failed']);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]!.state).toBe('completed');
+    // the exec targeted the specialist's session, not any project
+    expect(port.execRequests.at(-1)!.sessionId).toBe('s_claudio');
+  });
+
+  it('serializes runs per workspace: a specialist queues, does not run two at once (I-2)', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const store = new MemoryHubStore();
+    const port = new FakeSubstrateExecPort({ gate: () => gate });
+    port.seedSession({ ...OWNED_SESSION, sessionId: 's_claudio' });
+    const orch = new Orchestrator({
+      store,
+      adapter: new FakeRuntimeAdapter(port),
+      execPort: port,
+      agents: new Map([[DEV.id, DEV]]),
+    });
+    await orch.bindSpecialistSession('dev', { sessionId: 's_claudio' });
+    // two DIFFERENT direct conversations with the same specialist
+    const c1 = orch.createSpecialistConversation('dev');
+    const c2 = orch.createSpecialistConversation('dev');
+    port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+    port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+    orch.send(c1.id, 'one');
+    orch.send(c2.id, 'two');
+    // one active, one queued — the specialist workspace is serialized
+    await new Promise((r) => setTimeout(r, 5));
+    const active = store.listRunsByState(['starting', 'streaming']);
+    const queued = store.listRunsByState(['queued']);
+    expect(active).toHaveLength(1);
+    expect(queued).toHaveLength(1);
+    release();
+    await orch.idle();
+    expect(store.listRunsByState(['completed'])).toHaveLength(2);
+  });
+
+  it('an offline specialist session fails the run with a clear message (start pending #429)', async () => {
+    const { store, port, orch } = boundHarness();
+    // bind while running, then the session goes stopped; fake startSession is
+    // tolerant (no owner-only 403 offline), but to model the pending-upstream
+    // case we mark it gone so start cannot succeed
+    await orch.bindSpecialistSession('dev', { sessionId: 's_claudio' });
+    const conv = orch.createSpecialistConversation('dev');
+    port.markSessionGone('s_claudio');
+    port.enqueueFixture({ streamLines: [], exitCode: 0 });
+    orch.send(conv.id, 'hi');
+    await orch.idle();
+    const run = store.listRunsByState(['failed'])[0]!;
+    expect(run.state).toBe('failed');
+    expect(run.errorCode).toBe('exec_refused');
   });
 });
