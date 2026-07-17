@@ -45,8 +45,10 @@ export interface ExecStatus {
 }
 
 export interface SessionSeed {
-  /** agentSeed material (02 §3): agent settings + project instructions. */
-  settings?: unknown;
+  /**
+   * agentSeed material (02 §3): the PROJECT's instructions. Its craft, not any
+   * agent's — the role travels per turn (B5-04, `TurnRequest.instructions`).
+   */
   claudeMd?: string;
   /**
    * The project's repository, cloned into the workspace at bootstrap
@@ -60,6 +62,27 @@ export interface SessionSeed {
    * around as one object and write them together (SEC-11).
    */
   repoAuth?: RepoAuth;
+  /**
+   * `settings` is absent by design (S-05), though the seam's agentSeed accepts
+   * it. Seeding it wrote the provisioning agent's allowlist into the
+   * workspace's user-level settings file — one role's tools baked into a
+   * workspace every role shares (ADR-006), which is what B5-04 removed for
+   * instructions. It was also redundant: tools travel per turn as
+   * `--allowedTools` (I-7).
+   *
+   * S-05 measured the blast radius on CLI 2.1.207: a settings file DOES widen
+   * a turn's tools past `--allowedTools` via `permissions.allow` — but the key
+   * the Hub happened to write, `allowedTools`, that version ignores. The seed
+   * was inert by luck, not by design, and a version that starts honoring it
+   * would silently grant every conversation the provisioning role's tools.
+   * The field is gone rather than merely unused so that re-seeding is a port
+   * change with a spike behind it, not a one-line regression.
+   *
+   * Deployment-wide settings still have a home: the workspace TEMPLATE carries
+   * its own agentSeed, which the seam preserves when the seed omits the field.
+   * That is the right layer — the template is the project's (FR-45), so
+   * nothing there wears an agent's identity.
+   */
 }
 
 /**
