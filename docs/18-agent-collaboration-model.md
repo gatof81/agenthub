@@ -101,9 +101,11 @@ its own).
 Ownership and lifecycle:
 
 - **Conversations and Tasks request work; they never own the environment.**
-  The Project owns the main substrate session (ADR-005); a conversation is
-  an interaction surface, a Task is work. Session-per-conversation was
-  rejected in ADR-005 and stays rejected (§10).
+  The Project owns the main substrate session (ADR-005) — which, since the
+  2026-07-17 correction, lives in the **owner's admin account**, visible and
+  manually usable there (ADR-007); a conversation is an interaction surface,
+  a Task is work. Session-per-conversation was rejected in ADR-005 and stays
+  rejected (§10).
 - **Substrate sessions are long-lived and reused.** Creating one is the
   exception, never the default on a new conversation or Task — it requires a
   concrete operational cause: incompatible parallel work, an isolated
@@ -117,21 +119,26 @@ Ownership and lifecycle:
   intent → project identification → specialty selection (Phase-3 router) →
   existing session(s) → structured results (Work Products) → one final
   answer (Phase-4 supervisor).
-- **Run/Step environment selection is reserved, not built.** Today execution
-  derives the environment from the project. Later phases may let a Run or
-  Step explicitly select another environment (a worktree session, a
-  role-specific session) — an additive change to `Run`, not a remodel.
+- **Run/Step environment selection: reserved here, pulled forward by the
+  correction.** Built increments derive the environment from the project;
+  ADR-008 (2026-07-17) makes the selection a first-class **deterministic
+  execution-target selector** landing in increment N4 — an additive change
+  to `Run` (`ExecutionTargetDecision`), exactly as reserved.
 - **The logical exclusion unit is the workspace.** I-2's "one active run per
   project" is the Phase-1 realization, where project : substrate session :
   workspace are 1:1:1; if that ever relaxes (Q-11 escape hatches), the lock
   follows the workspace.
 
-**Role-specific substrate sessions** (a persistent "security" environment
-with its own tooling) remain a *future, exceptional* topology, not the
-default. If one is ever used, its transcripts must be **disposable or
-partitioned per project** — never a single `--resume` continuity
-accumulating multiple projects' content, which would breach the
-knowledge-isolation rule above (confidentiality + R-05 blast radius).
+**Role-specific substrate sessions**: the 2026-07-17 correction (ADR-008)
+allows **identity-scoped personal sessions** — a standing "Claudio" or
+"Claudia" session in the owner's account for general conversations and
+non-project work — while per-(role × project) session forks stay rejected
+(§10). Project-modifying work still defaults into the project's own session
+or a task worktree (ADR-010). Wherever a personal session serves several
+projects, its transcripts must be **disposable or partitioned per project**
+— never a single `--resume` continuity accumulating multiple projects'
+content, which would breach the knowledge-isolation rule above
+(confidentiality + R-05 blast radius).
 
 ## 3. The Coordinator, decomposed
 
@@ -143,8 +150,9 @@ three parts of different natures, two of which are already on the roadmap:
 | Function | Nature | Where it lives |
 | --- | --- | --- |
 | Enforce permissions, caps, budgets, queueing, delegation depth | Deterministic code — *never* a model (backend-as-authority, 01 §3) | The **Orchestrator** module (07 §2) — exists from Phase 1 |
-| Interpret intent, select specialists | A model run | The **Phase-3 router** |
-| Plan multi-agent work, delegate, collect, synthesize the final answer | A model run | The **Phase-4 supervisor pattern** (01 §4) |
+| Interpret intent, select specialists | A model run | The **router** (was Phase 3; pulled to increment N4 by ADR-008) |
+| **Select the execution session** (default: the project's primary; a specialist session only with a recorded reason) | Deterministic code — resource/authority choice, never a model | The **execution-target selector** (ADR-008, N4) — records `ExecutionTargetDecision` per run |
+| Plan multi-agent work, delegate, collect, synthesize the final answer | A model run | The **supervisor** (was Phase 4; arrives narrow with ADR-009's single dev → QA flow, N5) |
 
 "Coordinator" is the umbrella name for the router + supervisor functions,
 and this document reserves it as vocabulary. What it must **not** become:
@@ -291,4 +299,4 @@ Recorded so they are not re-proposed without new evidence (R-17):
 | Generic `WorkProduct` entity in Phase 1 | One producer, zero consumers — generalization without a second case | §4: `RunSummary` is the seed; the entity lands with Phase 4's first consumer |
 | `ProjectAgent` as a stored entity / per-project role forks | Config duplication that drifts (N project copies of the QA template diverging); `PermanentAgent` through the back door | §2: the *(project, role)* pair is a derived identity; knowledge binds to the pair, templates stay shared and stateless |
 | A new substrate session per conversation or Task | Rejected by ADR-005 (container economics, shared-workspace semantics); re-recorded here so it never returns via Tasks | §2 execution topology: Project owns the environment; conversations/Tasks request work against it |
-| Permanent role × project session combinations ("project-X QA" sessions) | Combinatorial session explosion; duplicated context; drifting environments | §2: role templates execute inside the project's session by default; role-specific sessions stay exceptional with disposable/partitioned transcripts |
+| Permanent role × project session combinations ("project-X QA" sessions) | Combinatorial session explosion; duplicated context; drifting environments. **Qualified by ADR-008 (2026-07-17):** *identity-scoped* personal sessions (one per specialist, project-agnostic) are allowed; the per-(role × project) fork stays rejected | §2: role templates execute inside the project's session by default; personal sessions carry general work with disposable/partitioned transcripts |

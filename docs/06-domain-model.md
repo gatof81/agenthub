@@ -1,6 +1,6 @@
 # 06 — Domain Model (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
+**Status:** approved (owner, 2026-07-15; correction amendments per ADR-007..010, owner 2026-07-17) · **Last updated:** 2026-07-17
 
 The entities, relationships, and invariants behind
 [04-requirements.md](./04-requirements.md) and the flows in
@@ -38,9 +38,9 @@ normative:**
 
 | Term | What it is | Who holds it |
 | --- | --- | --- |
-| **Substrate session** | The persistent shared-terminal environment: container, workspace, repository | The **Project**, via `SessionBinding` — never a conversation, task, or run (ADR-005 rejected session-per-conversation) |
+| **Substrate session** | The persistent shared-terminal environment: container, workspace, repository — **owned by the owner's admin account, visible and manually usable there** (ADR-007; the Hub's account is only an execution identity) | The **Project**, via `SessionBinding` — never a conversation, task, or run (ADR-005 rejected session-per-conversation) |
 | **Runtime session** | A runtime's continuity/transcript handle — e.g. the Claude CLI's `runtimeSessionId` used for `--resume`. Many coexist in one substrate session (S-01) | `Conversation` in Phase 1; later phases may attach continuity to a Task, Run, or Step instead |
-| **Agent role** | Reusable specialty configuration: instructions, tools, criteria, permissions | Config (`Agent`); implies **no** substrate session of its own and no cross-project memory ([18 §2](./18-agent-collaboration-model.md)) |
+| **Agent role** | Reusable specialty configuration: instructions, tools, criteria, permissions | Config (`Agent`, becoming **Specialist** — ADR-008); owns no *project* workspace ever, but may have an **optional personal session** for general/non-project work (ADR-008 carve-out to the original "no session of its own"); no cross-project memory ([18 §2](./18-agent-collaboration-model.md)) |
 
 ## 2. Entities
 
@@ -59,6 +59,15 @@ user-editable entity (Agent Registry) without field renames — and it stays a
 **stateless role template**: accumulated knowledge (memory, decisions,
 history) binds to the *(project, agent)* pair, never to the agent alone
 ([18 §2](./18-agent-collaboration-model.md), knowledge-isolation rule).
+
+Correction (ADR-008, N3): `Agent` becomes **Specialist** — same stateless
+template extended with `role` and `capabilities` — and gains an optional
+**`SpecialistSessionBinding`** `{specialistId, sessionId, ownerAccountId,
+capabilities, status: available|busy|offline|error}`: a standing personal
+session in the owner's account for general/non-project work. The identity
+and the session are distinct things; project work usually executes in the
+project's primary session or a task worktree (ADR-010), and repo
+access/credentials never attach to the specialist (ADR-006 unchanged).
 
 ### Project
 
@@ -81,7 +90,7 @@ permission overrides.
 | --- | --- |
 | `id`, `title`, `status` | status: `active \| archived` — provisioning belongs to the project |
 | `projectId` | immutable (I-10) |
-| `agentId` | immutable in Phase 1 (agent switching is Phase-2 scope); defaults from the project |
+| `agentId` | immutable in `direct` mode (the built behavior); defaults from the project. The correction adds `mode: automatic \| preferred-specialist \| direct` with `automatic` as the eventual default — there, no immutable agentId exists and the acting specialist is recorded per run/step (ADR-008, FR-51, N4) |
 | `runtimeSessionId` | the CLI's own session id used for `--resume`; updated from each result event (S-01: stable across resumes, but drift is captured, FR-24). Many CLI sessions coexist in one workspace — directly verified by S-01's published run (five distinct sessions in one container, one resumed by id while the others coexisted; see the [S-01 fixtures](./spikes/S-01/fixtures/run-20260714T142930Z/)) — which is what lets conversations share the project's container |
 
 ### SessionBinding (value object on Project)
@@ -90,6 +99,13 @@ permission overrides.
 the project's substrate session. The substrate remains the authority on
 session state; `lastKnownState` is a cache for UX (FR-33), never a basis for
 decisions the seam can answer live.
+
+Correction (ADR-007, lands in N2 as `ProjectSessionBinding`): gains
+`ownerAccountId` and `bindingMode: existing | created` — the session belongs
+to the owner's admin account, whether the Hub attached to one the owner
+already had or created one there (shared-terminal#420). Pre-correction rows
+migrate as `legacy-technical-ownership` (migration 004) and keep working
+until deliberately rebound.
 
 ### Message
 
@@ -154,15 +170,15 @@ model-authored fields are a later enrichment, not Phase 1.
 | # | Invariant | Enforced by |
 | --- | --- | --- |
 | I-1 | One user message triggers at most one run; every run has exactly one triggering message | FR-03; unique index on `Run.messageId` |
-| I-2 | At most one run per **project** is in a non-terminal state (conversations share the workspace, ADR-005); queued runs dispatch FIFO across the project | FR-04/19; transactional dispatch (NFR-01) |
+| I-2 | At most one run per **workspace** (substrate session) is in a non-terminal state; queued runs dispatch FIFO per workspace. In the built increments project : session : workspace are 1:1:1, so this reads "one active run per project" — the lock follows the workspace as specialist sessions arrive (ADR-008, 18 §2) | FR-04/19; transactional dispatch (NFR-01) |
 | I-3 | Run state changes follow the 05 state machine only, each transition one transaction | UC-06 preamble |
 | I-4 | `RunEvent` ingestion is idempotent (`id`) and ordered (`runId, seq`) | FR-13 |
 | I-5 | Every terminal run has exactly one `UsageRecord`, even if its values are unknown | FR-18 |
-| I-6 | `Conversation.agentId` never changes in Phase 1 | FR-02 boundary |
+| I-6 | `Conversation.agentId` never changes **in `direct` mode** (the only mode built so far, where it is required). In `automatic` mode (FR-51, N4) no immutable agentId exists — which specialist ran lives on each run/task step | FR-02 boundary, ADR-008 |
 | I-7 | `policySnapshot` is non-empty on every run — a run without an explicit allowlist must be unrepresentable | FR-11, SEC-01/02 |
 | I-8 | `capsSnapshot`/`policySnapshot` are immutable once the run leaves `queued`; `cliVersion`/`model` are **write-once** when the init event records them and immutable after | SEC-08 audit trail |
 | — | (I-9 is a retired draft-era number — assigned to the FR-22 cancel counter and withdrawn with it before merge; invariant IDs, like requirement IDs, are never reused) | — |
-| I-10 | `Conversation.projectId` never changes | ADR-005 |
+| I-10 | `Conversation.projectId` never changes **once set**; it becomes nullable for specialist general conversations (owner decision 2026-07-17, ADR-008 — migration 005) | ADR-005, ADR-008 |
 | I-11 | Every terminal run has exactly one `RunSummary`, written in the terminal transition's transaction | FR-42 |
 | I-12 | An active conversation never belongs to an archived project — archiving a project stops the session its conversations share (FR-40), so an active conversation there could not take a turn. Archiving a project archives its conversations with it; restoring a conversation requires its project to be restored first | FR-43 |
 
@@ -180,10 +196,15 @@ or a session — those are `claude-cli` implementation details.
 
 ## 5. Deliberately not modeled (Phase 1)
 
-User/tenant (single-user, Q-07) · agent registry persistence (Phase 2 — the
-`Agent` shape is the forward contract) · `Task` as an entity distinct from a
-run (Phase 2-3 — today a task IS a run with bigger caps; 03 §1) ·
-router/multi-agent constructs and generic `WorkProduct`s (Phases 3–4 —
-`RunSummary` is the seed) · project memory/documents (Phase 2+, ADR-005) ·
-memory beyond `runtimeSessionId` continuity (Phase 6) · cross-run budgets
-(Phase 3; per-run caps only, R-06).
+User/tenant (single-user, Q-07) · agent registry persistence (the
+`Specialist` shape is the forward contract) · project memory/documents
+(Phase 2+, ADR-005) · memory beyond `runtimeSessionId` continuity (Phase 6)
+· cross-run budgets (per-run caps only, R-06) · a **generic** workflow
+engine and **generic** `WorkProduct` entity (still deferred, 18 §6).
+
+Pulled forward by the correction (no longer "not modeled", each lands with
+its increment, doc 19): `Task`/`TaskStep` + the dev → QA → human-approval
+machine (ADR-009, N5–N6); the router and the deterministic execution-target
+selector (ADR-008, N4); `ImplementationReport`/`QaReport` as the first Work
+Products beyond `RunSummary` (ADR-009); `SpecialistSessionBinding` and
+`ExecutionTargetDecision` (ADR-008, N3–N4).

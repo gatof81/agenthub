@@ -1,6 +1,6 @@
 # 10 — Security Threat Model (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-17
+**Status:** approved (owner, 2026-07-15; asset table amended per ADR-007, owner 2026-07-17) · **Last updated:** 2026-07-17
 
 Asset/attacker/vector analysis for the Phase-1 MVP, plus the open-source
 hygiene posture for a public repo describing a personal deployment. Extends
@@ -36,7 +36,7 @@ flowchart TB
 | --- | --- | --- |
 | Anthropic OAuth token | Hub env → exec env (SEC-07) | attacker bills/impersonates the account |
 | Cloudflare API token (D1 era retired; R2 now) | Hub env | snapshot bucket read/write |
-| Substrate JWT (Hub's dedicated account) | Hub memory/config | control of Hub-created sessions (SEC-06) |
+| Substrate JWT (Hub's dedicated account — **admin-flagged execution identity** since ADR-007) | Hub memory/config | operate-tier reach over the owner's **whole session estate** (drive terminals, stop/delete, exec once shared-terminal#416 ships) — materially larger than the pre-correction "control of Hub-created sessions". Accepted with mitigations: every cross-user action audited upstream (`mode='operate'`), credential distinct from the owner's and independently revocable; scoped service tokens are the recorded future narrowing (SEC-06, ADR-007) |
 | Workspace secrets (`.env`, PATs, deploy keys) | session workspace | lateral movement into the owner's other systems |
 | Conversation data + transcripts | Hub SQLite, `.st/claude-state` (plaintext on host) | disclosure of everything discussed/done |
 | **Repo PATs (one per project, fine-grained)** | seam session config, **encrypted in the seam's D1** (encrypted by the seam via `encryptAuthCredentials` (`sessionConfig.ts:1138`, verified at shared-terminal `main @ c35b6da`; upstream's own note: *"the whole point of `auth_json` / `encryptAuthCredentials` is that secrets never land in plaintext anywhere on disk"*)); never in Hub storage (SEC-11) | **write access to that one repository** — the Hub's only credential that can alter the owner's source. Per-repo scope is the blast-radius bound: a leak cannot reach the other repos, and revocation is per project (ADR-006) |

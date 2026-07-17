@@ -1,6 +1,6 @@
 # 05 — Use Cases and Flows (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
+**Status:** approved (owner, 2026-07-15; UC-01 amended per ADR-007, owner 2026-07-17) · **Last updated:** 2026-07-17
 
 Flows for the Phase-1 MVP, traceable to [04-requirements.md](./04-requirements.md).
 Participants: **UI** (frontend) · **Hub** (backend: API, run orchestrator,
@@ -45,25 +45,51 @@ name and insertion point are reserved **now** so mobile approvals extend the
 machine instead of redesigning it; the diagram above stays MVP-normative and
 deliberately does not show the state — nothing in Phase 1 may implement it.
 
-## UC-01 — Create a project (and its session), then conversations
+## UC-01 — Create a project (bind or create its session), then conversations
+
+Amended per ADR-007 (owner directive 2026-07-17): the project's primary
+session belongs to the **owner's admin account** — visible, openable, and
+manually usable there. Two creation paths:
+
+**A. Bind an existing session** (lands in N2, needs nothing upstream to
+bind):
+
+1. User creates a **project** and selects one of their admin-account
+   sessions (listed per FR-48); optional repo declaration only if the
+   session doesn't already carry it.
+2. Hub validates the session (exists, owned by the owner, state readable)
+   and records the binding (`bindingMode: existing`) — **it creates
+   nothing**; the bound session is the workspace and source of truth
+   (FR-49).
+3. Conversations are usable immediately (subject to session state, FR-33).
+
+**B. Create a new session** (gated on shared-terminal#420):
 
 1. User creates a **project**, declaring its **workspace** — a substrate
-   template and an optional repo — plus a default agent and optional
-   instructions (FR-40/41, FR-02, FR-45).
-2. Hub provisions the project's substrate session **from the project's own
-   template** (never the agent's — an agent is a stateless role that carries
-   no workspace; ADR-006, FR-45), cloning `project.repo` when declared, with
-   agentSeed carrying agent settings + project instructions (FR-30). Any repo
-   credential is provisioned here, never authenticated from inside a later
-   turn (FR-46).
-3. Bootstrap streams; Hub records session id ↔ project binding.
+   template and an optional repo — plus optional instructions
+   (FR-40/41, FR-45).
+2. Hub creates the session **in the owner's account** from the project's
+   own template (never the agent's; ADR-006, FR-45), cloning `project.repo`
+   when declared, with agentSeed carrying project instructions (FR-30). Any
+   repo credential is provisioned here, never authenticated from inside a
+   later turn (FR-46).
+3. Bootstrap streams; Hub records session id ↔ project binding
+   (`bindingMode: created`). The session appears in the owner's own Shared
+   Terminal sidebar.
 4. The project is usable when the session reports ready; conversations under
    it are created instantly (no per-conversation provisioning — they share
    the workspace, ADR-005); messages sent before readiness queue (FR-04,
    FR-33).
 
-Failure path: bootstrap failure → the **project** shows a provisioning error
-with the bootstrap log link; retry recreates the session (FR-33, FR-25).
+Failure paths: bootstrap failure → the **project** shows a provisioning
+error with the bootstrap log link; retry recreates the session (FR-33,
+FR-25). A bind against a missing/foreign session → typed validation error,
+nothing created. The owner stopping/renaming/deleting a bound session
+outside the Hub is **observed and surfaced**, never silently repaired
+(ADR-007, FR-44's principle generalized).
+
+Detailed flows for automatic routing and the dev → QA → approval loop land
+with their increments (N4–N6, [doc 19 §7](./19-model-correction-plan.md)).
 
 ## UC-02 — Send a message (happy path)
 

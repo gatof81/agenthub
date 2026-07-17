@@ -19,8 +19,17 @@
 | `POST /sessions/:id/exec/:execId/kill {graceMs}` → `already-exited \| terminated \| killed` | cancellation (FR-20, UC-04) |
 
 Auth: existing JWT, session ownership enforced (Hub uses its dedicated
-account, SEC-06). `X-Request-Id` emitted on every response and echoed in
-`started` — recorded per run (OPS-04).
+account; SEC-06 as amended by ADR-007 — see the correction note below).
+`X-Request-Id` emitted on every response and echoed in `started` — recorded
+per run (OPS-04).
+
+> **Correction note (2026-07-17, ADR-007):** ownership-only exec is the
+> verified behavior at `0cd4ed5` and the blocker for the corrected model,
+> where the Hub's account executes in **owner-owned** sessions.
+> [shared-terminal#416](https://github.com/gatof81/shared-terminal/issues/416)
+> asks for operate-tier (owner OR admin, audited) authorization on the three
+> exec routes; this doc re-tracks the canonical `EXEC_API.md` when it lands
+> (increment N1/N2, doc 19).
 
 ## Deltas: merged contract vs the ADR-001 proposal
 
