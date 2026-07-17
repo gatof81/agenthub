@@ -57,10 +57,26 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
 
     it('creates a project in provisioning status with an empty session binding (UC-01)', () => {
       const store = makeStore();
-      const p = store.createProject({ name: 'agent hub', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+      const p = store.createProject({
+        name: 'agent hub',
+        defaultAgentId: 'dev',
+        sessionTemplateId: 'tpl',
+        repo: { url: 'https://github.com/o/r', ref: 'main' },
+      });
       expect(p.status).toBe('provisioning');
       expect(p.sessionBinding).toEqual({ sessionId: null, templateId: null, lastKnownState: null });
-      expect(store.getProject(p.id)?.name).toBe('agent hub');
+      // The workspace DECLARATION is present from create; the BINDING is not.
+      // Two different questions that once shared a column (ADR-006, migration
+      // 002) — asserting both here is what keeps them from being merged again.
+      expect(p.sessionTemplateId).toBe('tpl');
+      expect(p.repo).toEqual({ url: 'https://github.com/o/r', ref: 'main' });
+      // and it must survive a round-trip: on SQLite this is the only cover for
+      // the workspace_template_id → sessionTemplateId column mapping, which a
+      // typo would otherwise null out with every test still green
+      const read = store.getProject(p.id)!;
+      expect(read.name).toBe('agent hub');
+      expect(read.sessionTemplateId).toBe('tpl');
+      expect(read.repo).toEqual({ url: 'https://github.com/o/r', ref: 'main' });
       store.close();
     });
 
