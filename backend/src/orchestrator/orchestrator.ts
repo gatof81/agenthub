@@ -281,6 +281,10 @@ export class Orchestrator {
       this.notify.projectState(projectId, 'ready');
       this.logger.info('project.bound', { projectId, sessionId });
     } catch {
+      // The status change is observable via SSE/GET, but not the cause; log
+      // it so the failing step is diagnosable, matching this method's own
+      // success/inner-catch logging (and `project.restored` in restoreProject).
+      this.logger.warn('project.bind_failed', { projectId, sessionId });
       this.store.updateProject(projectId, { status: 'error' });
       this.notify.projectState(projectId, 'error');
     }
