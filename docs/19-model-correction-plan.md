@@ -92,7 +92,8 @@ erDiagram
   bindingMode: existing|created, lastKnownState, templateId?}` (ADR-007).
 - `Specialist {id, name, role, instructions, allowedTools, capabilities}` —
   config-defined (SEC-10); `SpecialistSessionBinding {specialistId,
-  sessionId, ownerAccountId, capabilities, status}` (ADR-008).
+  sessionId, ownerAccountId, ownership, bindingMode, lastKnownState, status}`
+  (ADR-008, refined N3b-1 — `capabilities` removed, see ADR-008 Consequences).
 - `Conversation.mode: automatic | preferred-specialist | direct`;
   `projectId` nullable (specialist general conversations, owner decision);
   `agentId` immutable only in direct mode.
