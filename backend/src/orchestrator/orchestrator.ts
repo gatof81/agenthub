@@ -199,7 +199,18 @@ export class Orchestrator {
       // The workspace comes from the PROJECT (ADR-006, FR-45). Reading it
       // from the agent — as this did — meant a role carried a repo, so one
       // DEV-Agent could serve exactly one repository.
-      const { sessionId } = await this.execPort.createSession(project.sessionTemplateId ?? '', {
+      // `Project.sessionTemplateId` is nullable only for pre-ADR-006 rows that
+      // never provisioned (migration 002 backfills the rest). Reaching here
+      // with null is a logic error, so say so: the previous `?? ''` sent a
+      // blank template to the seam and let it fail there, with nothing to
+      // indicate the Hub had done it deliberately.
+      if (!project.sessionTemplateId) {
+        throw new OrchestratorError(
+          'project_not_ready',
+          `project ${projectId} declares no workspace template (ADR-006, FR-45)`,
+        );
+      }
+      const { sessionId } = await this.execPort.createSession(project.sessionTemplateId, {
         settings: { allowedTools: agent.allowedTools },
         claudeMd: [agent.instructions, instructions].filter(Boolean).join('\n\n'),
         ...(project.repo ? { repo: project.repo } : {}),

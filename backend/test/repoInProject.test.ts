@@ -77,6 +77,21 @@ describe('the project declares its workspace (ADR-006, FR-45)', () => {
     ]);
   });
 
+  it('a legacy project with no template fails loudly — never a blank template to the seam', async () => {
+    // Only pre-ADR-006 rows that never provisioned can be null (migration 002
+    // backfills the rest). A `?? ''` fallback used to send a blank template to
+    // the seam and let it fail there, with nothing saying the Hub meant to.
+    const { store, port, orch } = harness();
+    const p = store.createProject({ name: 'legacy', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+    const legacy = { ...store.getProject(p.id)!, sessionTemplateId: null };
+    const orchAny = orch as unknown as {
+      provision: (pr: unknown, a: unknown, i: string, r: null) => Promise<void>;
+    };
+    await orchAny.provision(legacy, AGENT, '', null);
+    expect(port.seededSessions).toHaveLength(0); // nothing dispatched
+    expect(store.getProject(p.id)!.status).toBe('error');
+  });
+
   it('a project without a repo provisions an empty workspace, exactly as before', async () => {
     const { port, orch } = harness();
     orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
