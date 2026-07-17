@@ -5,6 +5,7 @@
  */
 
 import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { join } from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { deriveActivity, sseFromRunEvent } from '../domain/projections.js';
 import type { Agent, RepoAuth } from '../domain/types.js';
@@ -37,6 +38,16 @@ export interface ApiDeps {
    * test convenience shaping production behaviour.
    */
   workspaceTemplates: WorkspaceTemplate[];
+  /**
+   * Directory of the built frontend (`frontend/dist`). When set, the backend
+   * serves the SPA so the browser is same-origin with `/api` — the ADR-002
+   * single-hostname topology (túnel → one backend serving both). Absent in
+   * tests and in dev (Vite serves the SPA and proxies `/api`); an API-only
+   * boot (no built frontend) also leaves it unset and simply doesn't serve a
+   * SPA. Static assets are public — the `/api` token gate does not cover
+   * them, and must not: the browser fetches the bundle before it has a token.
+   */
+  staticDir?: string;
 }
 
 function requestId(): string {
@@ -474,6 +485,35 @@ export function buildApp(deps: ApiDeps): express.Express {
       unsubscribe();
     });
   });
+
+  // — static SPA (ADR-002 single-origin) — registered AFTER every /api route
+  // so it can never shadow one. Only when a built frontend is wired.
+  if (deps.staticDir !== undefined) {
+    const staticDir = deps.staticDir;
+    const indexHtml = join(staticDir, 'index.html');
+    // Unmatched /api paths answer JSON 404, not the SPA — an API 404 must
+    // stay machine-readable. This sits before the static block so the SPA
+    // fallback below never sees an /api path.
+    app.use('/api', (_req, res) => {
+      res.status(404).json({ code: 'not_found' });
+    });
+    // Real files (index.html, hashed assets) — public, no token gate.
+    app.use(express.static(staticDir, { index: false }));
+    // SPA fallback: client-side routes resolve to index.html. Express 5's
+    // router rejects a bare '*' path (path-to-regexp v8), so this is a plain
+    // catch-all middleware, guarded to GETs and to non-/api paths (the /api
+    // 404 above already claimed those). Missing index.html → the error
+    // handler, not a hang.
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (req.method !== 'GET') {
+        next();
+        return;
+      }
+      res.sendFile(indexHtml, (err: unknown) => {
+        if (err) next(err);
+      });
+    });
+  }
 
   // — error taxonomy mapping (08 §6 API side) —
   app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {

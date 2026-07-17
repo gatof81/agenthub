@@ -7,8 +7,9 @@
  * the claude-cli adapter, with the OAuth token riding each run's exec env.
  */
 
-import { mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildApp } from './api/app.js';
 import { Broadcaster } from './api/broadcaster.js';
 import { BackupService } from './backup/service.js';
@@ -160,6 +161,15 @@ async function main(): Promise<void> {
     logger.info('backup.enabled', { sink: backupConfig.kind, intervalMs: backupConfig.intervalMs });
   }
 
+  // Serve the built SPA same-origin with /api (ADR-002). Default location is
+  // frontend/dist beside the repo; HUB_STATIC_DIR overrides. Only wired when
+  // actually built — an API-only boot (no dist yet) still starts, it just
+  // doesn't serve a SPA (the browser gets the API, no static UI).
+  const defaultStaticDir = join(dirname(fileURLToPath(import.meta.url)), '../../frontend/dist');
+  const staticDir = process.env.HUB_STATIC_DIR ?? defaultStaticDir;
+  const spaDir = existsSync(join(staticDir, 'index.html')) ? staticDir : undefined;
+  logger.info('spa.static', { serving: spaDir !== undefined });
+
   const app = buildApp({
     store,
     orchestrator,
@@ -167,6 +177,7 @@ async function main(): Promise<void> {
     workspaceTemplates,
     broadcaster,
     authToken,
+    ...(spaDir !== undefined ? { staticDir: spaDir } : {}),
     logger,
     metricsSnapshot: () => ({ ...metrics.snapshot() }),
     ...(backupService
