@@ -118,5 +118,8 @@ Option 3.
   **Specialist** identity (N3a), not to a session; and `ownership`,
   `bindingMode`, and `lastKnownState` were added so a personal session binds
   and is lifecycle-scoped exactly like a project's (ADR-007, migration 004),
-  which is what lets N3b-1 reuse the N2 machinery. `busy` is reserved until
-  N3b-2, when specialist conversations execute.
+  which is what lets N3b-1 reuse the N2 machinery. N3b-2 enforces one active
+  run per specialist workspace through the dispatch transaction
+  (`dispatchNextRun` keyed on `specialist:<agentId>`, I-2), so a `busy` cached
+  status turned out unnecessary and is not set — the enum value remains for a
+  future presentational use, not as the serialization mechanism.

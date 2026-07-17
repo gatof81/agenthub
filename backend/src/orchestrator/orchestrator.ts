@@ -124,11 +124,7 @@ FINAL="$(list)"
 echo "HUB_SWEEP|\${FOUND% }|\${REMAIN% }|\${FINAL% }"
 `;
 
-/**
- * Map a seam session state to a specialist-session status (N3b-1). `busy` (a
- * run is active in it) is not derivable here — it arrives with N3b-2 when
- * specialist conversations execute.
- */
+/** Map a seam session state to a specialist-session status (N3b-1); `busy` is unused (I-2 is enforced by dispatch, not this status). */
 function statusFromSeamState(state: string): SpecialistSessionStatus {
   return state === 'running' ? 'available' : 'offline';
 }
@@ -818,15 +814,6 @@ export class Orchestrator {
 
   // — the run loop —
 
-  /**
-   * The substrate session a run executes in (N3b-2): a project conversation
-   * uses the project's session; a direct specialist conversation uses the
-   * specialist's personal session, starting it first if it is offline
-   * (owner-delegated operational use — the Hub may START a specialist session
-   * but never stops/deletes it, ADR-007 as refined by the owner 2026-07-17).
-   * Returns null after finalizing the run as `failed` when no runnable
-   * session exists.
-   */
   /**
    * The session a conversation's runs use, looked up (never started) plus its
    * cached state — for kill/reconcile/error-context. Project conversation →

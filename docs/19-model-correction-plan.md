@@ -128,7 +128,7 @@ inspector (ADR-009).
 | # | Migration | Contents |
 | --- | --- | --- |
 | 004 | project session binding | `projects` += `binding_mode` (backfill `created`), `owner_account_id` (NULL = legacy), `ownership` (backfill `legacy-technical` — ADR-007: rebound deliberately, never reassigned silently) |
-| 005 | specialist sessions (N3b-1, **landed first**) | new `specialist_sessions` (specialist identities stay in config); the `busy` status awaits N3b-2 |
+| 005 | specialist sessions (N3b-1, **landed first**) | new `specialist_sessions` (specialist identities stay in config); the `busy` status value is unused — N3b-2 serializes via the dispatch transaction, not a cached status |
 | 006 | conversation mode (N3b-2) | rebuilds `conversations`: `project_id` becomes **nullable** (a specialist conversation has none) + adds `mode` (backfill `direct`). SQLite can't drop NOT NULL in place, so the table is rebuilt with FK enforcement off (the runner toggles it around migrations and integrity-checks after). `agent_id` stays required. The 005/006 order swapped from the original plan — specialist sessions shipped before conversation mode |
 | 007 | tasks | new `tasks`, `task_steps`, `work_products`; `runs` += `task_step_id?`, `target_session_id?` (NULL = project primary), `target_decision?` |
 

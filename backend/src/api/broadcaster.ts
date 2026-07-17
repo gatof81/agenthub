@@ -30,9 +30,9 @@ export class Broadcaster implements HubNotifier {
     // A direct specialist conversation (N3b-2) has no project, so no
     // project.state routing — only the per-conversation index.
     const proj = projectId !== null ? this.byProject.get(projectId) ?? new Set() : null;
-    if (proj && projectId !== null) {
+    if (proj) {
       proj.add(cb);
-      this.byProject.set(projectId, proj);
+      this.byProject.set(projectId!, proj);
     }
     return () => {
       conv.delete(cb);

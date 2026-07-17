@@ -80,7 +80,7 @@ export type SessionOwnership = 'owner' | 'legacy-technical';
 /** How the project got its session (ADR-007, FR-49). */
 export type BindingMode = 'existing' | 'created';
 
-/** A specialist's personal-session usability (ADR-008). `busy` (a run is active) arrives with N3b-2. */
+/** A specialist's personal-session usability (ADR-008). `busy` is unused: I-2 serialization is enforced by the dispatch transaction, not a cached status. */
 export type SpecialistSessionStatus = 'available' | 'busy' | 'offline' | 'error';
 
 /**
