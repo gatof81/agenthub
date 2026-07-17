@@ -444,3 +444,11 @@ button.mini:hover { background: var(--raised); }
   padding: 7px 9px;
   font: inherit;
 }
+
+/* — session discovery (N1, FR-48) — */
+.session-row { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; cursor: default; }
+.session-name { font-weight: 500; }
+.session-meta { font-size: 12px; }
+.session-running { background: rgba(94, 189, 125, 0.16); color: var(--ok, #5ebd7d); }
+.session-stopped { background: rgba(160, 160, 160, 0.16); color: var(--muted); }
+.session-failed, .session-terminated { background: rgba(239, 106, 95, 0.16); color: var(--danger); }

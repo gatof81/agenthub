@@ -9,10 +9,12 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import type { Conversation, Project, WorkspaceTemplate } from '../lib/api.js';
+import type { Conversation, Project, SessionListing, WorkspaceTemplate } from '../lib/api.js';
 import { ArchiveIcon, BackIcon } from './icons.js';
 
 interface Props {
+  /** session discovery (N1, FR-48, ADR-007); null until loaded / on seam hiccup */
+  sessionListing: SessionListing | null;
   projects: Project[];
   conversations: Conversation[];
   selectedProject: Project | null;
@@ -108,11 +110,47 @@ function ProjectsHome(props: Props): React.JSX.Element {
           </p>
         )}
       </div>
+      {props.sessionListing !== null && <SessionsSection listing={props.sessionListing} />}
       <button className="archived-link" onClick={props.onOpenArchived}>
         Archived
       </button>
       <p className="palette-hint muted">⌘K / Ctrl+K — commands</p>
     </nav>
+  );
+}
+
+/**
+ * Session discovery (N1, FR-48): the real sessions the model corrected
+ * toward (ADR-007) — name, owner, state, and which project uses each.
+ * Read-only in N1; binding arrives with N2, the terminal deep link with
+ * shared-terminal#419.
+ */
+function SessionsSection({ listing }: { listing: SessionListing }): React.JSX.Element {
+  return (
+    <>
+      <h2>Sessions</h2>
+      {listing.scope === 'own' && (
+        <p className="empty-hint">
+          Showing only the Hub identity's own sessions — the seam account has no admin flag, so
+          the owner's sessions are not visible yet (ADR-007).
+        </p>
+      )}
+      <ul className="nav-list">
+        {listing.sessions.map((s) => (
+          <li key={s.sessionId} className="nav-row">
+            <div className="nav-main session-row">
+              <span className="session-name">{s.name}</span>
+              <span className="muted session-meta">
+                {s.ownerUsername ?? 'unknown owner'}
+                {s.projectName !== null ? ` · project: ${s.projectName}` : ''}
+              </span>
+            </div>
+            <span className={`badge session-${s.status}`}>{s.status}</span>
+          </li>
+        ))}
+        {listing.sessions.length === 0 && <li className="empty-hint">No sessions visible.</li>}
+      </ul>
+    </>
   );
 }
 

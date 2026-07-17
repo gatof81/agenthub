@@ -501,3 +501,123 @@ describe('parity with the fake port (doc 17 B2-01 "done when"; R-12)', () => {
     await expect(port.stopSession(realCreated.sessionId)).resolves.toBeUndefined();
   });
 });
+
+describe('session discovery (N1, FR-48, ADR-007)', () => {
+  /** A wire-accurate serializeMeta row (0cd4ed5) with noise the port must drop. */
+  const wireRow = (over: Record<string, unknown>): Record<string, unknown> => ({
+    sessionId: 's_x',
+    name: 'sess',
+    status: 'running',
+    containerId: 'abc123def456',
+    containerName: 'st-abc',
+    createdAt: '2026-07-17T00:00:00.000Z',
+    lastConnectedAt: null,
+    cols: 80,
+    rows: 24,
+    envVars: { SECRET_TOKEN: 'hunter2' },
+    cpuLimit: null,
+    memLimit: null,
+    usage: null,
+    ...over,
+  });
+
+  it('admin-flagged identity lists the whole estate with owner attribution (scope all)', async () => {
+    double.adminListResponses.push({
+      body: [
+        wireRow({ sessionId: 's_edu', name: 'Education Hz', userId: 'u1', ownerUsername: 'owner-admin' }),
+        wireRow({ sessionId: 's_hub', name: 'hub-1234', status: 'stopped', userId: 'u2', ownerUsername: 'hub-service' }),
+      ],
+    });
+    const listing = await port.listSessions();
+    expect(listing.scope).toBe('all');
+    expect(listing.sessions).toEqual([
+      {
+        sessionId: 's_edu',
+        name: 'Education Hz',
+        status: 'running',
+        ownerUsername: 'owner-admin',
+        createdAt: '2026-07-17T00:00:00.000Z',
+        lastConnectedAt: null,
+      },
+      {
+        sessionId: 's_hub',
+        name: 'hub-1234',
+        status: 'stopped',
+        ownerUsername: 'hub-service',
+        createdAt: '2026-07-17T00:00:00.000Z',
+        lastConnectedAt: null,
+      },
+    ]);
+    expect(double.ownListCalls).toBe(0);
+  });
+
+  it('403 on the admin listing degrades to scope own, attributed to selfUsername (FR-48)', async () => {
+    double.isAdmin = false;
+    double.ownListResponses.push({ body: [wireRow({ sessionId: 's_mine', name: 'hub-abcd' })] });
+    const selfPort = new RealSubstrateExecPort({
+      baseUrl: double.baseUrl,
+      auth: new CookieSeamAuth({
+        baseUrl: double.baseUrl,
+        username: double.username,
+        password: double.password,
+      }),
+      selfUsername: 'hub-service',
+    });
+    const listing = await selfPort.listSessions();
+    expect(listing.scope).toBe('own');
+    expect(listing.sessions[0]?.ownerUsername).toBe('hub-service');
+    expect(double.adminListCalls).toBe(1);
+  });
+
+  it('a non-403 admin-listing failure surfaces — never silently degraded to own scope', async () => {
+    double.adminListResponses.push({ status: 500, body: { error: 'boom' } });
+    await expect(port.listSessions()).rejects.toBeInstanceOf(SeamHttpError);
+    expect(double.ownListCalls).toBe(0);
+  });
+
+  it('envVars and container details never cross the port boundary (SEC-04/05)', async () => {
+    double.adminListResponses.push({ body: [wireRow({ ownerUsername: 'o' })] });
+    const listing = await port.listSessions();
+    const flat = JSON.stringify(listing);
+    expect(flat).not.toContain('hunter2');
+    expect(flat).not.toContain('envVars');
+    expect(flat).not.toContain('containerId');
+  });
+
+  it('getSession returns metadata for a live session and null for a 404 (FR-44)', async () => {
+    double.metaResponses.push({ body: wireRow({ sessionId: 's_live', runtimeReady: true }) });
+    const live = await port.getSession('s_live');
+    expect(live).toEqual({
+      sessionId: 's_live',
+      name: 'sess',
+      status: 'running',
+      ownerUsername: null,
+      createdAt: '2026-07-17T00:00:00.000Z',
+      lastConnectedAt: null,
+    });
+    double.metaResponses.push({ status: 404, body: { error: 'Session not found' } });
+    expect(await port.getSession('s_gone')).toBeNull();
+  });
+
+  it('fake parity: created sessions appear in the listing; gone ones vanish (R-12)', async () => {
+    const fake = new FakeSubstrateExecPort();
+    fake.seedSession({
+      sessionId: 's_seed',
+      name: 'Education Hz',
+      status: 'running',
+      ownerUsername: 'owner-admin',
+      createdAt: null,
+      lastConnectedAt: null,
+    });
+    const { sessionId } = await fake.createSession('tpl', {});
+    let listing = await fake.listSessions();
+    expect(listing.scope).toBe('all');
+    expect(listing.sessions.map((s) => s.sessionId).sort()).toEqual([sessionId, 's_seed'].sort());
+    expect(await fake.getSession('s_seed')).not.toBeNull();
+
+    fake.markSessionGone('s_seed');
+    listing = await fake.listSessions();
+    expect(listing.sessions.map((s) => s.sessionId)).toEqual([sessionId]);
+    expect(await fake.getSession('s_seed')).toBeNull();
+  });
+});

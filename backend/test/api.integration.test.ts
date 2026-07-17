@@ -221,3 +221,54 @@ describe('HTTP API (08 §1)', () => {
     expect(list.body.projects).toHaveLength(0);
   });
 });
+
+describe('GET /api/sessions — discovery (N1, FR-48, ADR-007)', () => {
+  it('lists seam sessions with scope and annotates project bindings', async () => {
+    const { app, port } = makeApiHarness();
+    port.seedSession({
+      sessionId: 's_edu',
+      name: 'Education Hz',
+      status: 'running',
+      ownerUsername: 'owner-admin',
+      createdAt: '2026-07-17T00:00:00.000Z',
+      lastConnectedAt: null,
+    });
+    // a project bound to a session created through the Hub
+    const created = await request(app)
+      .post('/api/projects')
+      .set(AUTH)
+      .send({ name: 'Test', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+    expect(created.status).toBe(202);
+    // fake provisioning is synchronous enough: give the event loop a tick
+    await new Promise((r) => setTimeout(r, 10));
+
+    const res = await request(app).get('/api/sessions').set(AUTH);
+    expect(res.status).toBe(200);
+    expect(res.body.scope).toBe('all');
+    const rows = res.body.sessions as Array<Record<string, unknown>>;
+    const unbound = rows.find((s) => s.sessionId === 's_edu');
+    expect(unbound).toMatchObject({
+      name: 'Education Hz',
+      ownerUsername: 'owner-admin',
+      projectId: null,
+      projectName: null,
+    });
+    const bound = rows.find((s) => s.projectId !== null);
+    expect(bound).toBeDefined();
+    expect(bound?.projectName).toBe('Test');
+  });
+
+  it('surfaces the degraded own scope instead of presenting it as the estate (FR-48)', async () => {
+    const { app, port } = makeApiHarness();
+    port.listingScope = 'own';
+    const res = await request(app).get('/api/sessions').set(AUTH);
+    expect(res.status).toBe(200);
+    expect(res.body.scope).toBe('own');
+  });
+
+  it('requires auth like every other route (V-3)', async () => {
+    const { app } = makeApiHarness();
+    const res = await request(app).get('/api/sessions');
+    expect(res.status).toBe(401);
+  });
+});

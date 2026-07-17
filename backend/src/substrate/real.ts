@@ -28,6 +28,8 @@ import type {
   ExecRequest,
   ExecStatus,
   SeamEvent,
+  SessionInfo,
+  SessionListing,
   SessionSeed,
   SubstrateExecPort,
 } from '../domain/ports.js';
@@ -186,6 +188,22 @@ function parseSeamEvent(line: string): SeamEvent | null {
   }
 }
 
+/**
+ * Map a seam session row (serializeMeta shape, admin rows add ownerUsername)
+ * to the port's `SessionInfo`. `envVars` and container details are dropped
+ * here, at the boundary — see the port type's rationale (SEC-04/05).
+ */
+function toSessionInfo(row: Record<string, unknown>, fallbackOwner: string | null): SessionInfo {
+  return {
+    sessionId: String(row.sessionId),
+    name: String(row.name ?? ''),
+    status: String(row.status ?? 'unknown'),
+    ownerUsername: typeof row.ownerUsername === 'string' ? row.ownerUsername : fallbackOwner,
+    createdAt: typeof row.createdAt === 'string' ? row.createdAt : null,
+    lastConnectedAt: typeof row.lastConnectedAt === 'string' ? row.lastConnectedAt : null,
+  };
+}
+
 /** Reassemble NDJSON lines from chunks that need not be line-aligned. */
 async function* ndjsonLines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
   const reader = body.getReader();
@@ -217,6 +235,13 @@ export interface RealExecPortOptions {
   fetchImpl?: typeof fetch;
   /** Bootstrap-wait pacing (B2-02); defaults: poll 1 s, give up after 180 s. */
   provisioning?: { pollIntervalMs?: number; timeoutMs?: number };
+  /**
+   * The execution identity's own seam username (N1). Own-scope listing rows
+   * carry no owner on the wire — the caller IS the owner — so the port
+   * attributes them to this name rather than reporting `null` and making the
+   * UI guess (FR-48). Absent → own-scope rows report `ownerUsername: null`.
+   */
+  selfUsername?: string;
 }
 
 /** Cap the bootstrap-log tail carried on a provisioning error. */
@@ -306,6 +331,44 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
     const created = (await res.json()) as { sessionId: string; bootstrapping?: boolean };
     if (created.bootstrapping === true) await this.awaitBootstrap(created.sessionId);
     return { sessionId: created.sessionId };
+  }
+
+  /**
+   * Session discovery (N1, FR-48, ADR-007). Tries the admin-wide listing
+   * first — the ADR-007 target has the execution identity admin-flagged, and
+   * `GET /api/admin/sessions` is the only listing that attributes each row
+   * to its owner (`ownerUsername`, verified at shared-terminal `0cd4ed5`,
+   * `routes/admin.ts:139-151`). A 403 (no admin flag yet) degrades to the
+   * own-sessions listing with `scope: 'own'` so callers can tell a partial
+   * view from the whole estate rather than being handed one as the other.
+   */
+  async listSessions(): Promise<SessionListing> {
+    const adminRes = await this.request('GET', '/api/admin/sessions');
+    if (adminRes.ok) {
+      const rows = (await adminRes.json()) as Array<Record<string, unknown>>;
+      return { scope: 'all', sessions: rows.map((r) => toSessionInfo(r, null)) };
+    }
+    if (adminRes.status !== 403) throw await SeamHttpError.from(adminRes, 'listSessions');
+    const ownRes = await this.request('GET', '/api/sessions');
+    if (!ownRes.ok) throw await SeamHttpError.from(ownRes, 'listSessions: own scope');
+    const rows = (await ownRes.json()) as Array<Record<string, unknown>>;
+    return {
+      scope: 'own',
+      sessions: rows.map((r) => toSessionInfo(r, this.opts.selfUsername ?? null)),
+    };
+  }
+
+  /**
+   * Single-session metadata (N1). Operate-tier upstream since #412 (owner OR
+   * admin), so it works on owner-account sessions once the identity is
+   * admin-flagged. 404 → `null`: gone is a state to surface (FR-44), not an
+   * error to retry. The single GET carries no owner attribution on the wire.
+   */
+  async getSession(sessionId: string): Promise<SessionInfo | null> {
+    const res = await this.request('GET', `/api/sessions/${encodeURIComponent(sessionId)}`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw await SeamHttpError.from(res, 'getSession');
+    return toSessionInfo((await res.json()) as Record<string, unknown>, null);
   }
 
   /** Archive path (FR-30): tolerant of a session that is already gone. */

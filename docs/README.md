@@ -127,6 +127,18 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-17** — **N1 session discovery (doc 19 §7, FR-48).**
+  `SubstrateExecPort` grows `listSessions`/`getSession`; the real port
+  prefers `GET /api/admin/sessions` (the only listing with owner
+  attribution, ADR-007) and degrades a 403 to the own-sessions listing with
+  an explicit `scope: 'own'` — a partial view is surfaced as partial, never
+  presented as the estate. `envVars`/container details are dropped at the
+  port boundary (SEC-04/05, pinned by a conformance test). New Hub route
+  `GET /api/sessions` annotates each session with the project bound to it;
+  the projects home lists sessions with name/owner/state. Contract doc gains
+  the discovery surface verified at `0cd4ed5`. Terminal deep link waits on
+  shared-terminal#419; binding is N2.
+
 - **2026-07-17** — **Model correction (owner directive): projects operate on
   real, owner-visible sessions.** The corrected mental model: a Hub project
   corresponds to a Shared Terminal session **owned by the owner's admin

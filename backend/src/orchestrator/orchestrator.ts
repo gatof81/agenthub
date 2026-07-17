@@ -23,6 +23,7 @@ import {
   type Logger,
   type Metrics,
   type RuntimeAdapter,
+  type SessionInfo,
   type SubstrateExecPort,
   type TurnRequest,
 } from '../domain/ports.js';
@@ -159,6 +160,34 @@ export class Orchestrator {
     this.notify = deps.notify ?? NOOP_NOTIFIER;
     this.logger = deps.logger ?? NOOP_LOGGER;
     this.metrics = deps.metrics ?? NOOP_METRICS;
+  }
+
+  // — N1: session discovery (FR-48, ADR-007) —
+
+  /**
+   * The seam's listing joined with the Hub's project bindings, so the UI can
+   * show which sessions a project already uses. Read-only pass-through
+   * otherwise: the substrate stays the authority on session state (FR-33),
+   * and archived projects keep their binding visible — a bound session is
+   * bound, whatever the project's status.
+   */
+  async listSessions(): Promise<{
+    scope: 'all' | 'own';
+    sessions: Array<SessionInfo & { projectId: string | null; projectName: string | null }>;
+  }> {
+    const listing = await this.execPort.listSessions();
+    const bindings = new Map<string, { id: string; name: string }>();
+    for (const p of this.store.listProjects({ includeArchived: true })) {
+      const sessionId = p.sessionBinding.sessionId;
+      if (sessionId !== null) bindings.set(sessionId, { id: p.id, name: p.name });
+    }
+    return {
+      scope: listing.scope,
+      sessions: listing.sessions.map((s) => {
+        const bound = bindings.get(s.sessionId);
+        return { ...s, projectId: bound?.id ?? null, projectName: bound?.name ?? null };
+      }),
+    };
   }
 
   // — UC-01: create project + provision its substrate session —

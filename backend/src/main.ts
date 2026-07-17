@@ -93,7 +93,13 @@ async function main(): Promise<void> {
       username: runtimeConfig.seamUsername,
       password: runtimeConfig.seamPassword,
     });
-    execPort = new RealSubstrateExecPort({ baseUrl: runtimeConfig.seamBaseUrl, auth });
+    execPort = new RealSubstrateExecPort({
+      baseUrl: runtimeConfig.seamBaseUrl,
+      auth,
+      // own-scope discovery rows are attributed to the execution identity
+      // itself (N1, FR-48) — the wire carries no owner for the caller's rows
+      selfUsername: runtimeConfig.seamUsername,
+    });
     adapter = new ClaudeCliRuntimeAdapter(execPort);
     // env-only credential path (SEC-07): the token rides each run's exec
     // env and exists nowhere else — never persisted, never logged (13 §5)

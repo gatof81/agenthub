@@ -123,6 +123,17 @@ export function buildApp(deps: ApiDeps): express.Express {
     res.json({ workspaceTemplates: deps.workspaceTemplates });
   });
 
+  // — sessions (N1 discovery, FR-48, ADR-007) — read-only: the substrate is
+  // the authority; the Hub adds only its own project-binding annotation.
+  // `scope: 'own'` tells the UI it is seeing the execution identity's estate,
+  // not the owner's (no admin flag yet) — surfaced, never papered over.
+  app.get('/api/sessions', (_req, res, next) => {
+    orchestrator
+      .listSessions()
+      .then((listing) => res.json(listing))
+      .catch(next);
+  });
+
   // — projects —
   app.post('/api/projects', (req, res) => {
     const { name, defaultAgentId, sessionTemplateId, repo, instructions } = (req.body ??
