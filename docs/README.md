@@ -1,10 +1,11 @@
 # Agent Hub — documentation
 
-Specification workspace for Agent Hub. **The specification is complete and approved** (docs 01–18 approved by the owner on 2026-07-15; ADR-001..006 accepted; spikes S-01/S-03/S-04 executed; doc 18 is a non-normative vision companion). **All quality gates below have passed. Increments 1–5 are complete** ([17-phase1-backlog.md](./17-phase1-backlog.md)): the fake-runtime spine, real substrate + real Claude, hardening, restore, and repo-in-project — an agent is a role reusable across projects, a project is a workspace with a repository, and the two no longer borrow each other's workspace or instructions.
+Specification workspace for Agent Hub. **The specification is complete and approved** (docs 01–18 approved by the owner on 2026-07-15; ADR-001..010 accepted; spikes S-01/S-03/S-04/S-05 executed; doc 18 is a non-normative vision companion). **All quality gates below have passed. Increments 1–5 are complete** ([17-phase1-backlog.md](./17-phase1-backlog.md)). **2026-07-17 — model correction (owner directive):** a project corresponds to a real Shared Terminal session **owned by the owner's admin account**; specialists are reusable identities with optional personal sessions; conversations gain automatic routing; coordinated work gains a dev → QA → human-approval lifecycle. Decisions in ADR-007..010; diagnosis, migration plan, and the N1–N6 increment backlog in [19-model-correction-plan.md](./19-model-correction-plan.md).
 
 All repo artifacts are in English. Substrate facts are verified against
-[shared-terminal](https://github.com/gatof81/shared-terminal) at commit `36be2f2` unless noted;
-re-verify before relying on them after that repo moves.
+[shared-terminal](https://github.com/gatof81/shared-terminal) at commit `36be2f2` unless noted —
+the correction documents (ADR-007..010, doc 19) verify at `0cd4ed5`, and increment N1
+completes the full re-pin; re-verify before relying on substrate facts after that repo moves.
 
 ## Document index
 
@@ -32,9 +33,10 @@ its PR state. The work plan below tracks per-PR/build progress separately.
 | [16-risk-register.md](./16-risk-register.md) | approved | — |
 | [17-phase1-backlog.md](./17-phase1-backlog.md) | approved | 12 |
 | [18-agent-collaboration-model.md](./18-agent-collaboration-model.md) | approved — vision, non-normative (not gate-relevant) | 01, 03 |
-| [adr/](./adr/README.md) | ADR-001..005 all accepted | see adr/README.md |
+| [19-model-correction-plan.md](./19-model-correction-plan.md) | approved (owner, 2026-07-17) — diagnosis, migration plan, N1–N6 backlog | ADR-007..010 |
+| [adr/](./adr/README.md) | ADR-001..010 all accepted | see adr/README.md |
 
-**Specification complete and approved.** Suggested full read-through order: 01 → 02 → 03 → 18 → 15 → 16 → ADR-001..005 → spike results → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 17.
+**Specification complete and approved.** Suggested full read-through order: 01 → 02 → 03 → 18 → 15 → 16 → ADR-001..010 → spike results → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 17 → 19.
 
 ## Decisions requested now
 
@@ -61,6 +63,10 @@ decision and is superseded):
 | [ADR-004](./adr/ADR-004-ui-streaming-transport.md) | Hub↔frontend streaming: SSE with `Last-Event-ID` replay from the store | **accepted** (2026-07-14) |
 | [ADR-005](./adr/ADR-005-project-aggregate.md) | **Project as the organizing aggregate** — owner-directed pivot: one workspace/container per project, conversations share it; minimal Phase-1 shape with an explicit deferred list (R-17) | **accepted** (2026-07-14) |
 | [ADR-006](./adr/ADR-006-workspace-belongs-to-the-project.md) | **The workspace belongs to the project, not the agent** — an agent is a role reusable across projects; a project is a workspace with a repository. Adds `Project.repo` + the per-repo credential, and makes per-turn role instructions necessary (FR-45/46/47, SEC-11) | **accepted** (2026-07-16) — shipped in Increment 5; its one deferred consequence (the per-turn mechanism) closed by [S-04](./spikes/S-04/RESULTS.md) |
+| [ADR-007](./adr/ADR-007-session-ownership-and-binding.md) | **Session ownership moves to the owner's admin account** — projects bind an existing session or create one there (1↔1 primary session); the dedicated account is demoted to an audited execution identity. Supersedes SEC-06's ownership clause and Q-04. Upstream asks: shared-terminal [#416](https://github.com/gatof81/shared-terminal/issues/416)/[#418](https://github.com/gatof81/shared-terminal/issues/418)/[#419](https://github.com/gatof81/shared-terminal/issues/419)/[#420](https://github.com/gatof81/shared-terminal/issues/420) | **accepted** (owner, 2026-07-17) |
+| [ADR-008](./adr/ADR-008-specialists-and-execution-target.md) | **Specialists & execution-target selection** — reusable identities with optional personal sessions; conversation modes (automatic default); router proposes, deterministic selector picks the session, orchestrator enforces; I-2 restated per workspace | **accepted** (owner, 2026-07-17) |
+| [ADR-009](./adr/ADR-009-task-lifecycle-dev-qa-approval.md) | **Task lifecycle** — dev → QA → human approval as one concrete flow; `ImplementationReport`/`QaReport` work products; terminal success = owner approval | **accepted** (owner, 2026-07-17) |
+| [ADR-010](./adr/ADR-010-code-sharing-strategies.md) | **Code-sharing strategy ladder** — specialist runs in the project session / task worktree by default; read-only, diff, artifact for analysis and review; repo authority stays with the project session | **accepted** (owner, 2026-07-17) |
 
 Remaining candidate (deferred, non-blocking): Hub user/auth model (Q-07).
 
@@ -116,10 +122,36 @@ numbers are noted per item as they land, since the two drift.
 | Critical flows defined | 05 | **passed** (owner, 2026-07-15) |
 | Test & migration strategy | 13 | **passed** (owner, 2026-07-15) |
 | Phase-1 backlog exists | 17 | **passed** (owner, 2026-07-15) |
-| ADR-001..005 resolved; later ADRs at least drafted | all five accepted; ADR-006 accepted and shipped since | **passed** |
+| ADR-001..005 resolved; later ADRs at least drafted | all five accepted; ADR-006 accepted and shipped, ADR-007..010 accepted (2026-07-17 correction) since | **passed** |
 | MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | **passed** (owner, 2026-07-15) |
 
 ## Changelog
+
+- **2026-07-17** — **Model correction (owner directive): projects operate on
+  real, owner-visible sessions.** The corrected mental model: a Hub project
+  corresponds to a Shared Terminal session **owned by the owner's admin
+  account** — the same session where the owner works manually — never a
+  hidden session in the Hub's technical account; run/event JSON remains an
+  activity log, not a substitute for the interactive session. ADR-007..010
+  accepted (ownership & binding; specialists + automatic routing +
+  deterministic execution-target selection; Task with dev → QA →
+  human-approval; code-sharing strategy ladder). Doc 19 carries the
+  diagnosis (only two load-bearing code contradictions: provision-always-
+  creates, and the immutable `Conversation.agentId`), the forward-only
+  migration plan (004–007, no data loss, legacy sessions marked), and the
+  N1–N6 increment backlog. Amendments: FR-01/19/30/40/45, new FR-48..53,
+  SEC-06 rewritten, UC-01 bind-or-create, 06 glossary/invariants
+  (I-2 per workspace, I-6 direct-mode-only, I-10 nullable-once-set),
+  10 §2 asset table, Q-04 superseded, 18 §2/§3/§10 updated in place.
+  Substrate re-verified at `0cd4ed5` (old pin predates the exec API);
+  upstream asks filed: [#416](https://github.com/gatof81/shared-terminal/issues/416)
+  operate-tier exec (the enabler),
+  [#418](https://github.com/gatof81/shared-terminal/issues/418) `external_ref`,
+  [#419](https://github.com/gatof81/shared-terminal/issues/419) session deep
+  link, [#420](https://github.com/gatof81/shared-terminal/issues/420)
+  create-on-behalf — sequenced **upstream-first** (owner decision). Preserved
+  by construction: chat, streaming, runs, cancellation, adapters, store,
+  backups, observability (doc 19 §6).
 
 - **2026-07-17** — **B5-04 per-turn role instructions; Increment 5 done.**
   The last item ADR-006 left open, and the one it refused to assert a mechanism

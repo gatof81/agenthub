@@ -18,7 +18,7 @@ open-question resolution — so the spec stays falsifiable. Sources:
 
 | ID | P | Requirement | Source |
 | --- | --- | --- | --- |
-| FR-01 | M | Create, list, rename, and archive conversations **within a project**. Each conversation is bound to exactly one agent in Phase 1 (defaulting from the project) | 03 §2, ADR-005 |
+| FR-01 | M | Create, list, rename, and archive conversations. Built increments bind each conversation to exactly one agent (defaulting from the project); the correction adds conversation **modes** with `automatic` as the default and per-message specialist selection (FR-51, ADR-008 — increment N4), and lets a conversation exist without a project (owner decision 2026-07-17) | 03 §2, ADR-005, ADR-008 |
 | FR-02 | M | Phase 1 agents are defined in configuration (identity, instructions, allowlist, session template binding) — no registry UI | 03 §2 (A4), Phase-2 boundary |
 | FR-03 | M | Sending a message creates exactly one run (1 message = 1 run) | Q-03 |
 | FR-04 | M | Messages sent while a run is active are queued and dispatched in order after it finishes; the queue survives cancellation of the active run | Q-03 |
@@ -29,14 +29,29 @@ open-question resolution — so the spec stays falsifiable. Sources:
 
 | ID | P | Requirement | Source |
 | --- | --- | --- | --- |
-| FR-40 | M | Create, list, rename, and archive projects. Creating a project provisions its substrate session (workspace); archiving stops it. Archive is reversible (FR-43), never a purge | ADR-005, UC-01 |
+| FR-40 | M | Create, list, rename, and archive projects. Creating a project **binds an existing owner-account session or creates one in the owner's account** (ADR-007; pre-correction text read "provisions its substrate session"); archiving stops it. Archive is reversible (FR-43), never a purge | ADR-005, ADR-007, UC-01 |
 | FR-41 | M | Conversations belong to exactly one project (immutable) and share its workspace; project `defaultAgentId` and `instructions` seed new conversations and the session | ADR-005, I-10 |
 | FR-42 | M | Every terminal run produces a persisted, **mechanically derived** `RunSummary` (objective excerpt, outcome, files, commands, denials, warnings, cost, duration, continuation handle) — written in the terminal transition's transaction | owner direction (2026-07-14), 06 §RunSummary |
 | FR-43 | M | List archived projects and conversations, and **restore** them. Restoring a project **restarts its substrate session** — the symmetric inverse of FR-40's stop. The workspace survives the stop (it is a host directory, not container state), so restoring returns the same workspace and the CLI transcripts under it, and FR-24 `--resume` continuity is preserved | owner decision (2026-07-16), UC-11 |
 | FR-44 | M | A restore whose substrate session no longer exists **fails with a typed error and leaves the project archived** — it never silently provisions a fresh workspace. A hard-deleted session takes its workspace with it; presenting an empty workspace as a restored project would misrepresent lost work, and the conversations' `runtimeSessionId` would dangle | owner decision (2026-07-16), UC-11, FR-33 |
-| FR-45 | M | A project declares its **workspace**: the substrate `sessionTemplateId` and an optional **`repo`** (`{url, ref?, target?}` — the credential is **not** a field of it; see FR-47), passed to the seam's session config at provisioning. Provisioning reads the workspace from the **project**, never from the agent — an agent is a stateless role, reusable across projects, and carries no repository, template, or session (ADR-006, 18 §2) | ADR-006, owner direction (2026-07-16) |
+| FR-45 | M | A project declares its **workspace**: either an **existing owner-account session to bind** (ADR-007) or the substrate `sessionTemplateId` to create from, plus an optional **`repo`** (`{url, ref?, target?}` — the credential is **not** a field of it; see FR-47), passed to the seam's session config at provisioning. The workspace is read from the **project**, never from the agent — an agent is a stateless role, reusable across projects, and carries no repository, template, or session (ADR-006, 18 §2) | ADR-006, ADR-007, owner direction (2026-07-16) |
 | FR-46 | M | Repository credentials are **provisioned, never authenticated from inside a turn**. The runner is one process per turn (ADR-003), so an interactive device/browser flow cannot complete: its process dies with the exec, and the FR-21 sweep exists to kill exactly such survivors. A turn that needs git auth uses a credential the project already holds | ADR-006, ADR-003, FR-21 |
 | FR-47 | M | Each project's repo credential is a **fine-grained PAT scoped to that one repository**, held only in the seam's session config, encrypted by the seam via `encryptAuthCredentials` (`sessionConfig.ts:1138`, verified at shared-terminal `main @ c35b6da`; upstream's own note: *"the whole point of `auth_json` / `encryptAuthCredentials` is that secrets never land in plaintext anywhere on disk"*) — never in the Hub's database, logs, or run events. One project's credential must not reach another's repository | owner decision (2026-07-16), ADR-006, SEC-11 |
+
+## 1c. Functional — corrected model (owner directive 2026-07-17)
+
+Land across increments N1–N6 ([19-model-correction-plan.md](./19-model-correction-plan.md) §7);
+IDs are assigned now so the ADRs and plan are traceable before their
+increment ships.
+
+| ID | P | Requirement | Source |
+| --- | --- | --- | --- |
+| FR-48 | M | The Hub lists the owner's admin-account sessions with ownership and state, and lets the owner open any of them (deep link once shared-terminal#419 ships) — including each project's primary session from the project view | ADR-007, N1 |
+| FR-49 | M | Creating a project can **bind an existing owner-account session**; the Hub then creates nothing and the bound session is the project's workspace and source of truth. `bindingMode` records `existing` vs `created` | ADR-007, N2 |
+| FR-50 | M | Specialists are reusable identities (role, instructions, allowlist, capabilities) distinct from their optional **personal sessions** in the owner's account; a specialist may execute in a project's primary session, its own session, or a task worktree — repo access never attaches to the specialist (FR-45/47 unchanged) | ADR-008, ADR-010, N3 |
+| FR-51 | M | Conversation modes `automatic \| preferred-specialist \| direct`; in automatic mode a model-based router proposes work type/specialists/steps and a **deterministic** execution-target selector chooses the session (default: the project's primary session), with every choice recorded as an `ExecutionTargetDecision` visible in the run inspector | ADR-008, N4 |
+| FR-52 | M | Coordinated work is a **Task** (parented to the Project) with the ADR-009 state machine; it is complete only after QA passes **and** the owner approves — the implementer finishing is never terminal success. Chat shows a readable summary; raw events stay in the inspector | ADR-009, N5–N6 |
+| FR-53 | M | Cross-session code sharing follows the ADR-010 strategy ladder (project-session / worktree / read-only / diff / artifact) under least privilege, with delegated access recorded and revocable; PRs are created from the project session only, and never merged before human approval | ADR-010, N5 |
 
 ## 2. Functional — runs & the runner
 
@@ -51,7 +66,7 @@ open-question resolution — so the spec stays falsifiable. Sources:
 | FR-16 | M | Unknown stream event types (e.g. `rate_limit_event`) are persisted and passed through without breaking ingestion | S-01 (v) |
 | FR-17 | M | Every run enforces: max turns, budget cap, wall-clock timeout | 03 (hard limits), R-06 |
 | FR-18 | M | A `UsageRecord` per run captures the result event's cost/usage fields; **cancelled runs record usage as `unknown`** (no result event exists) | A3, S-01 (iii/iv) |
-| FR-19 | M | Runs are serialized per session — with ADR-005, that means **one active run per project** at a time | R-11, Q-03, Q-11 |
+| FR-19 | M | Runs are serialized per **workspace** (substrate session). With ADR-005's 1:1:1 this realizes as one active run per project; once specialist sessions exist (ADR-008) the lock follows each workspace, exactly as 18 §2 reserved | R-11, Q-03, Q-11, ADR-008 |
 
 ## 3. Functional — cancellation & recovery
 
@@ -68,7 +83,7 @@ open-question resolution — so the spec stays falsifiable. Sources:
 
 | ID | P | Requirement | Source |
 | --- | --- | --- | --- |
-| FR-30 | M | The Hub provisions **one session per project** through the substrate's public API (template → create → bootstrap with agentSeed carrying project instructions → start/stop) | 02 §3, ADR-005 |
+| FR-30 | M | **One primary session per project** (1↔1), owned by the owner's admin account: bound when it already exists, or created there through the substrate's public API (template → create → bootstrap with agentSeed carrying project instructions → start/stop; creation on behalf gated on shared-terminal#420) | 02 §3, ADR-005, ADR-007 |
 | FR-31 | M | The user can open the underlying terminal session of any conversation | 01 §2 |
 | FR-32 | M | The UI signals "agent working" while a run is active in a session the user may also be typing into; manual-intervention races are documented behavior, not prevented | R-11 |
 | FR-33 | S | Session lifecycle surfaces (stopped, bootstrapping, recreated) are reflected in **project** state rather than manifesting as opaque run failures | 02 §4 (constraint 4), ADR-005 |
@@ -95,7 +110,7 @@ open-question resolution — so the spec stays falsifiable. Sources:
 | SEC-03 | M | Denials arrive from two layers (CLI built-in policy + allowlist); both are captured in run events and neither is retried automatically | S-01 (CLI Bash policy finding) |
 | SEC-04 | M | Secrets (substrate credentials, Claude OAuth token, Cloudflare tokens) live in Hub config/env, never in prompts, run events, logs, or the database | R-07, R-05 |
 | SEC-05 | M | Run-event payloads are classified before persisting; known secret values are scrubbed; payloads are never written to logs by default | R-07 |
-| SEC-06 | M | The Hub authenticates to the substrate as a **dedicated account** that owns only Hub-created sessions (blast radius = those sessions) | Q-04 / ADR-001 |
+| SEC-06 | M | Sessions belong to the **owner's admin account**; the Hub authenticates as its own dedicated, admin-flagged account acting only as an **execution identity** — it operates the owner's sessions through the substrate's operate-tier semantics (audited upstream as `mode='operate'`) and is never their functional owner. Pre-correction text made the dedicated account the owner of Hub-created sessions; superseded by ADR-007 (blast-radius consequences recorded there and in 10 §2) | ADR-007 (supersedes Q-04's provisional resolution) |
 | SEC-07 | M | The Claude subscription OAuth token is provided to sessions as env at exec time; it must not be committed to session workspaces or echoed by seeded config | Q-10, 02 §4 (constraint 1) |
 | SEC-08 | M | Audit trail from day 1: every run's commands, files, denials, cancellations, and approvals are queryable per conversation | 01 §2, R-05 |
 | SEC-09 | F | Autonomy levels 0–3 map to allowlist tiers at doc-07/08 time; the Phase-1 single allowlist must be expressible as one of those tiers (no redesign) | Q-02 path, 01 §3 |

@@ -1,6 +1,9 @@
 # ADR-001 — Integration seam with shared-terminal: exec over HTTP
 
-Status: accepted (owner sign-off 2026-07-13)
+Status: accepted (owner sign-off 2026-07-13) · auth/ownership clause (the
+"dedicated account owns Hub-created sessions" option that provisionally
+resolved Q-04) superseded by [ADR-007](./ADR-007-session-ownership-and-binding.md)
+on 2026-07-17; the exec contract itself stands
 Date: 2026-07-13
 
 Substrate evidence cited at [shared-terminal](https://github.com/gatof81/shared-terminal) `main` @ `36be2f2`.

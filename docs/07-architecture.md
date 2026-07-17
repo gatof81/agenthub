@@ -25,7 +25,9 @@ flowchart LR
 Trust boundaries: the browser is untrusted input (SEC-01); session containers
 are semi-trusted execution sandboxes with open egress (R-05 — the container
 boundary is not an exfiltration boundary); the seam is localhost-only and
-authenticated as the Hub's dedicated substrate account (SEC-06).
+authenticated as the Hub's dedicated substrate account — since ADR-007 an
+admin-flagged **execution identity** operating owner-owned sessions, no
+longer the sessions' functional owner (SEC-06 as amended).
 
 ## 2. Modules (one Node process, modular monolith)
 

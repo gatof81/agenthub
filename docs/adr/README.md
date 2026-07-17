@@ -13,6 +13,10 @@ predate the separate-repos decision and are superseded by the list below.
 | [ADR-004](./ADR-004-ui-streaming-transport.md) | Hub↔frontend streaming: SSE with `Last-Event-ID` replay from the store | **accepted** (2026-07-14) |
 | [ADR-005](./ADR-005-project-aggregate.md) | Project as the organizing aggregate (one workspace/container per project; conversations share it; minimal shape with an explicit deferred list) | **accepted** (2026-07-14) |
 | [ADR-006](./ADR-006-workspace-belongs-to-the-project.md) | The workspace belongs to the project, not the agent (`sessionTemplateId` moves off `Agent`; `Project` gains `repo`) — the code catching up to 18 §2's two axes | **accepted** (2026-07-16) |
+| [ADR-007](./ADR-007-session-ownership-and-binding.md) | Session ownership moves to the **owner's admin account**; projects bind an existing session or create one there; the dedicated account demoted to audited execution identity (supersedes SEC-06's ownership clause and Q-04's provisional resolution) | **accepted** (owner, 2026-07-17) |
+| [ADR-008](./ADR-008-specialists-and-execution-target.md) | Specialists as reusable identities with optional personal sessions; conversation modes with automatic routing; model router proposes, **deterministic execution-target selector** chooses the session, orchestrator enforces | **accepted** (owner, 2026-07-17) |
+| [ADR-009](./ADR-009-task-lifecycle-dev-qa-approval.md) | Task entity with the developer → QA → human-approval lifecycle; `ImplementationReport`/`QaReport` work products; complete only after QA **and** owner approval | **accepted** (owner, 2026-07-17) |
+| [ADR-010](./ADR-010-code-sharing-strategies.md) | Sharing a project's code with a specialist: strategy ladder (project session / worktree / read-only / diff / artifact) under least privilege; repo authority stays with the project session | **accepted** (owner, 2026-07-17) |
 
 Remaining candidate (deliberately deferred, non-blocking): Hub user/auth model
 (Q-07) — written when multi-user pressure is real.

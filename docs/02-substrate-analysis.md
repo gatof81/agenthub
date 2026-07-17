@@ -133,3 +133,18 @@ The §5 gap is now closed upstream. Verified against `main @ b37dc4d`:
 
 Facts elsewhere in this document remain cited at `36be2f2`; re-verification
 happens per claim as later docs consume them.
+
+## 7. Addendum — substrate at `0cd4ed5` (verified 2026-07-17, model correction)
+
+The correction (ADR-007..010) verified the capabilities the new ownership
+model needs directly against `main @ 0cd4ed5`; the full matrix with
+file:line evidence lives in [19-model-correction-plan.md §2](./19-model-correction-plan.md)
+and the upstream asks are shared-terminal
+[#416](https://github.com/gatof81/shared-terminal/issues/416)/[#418](https://github.com/gatof81/shared-terminal/issues/418)/[#419](https://github.com/gatof81/shared-terminal/issues/419)/[#420](https://github.com/gatof81/shared-terminal/issues/420).
+Headlines: session listing exists (own + admin-wide with owner attribution);
+single-session metadata is operate-tier (owner OR admin) since upstream
+PR #412; the **admin-operate series** (#410–#414) added `assertCanOperate`,
+audited terminal take-control, and operate gates on several REST routes —
+but **exec remains owner-only**, sessions carry no free-form metadata, and
+the SPA has no per-session deep link. Increment N1 (doc 19 §7) performs the
+full re-pin of this document.

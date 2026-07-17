@@ -12,7 +12,7 @@ proceeds unless vetoed.
 | Q-01 | Runner process model | MVP-blocking | **Resolved (S-01, 2026-07-14): per-turn validated** — ~0.6 s to first event, stable session id across resumes |
 | Q-02 | Runner default permission posture | MVP-blocking · security | **Resolved (owner sign-off 2026-07-14): curated allowlist** |
 | Q-03 | Turn semantics & queuing | MVP-blocking | 1 message = 1 run; queue during a run |
-| Q-04 | Seam auth: service token vs user JWT | MVP-blocking · security | Provisionally resolved by ADR-001: dedicated substrate account, existing JWT auth |
+| Q-04 | Seam auth: service token vs user JWT | MVP-blocking · security | Resolved by ADR-007 (supersedes ADR-001's provisional): owner-owned sessions, dedicated account as audited execution identity |
 | Q-05 | Hub deployment & exposure | important · infra | **Resolved (owner, 2026-07-14): shared-terminal shape — see ADR-002** |
 | Q-06 | Frontend framework | UX | **Resolved (owner, 2026-07-14): React + Vite** (Angular considered) — see doc 11 §1; target Cloudflare Pages fixed by ADR-002 |
 | Q-07 | Hub users & auth model | important | Single-user first; don't preclude delegation to substrate auth |
@@ -82,6 +82,13 @@ the Hub authenticates as a **dedicated substrate account** via the existing
 `/auth/login` (JWT like any client) and only ever owns Hub-created sessions —
 scoping falls out of ownership, no new upstream auth surface. Revisit only if
 the substrate grows first-class service tokens.
+
+**Superseded by [ADR-007](./adr/ADR-007-session-ownership-and-binding.md)
+(owner, 2026-07-17):** sessions belong to the **owner's admin account**; the
+dedicated account remains only as an admin-flagged **execution identity**
+operating them through the substrate's audited operate tier (the upstream
+asks are shared-terminal #416/#418/#419/#420). The service-token revisit clause
+stands — scoped tokens are the recorded future narrowing of the admin flag.
 
 ## Q-05 — Hub deployment `important` `infra`
 
