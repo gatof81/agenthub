@@ -19,8 +19,9 @@
 | `POST /sessions/:id/exec/:execId/kill {graceMs}` → `already-exited \| terminated \| killed` | cancellation (FR-20, UC-04) |
 
 Auth: existing JWT, session ownership enforced (Hub uses its dedicated
-account, SEC-06). `X-Request-Id` emitted on every response and echoed in
-`started` — recorded per run (OPS-04).
+account; SEC-06 as amended by ADR-007 — see the correction note below).
+`X-Request-Id` emitted on every response and echoed in `started` — recorded
+per run (OPS-04).
 
 > **Correction note (2026-07-17, ADR-007):** ownership-only exec is the
 > verified behavior at `0cd4ed5` and the blocker for the corrected model,
