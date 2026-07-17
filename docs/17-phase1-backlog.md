@@ -1,6 +1,6 @@
 # 17 — Phase-1 Backlog
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-16
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-17
 
 The actionable work items for the Phase-1 MVP, grouped by the three increments
 of [12-mvp-implementation-plan.md](./12-mvp-implementation-plan.md), each
@@ -82,7 +82,7 @@ it with no way back. FR-43/44 close that.
 | --- | --- | --- | --- |
 | B4-01 | `SubstrateExecPort.startSession` + restore in the orchestrator | FR-43, 02 §2 | restoring a project restarts its session and returns the **same** workspace; a restored project takes a turn with `--resume` continuity intact (the CLI transcripts live under the workspace, which survives the stop) — **met 2026-07-16**: `startSession` restarts the same session id (never re-provisions); the workspace survives because the bind is derived from the session id, not the container (`dockerManager.ts:440`, verified at shared-terminal `c35b6da`). A restored project passes `send()`, which rejects unless the project is ready — the acceptance, not a green label. `SessionGoneError` lives in `domain/ports.ts` so the orchestrator can catch it without importing substrate (07 §2) |
 | B4-02 | API: `archived → ready/active` transitions + `?archived=true` listing | FR-43/44, 08 §1 | the reverse transition is accepted; a restore whose session is gone upstream returns `409 session_gone` and leaves the project archived (FR-44 — never a fresh workspace wearing the old name); restoring a conversation into an archived project is rejected (I-12) — **met 2026-07-16**: both transitions accepted; FR-44 pinned by test (the project stays `archived`, session id intact); the port's `SessionGoneError` is translated to `OrchestratorError('session_gone')` → `409`, while a transient seam failure propagates as itself (retryable ≠ gone). I-12 enforced in the orchestrator, not the route |
-| B4-03 | UI: archived view + restore; truthful confirmations | FR-43, UX-08, 11 §3 | archived projects and conversations are reachable and restorable; the archive confirmation states that the session stops and the item can be restored later |
+| B4-03 | UI: archived view + restore; truthful confirmations | FR-43, UX-08, 11 §3 | archived projects and conversations are reachable and restorable; the archive confirmation states that the session stops and the item can be restored later — **met 2026-07-17**: an `Archived` entry from both sidebar states (the project list and inside a project) opens a view listing archived projects and conversations, each with a restore action. A restore lands in the view the user returns to — a restored conversation would otherwise vanish from the archived list without reappearing in the sidebar, since `conversations` is only populated by opening a project. FR-44 gets a typed surface rather than a generic failure: `session_gone` reads "its workspace was deleted upstream — this project cannot be restored" (retrying never helps), and `project_archived` reads as a step order (I-12), not an error. Both confirmations flipped back from "cannot be restored" — true when written in #48, false once FR-43 landed |
 
 **Increment-4 done:** nothing the owner archives is unreachable, and the UI
 never claims more permanence — or less — than the system delivers.

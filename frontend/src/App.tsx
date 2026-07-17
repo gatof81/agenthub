@@ -98,6 +98,21 @@ export function App(): React.JSX.Element {
     setSelectedConversation(conversation);
   }, [selectedProject]);
 
+  // A restore has to land in the view the user returns to, not just vanish
+  // from the archived list. Projects reappear via refreshProjects(); a
+  // restored CONVERSATION would not — `conversations` is populated only by
+  // openProject(), so without re-reading the open project the sidebar keeps
+  // its pre-restore snapshot and the user has to re-navigate to see the item
+  // they just restored. "Restorable" has to mean it comes back where you look.
+  const refreshAfterRestore = useCallback(async () => {
+    await refreshProjects();
+    if (selectedProject) {
+      const detail = await api.getProject(selectedProject.id);
+      setSelectedProject(detail.project);
+      setConversations(detail.conversations);
+    }
+  }, [refreshProjects, selectedProject]);
+
   const backToProjects = useCallback(() => {
     setSelectedProject(null);
     setSelectedConversation(null);
