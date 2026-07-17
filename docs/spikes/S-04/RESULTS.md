@@ -2,7 +2,7 @@
 
 Run: 2026-07-17 · Image: shared-terminal session image (CLI **2.1.207**, the
 pinned version — the probe asserts this rather than trusting the host, whose
-CLI floats via self-update, doc 02 §102) · Model: `claude-sonnet-5` (the
+CLI floats via self-update, doc 02 §4 constraint 6) · Model: `claude-sonnet-5` (the
 image's default) · Package: [`spikes/S-04/probe.sh`](../../../spikes/S-04/probe.sh)
 
 ## What it settles
