@@ -125,6 +125,14 @@ describe('HTTP API (08 §1)', () => {
     expect(
       (await request(app).post('/api/projects').set(AUTH).send({ name: '' })).status,
     ).toBe(422);
+    // the workspace is the project's and has no default (ADR-006, FR-45):
+    // omitting it must 422, not fall back to something
+    const noTemplate = await request(app)
+      .post('/api/projects')
+      .set(AUTH)
+      .send({ name: 'x', defaultAgentId: 'dev' });
+    expect(noTemplate.status).toBe(422);
+    expect(noTemplate.body.detail).toContain('sessionTemplateId');
     expect(
       (await request(app).post('/api/projects').set(AUTH).send({ name: 'x', defaultAgentId: 'nope', sessionTemplateId: 'tpl' }))
         .status,
