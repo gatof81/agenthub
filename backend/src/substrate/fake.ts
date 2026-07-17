@@ -13,6 +13,8 @@ import type {
   ExecRequest,
   ExecStatus,
   SeamEvent,
+  SessionInfo,
+  SessionListing,
   SessionSeed,
   SubstrateExecPort,
 } from '../domain/ports.js';
@@ -64,6 +66,7 @@ export class FakeSubstrateExecPort implements SubstrateExecPort {
   readonly stoppedSessions: string[] = [];
   readonly startedSessions: string[] = [];
   private readonly goneSessions = new Set<string>();
+  private readonly knownSessions = new Map<string, SessionInfo>();
 
   constructor(opts: FakeExecPortOptions = {}) {
     this.gate = opts.gate ?? (() => Promise.resolve());
@@ -95,6 +98,32 @@ export class FakeSubstrateExecPort implements SubstrateExecPort {
     this.goneSessions.add(sessionId);
   }
 
+  /** Discovery fixtures (N1): sessions visible before any createSession. */
+  seedSession(info: SessionInfo): void {
+    this.knownSessions.set(info.sessionId, info);
+  }
+
+  /** Tests force the degraded no-admin-flag listing scope (FR-48). */
+  listingScope: SessionListing['scope'] = 'all';
+
+  /**
+   * Discovery (N1, FR-48): everything seeded plus everything created here,
+   * minus sessions marked gone — matching the real port's contract (the seam
+   * excludes hard-deleted rows from its listings).
+   */
+  listSessions(): Promise<SessionListing> {
+    const sessions = [...this.knownSessions.values()].filter(
+      (s) => !this.goneSessions.has(s.sessionId),
+    );
+    return Promise.resolve({ scope: this.listingScope, sessions });
+  }
+
+  /** `null` for gone/unknown sessions — the real port's 404 mapping (FR-44). */
+  getSession(sessionId: string): Promise<SessionInfo | null> {
+    if (this.goneSessions.has(sessionId)) return Promise.resolve(null);
+    return Promise.resolve(this.knownSessions.get(sessionId) ?? null);
+  }
+
   /** Tests enqueue the fixture each subsequent exec will replay. */
   enqueueFixture(fixture: ExecFixture): void {
     this.queue.push(fixture);
@@ -103,7 +132,17 @@ export class FakeSubstrateExecPort implements SubstrateExecPort {
   createSession(templateId: string, seed: SessionSeed): Promise<{ sessionId: string }> {
     this.sessionCounter += 1;
     this.seededSessions.push({ templateId, seed });
-    return Promise.resolve({ sessionId: `fakesess_${this.sessionCounter}` });
+    const sessionId = `fakesess_${this.sessionCounter}`;
+    // created sessions show up in discovery, like the real seam's listings
+    this.knownSessions.set(sessionId, {
+      sessionId,
+      name: `hub-fake-${this.sessionCounter}`,
+      status: 'running',
+      ownerUsername: 'fake-owner',
+      createdAt: null,
+      lastConnectedAt: null,
+    });
+    return Promise.resolve({ sessionId });
   }
 
   async *exec(sessionId: string, req: ExecRequest): AsyncIterable<SeamEvent> {

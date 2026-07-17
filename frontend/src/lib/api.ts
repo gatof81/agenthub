@@ -90,6 +90,31 @@ export interface RunDetail {
   summary: RunSummary | null;
 }
 
+/**
+ * A substrate session as discovery sees it (N1, FR-48, ADR-007), annotated
+ * with the Hub project bound to it, if any.
+ */
+export interface SessionRow {
+  sessionId: string;
+  name: string;
+  status: string;
+  ownerUsername: string | null;
+  createdAt: string | null;
+  lastConnectedAt: string | null;
+  projectId: string | null;
+  projectName: string | null;
+}
+
+export interface SessionListing {
+  /**
+   * 'all' — the whole estate with owner attribution (admin-flagged execution
+   * identity); 'own' — only the Hub identity's sessions (no admin flag yet):
+   * a partial view the UI must present as partial (FR-48).
+   */
+  scope: 'all' | 'own';
+  sessions: SessionRow[];
+}
+
 const TOKEN_KEY = 'agenthub.token';
 
 export function getToken(): string | null {
@@ -140,6 +165,7 @@ export const api = {
     call<{ conversations: Conversation[] }>('GET', '/api/conversations?archived=true'),
   workspaceTemplates: () =>
     call<{ workspaceTemplates: WorkspaceTemplate[] }>('GET', '/api/workspace-templates'),
+  listSessions: () => call<SessionListing>('GET', '/api/sessions'),
   // sessionTemplateId is required: the workspace is the project's and has no
   // default — the agent no longer carries one (ADR-006, FR-45).
   createProject: (

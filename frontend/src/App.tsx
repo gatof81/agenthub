@@ -12,6 +12,7 @@ import {
   setToken,
   type Conversation,
   type Project,
+  type SessionListing,
   type WorkspaceTemplate,
 } from './lib/api.js';
 import { Sidebar } from './components/Sidebar.js';
@@ -63,6 +64,8 @@ export function App(): React.JSX.Element {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [threadCommands, setThreadCommands] = useState<ThreadCommands | null>(null);
   const [archivedOpen, setArchivedOpen] = useState(false);
+  // session discovery (N1, FR-48): null until the first fetch resolves
+  const [sessionListing, setSessionListing] = useState<SessionListing | null>(null);
 
   const refreshProjects = useCallback(async () => {
     const { projects } = await api.listProjects();
@@ -76,6 +79,12 @@ export function App(): React.JSX.Element {
     void api.agents().then((r) => setAgents(r.agents));
     // a project must declare its workspace (ADR-006, FR-45) — offer the choice
     void api.workspaceTemplates().then((r) => setTemplates(r.workspaceTemplates));
+    // discovery is read-only and non-critical: a seam hiccup must not take
+    // the projects home down with it (FR-48; the list simply stays absent)
+    void api
+      .listSessions()
+      .then(setSessionListing)
+      .catch(() => setSessionListing(null));
   }, [authed, refreshProjects]);
 
   // poll provisioning projects until they settle (UC-01; SSE needs a conversation)
@@ -282,6 +291,7 @@ export function App(): React.JSX.Element {
     <div className={`app ${selectedConversation ? 'has-conversation' : ''}`}>
       <Sidebar
         onOpenArchived={() => setArchivedOpen(true)}
+        sessionListing={sessionListing}
         projects={projects}
         conversations={conversations}
         selectedProject={selectedProject}

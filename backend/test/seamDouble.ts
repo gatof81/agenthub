@@ -66,6 +66,18 @@ export class SeamDouble {
   readonly metaCalls: string[] = [];
   readonly bootstrapLogCalls: string[] = [];
   readonly stopCalls: string[] = [];
+  // N1 session-discovery surface (wire shapes verified at 0cd4ed5)
+  readonly adminListResponses: ScriptedResponse[] = [];
+  readonly ownListResponses: ScriptedResponse[] = [];
+  adminListCalls = 0;
+  ownListCalls = 0;
+  /**
+   * Whether the authenticated account carries the admin flag. `false` makes
+   * `GET /api/admin/sessions` answer requireAdmin's 403 (`auth.ts` at
+   * 0cd4ed5: `{error:"Admin privileges required"}`) — the degraded-scope
+   * branch the port must survive.
+   */
+  isAdmin = true;
   loginCount = 0;
   username = 'hub-service';
   password = 'hub-password';
@@ -124,6 +136,30 @@ export class SeamDouble {
     if (cookie === undefined || !this.validCookies.has(cookie)) {
       res.writeHead(401, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ error: 'unauthenticated' }));
+      return;
+    }
+
+    // N1 discovery listings. Wire shapes at 0cd4ed5: both return an ARRAY
+    // (no envelope) of serializeMeta rows + cpuLimit/memLimit/usage; admin
+    // rows additionally carry userId + ownerUsername (routes/admin.ts:139-151).
+    if (req.method === 'GET' && url === '/api/admin/sessions') {
+      this.adminListCalls += 1;
+      if (!this.isAdmin) {
+        res.writeHead(403, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Admin privileges required' }));
+        return;
+      }
+      const scripted = this.adminListResponses.shift() ?? { body: [] };
+      res.writeHead(scripted.status ?? 200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(scripted.body ?? []));
+      return;
+    }
+
+    if (req.method === 'GET' && url === '/api/sessions') {
+      this.ownListCalls += 1;
+      const scripted = this.ownListResponses.shift() ?? { body: [] };
+      res.writeHead(scripted.status ?? 200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(scripted.body ?? []));
       return;
     }
 

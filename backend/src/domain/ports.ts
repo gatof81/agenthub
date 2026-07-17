@@ -102,9 +102,53 @@ export class SessionGoneError extends Error {
   }
 }
 
+/**
+ * One substrate session as discovery sees it (N1, FR-48, ADR-007). Deliberately
+ * NOT the seam's full wire row: `envVars` is excluded — session env can carry
+ * secrets, and this shape flows to the Hub API and UI (SEC-04/05); `cols`/
+ * `rows`/container details are terminal concerns the Hub has no use for.
+ */
+export interface SessionInfo {
+  sessionId: string;
+  name: string;
+  /** substrate authority (FR-33): running | stopped | terminated | failed */
+  status: string;
+  /**
+   * Substrate account that owns the session (ADR-007). Attribution comes from
+   * the admin-wide listing; in `own` scope it is the execution identity
+   * itself. `null` only when the seam offered no attribution.
+   */
+  ownerUsername: string | null;
+  createdAt: string | null;
+  lastConnectedAt: string | null;
+}
+
+export interface SessionListing {
+  /**
+   * `all` — admin-wide listing with per-row owner attribution (the ADR-007
+   * target: the execution identity is admin-flagged and sees the owner's
+   * sessions). `own` — the execution identity lacks the admin flag and can
+   * see only its own sessions (the legacy-technical estate); surfaced so the
+   * UI can say what it is NOT seeing instead of presenting a partial list as
+   * the whole (FR-48).
+   */
+  scope: 'all' | 'own';
+  sessions: SessionInfo[];
+}
+
 export interface SubstrateExecPort {
   /** UC-01: provision the project's substrate session from a template. */
   createSession(templateId: string, seed: SessionSeed): Promise<{ sessionId: string }>;
+  /**
+   * Session discovery (N1, FR-48): list the sessions the Hub can see, with
+   * ownership and state. Read-only; the substrate stays the authority.
+   */
+  listSessions(): Promise<SessionListing>;
+  /**
+   * Single-session metadata; `null` when the session no longer exists
+   * upstream (a state to surface, never to repair — ADR-007, FR-44).
+   */
+  getSession(sessionId: string): Promise<SessionInfo | null>;
   /** Archiving a project stops its session (08 §1 PATCH semantics, FR-30). */
   stopSession(sessionId: string): Promise<void>;
   /**
