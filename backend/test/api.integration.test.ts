@@ -227,7 +227,7 @@ describe('GET /api/sessions — discovery (N1, FR-48, ADR-007)', () => {
     const { app, port } = makeApiHarness();
     port.seedSession({
       sessionId: 's_edu',
-      name: 'Educación Hz',
+      name: 'Education Hz',
       status: 'running',
       ownerUsername: 'owner-admin',
       createdAt: '2026-07-17T00:00:00.000Z',
@@ -248,7 +248,7 @@ describe('GET /api/sessions — discovery (N1, FR-48, ADR-007)', () => {
     const rows = res.body.sessions as Array<Record<string, unknown>>;
     const unbound = rows.find((s) => s.sessionId === 's_edu');
     expect(unbound).toMatchObject({
-      name: 'Educación Hz',
+      name: 'Education Hz',
       ownerUsername: 'owner-admin',
       projectId: null,
       projectName: null,

@@ -524,7 +524,7 @@ describe('session discovery (N1, FR-48, ADR-007)', () => {
   it('admin-flagged identity lists the whole estate with owner attribution (scope all)', async () => {
     double.adminListResponses.push({
       body: [
-        wireRow({ sessionId: 's_edu', name: 'Educación Hz', userId: 'u1', ownerUsername: 'owner-admin' }),
+        wireRow({ sessionId: 's_edu', name: 'Education Hz', userId: 'u1', ownerUsername: 'owner-admin' }),
         wireRow({ sessionId: 's_hub', name: 'hub-1234', status: 'stopped', userId: 'u2', ownerUsername: 'hub-service' }),
       ],
     });
@@ -533,7 +533,7 @@ describe('session discovery (N1, FR-48, ADR-007)', () => {
     expect(listing.sessions).toEqual([
       {
         sessionId: 's_edu',
-        name: 'Educación Hz',
+        name: 'Education Hz',
         status: 'running',
         ownerUsername: 'owner-admin',
         createdAt: '2026-07-17T00:00:00.000Z',
@@ -603,7 +603,7 @@ describe('session discovery (N1, FR-48, ADR-007)', () => {
     const fake = new FakeSubstrateExecPort();
     fake.seedSession({
       sessionId: 's_seed',
-      name: 'Educación Hz',
+      name: 'Education Hz',
       status: 'running',
       ownerUsername: 'owner-admin',
       createdAt: null,

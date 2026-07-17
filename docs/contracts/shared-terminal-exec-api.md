@@ -109,7 +109,7 @@ Surface consumed by `listSessions`/`getSession`, verified at
 
 | Endpoint | Use |
 | --- | --- |
-| `GET /api/admin/sessions` → array of serializeMeta rows + `userId`, `ownerUsername` (`routes/admin.ts:113-158`; `requireAdmin` → `403 {error:"Admin privileges required"}`, `auth.ts`) | preferred listing: the only one with per-row owner attribution (ADR-007). Hard cap 500 rows upstream. `403` (no admin flag) degrades the port to the own listing with `scope:'own'` — surfaced, never silent |
+| `GET /api/admin/sessions` → array of serializeMeta rows + `userId`, `ownerUsername` (`routes/admin.ts:113-158`; `requireAdmin` → `403 {error:"Admin privileges required"}`, `auth.ts`) | preferred listing: the only one with per-row owner attribution (ADR-007). Hard cap 500 rows upstream (`ADMIN_LIST_LIMIT = 500`, `sessionManager.ts:179`, applied in `listAll`'s `LIMIT` at `sessionManager.ts:498`). `403` (no admin flag) degrades the port to the own listing with `scope:'own'` — surfaced, never silent |
 | `GET /api/sessions` → array of serializeMeta rows (caller's own, terminated excluded; `routes/sessions.ts:440-489`) | degraded own-scope listing; rows attributed to the configured `selfUsername` since the wire carries no owner for the caller's own rows |
 | `GET /api/sessions/:id` (operate-tier since upstream PR #412, `routes/sessions.ts:501`) | single-session metadata; `404` → `null` at the port (gone is a state to surface, FR-44, never repair) |
 
