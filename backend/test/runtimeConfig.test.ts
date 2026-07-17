@@ -27,6 +27,13 @@ describe('resolveRuntimeConfig', () => {
       seamPassword: 'p4ss-value-x',
       oauthToken: 'tok-value-y',
     });
+    // absent SEAM_OWNER_USER_ID → key omitted, sessions stay self-owned (N2)
+    expect('seamOwnerUserId' in cfg).toBe(false);
+  });
+
+  it('carries SEAM_OWNER_USER_ID when set (N2 create-on-behalf, #420)', () => {
+    const cfg = resolveRuntimeConfig({ ...REAL_ENV, SEAM_OWNER_USER_ID: 'owner-uuid-1' });
+    expect((cfg as { seamOwnerUserId?: string }).seamOwnerUserId).toBe('owner-uuid-1');
   });
 
   it('fails fast naming every missing variable — never echoing values', () => {

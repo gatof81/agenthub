@@ -216,3 +216,35 @@ describe('migration 004 (doc 19 §5)', () => {
     db.close();
   });
 });
+
+describe('create-on-behalf lifecycle (N2, #420)', () => {
+  it('a session created in the owner account is owned by them and never stopped on archive', async () => {
+    const store = new MemoryHubStore();
+    const port = new FakeSubstrateExecPort();
+    port.createOnBehalfUserId = 'owner-uuid-1';
+    const orch = new Orchestrator({
+      store,
+      adapter: new FakeRuntimeAdapter(port),
+      execPort: port,
+      agents: new Map([[DEV.id, DEV]]),
+    });
+    const created = orch.createProject({
+      name: 'edu',
+      defaultAgentId: 'dev',
+      sessionTemplateId: 'tpl',
+    });
+    await settle();
+    const project = store.getProject(created.id) as Project;
+    expect(project.status).toBe('ready');
+    expect(project.sessionBinding).toMatchObject({
+      bindingMode: 'created',
+      ownership: 'owner',
+      ownerAccountId: 'owner-uuid-1',
+    });
+    // the session carries the project back-link from birth (#418)
+    expect(port.seededSessions[0]?.seed.externalRef).toBe(`agenthub:project:${created.id}`);
+    await orch.archiveProject(created.id);
+    // owner-account session: archiving is a Hub-side act only (ADR-007)
+    expect(port.stoppedSessions).toHaveLength(0);
+  });
+});

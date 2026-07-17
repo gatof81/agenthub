@@ -311,7 +311,7 @@ export class Orchestrator {
           `project ${projectId} declares no workspace template (ADR-006, FR-45)`,
         );
       }
-      const { sessionId } = await this.execPort.createSession(project.sessionTemplateId, {
+      const { sessionId, ownerUserId } = await this.execPort.createSession(project.sessionTemplateId, {
         // No `settings` seed (S-05): this used to write the provisioning
         // agent's allowlist into the workspace, the same one-role-baked-into-a-
         // shared-workspace bug B5-04 fixed for instructions. Tools travel per
@@ -336,17 +336,24 @@ export class Orchestrator {
         externalRef: `agenthub:project:${projectId}`,
       });
       // Bind BEFORE the readiness wait: from here on a session exists
-      // upstream, and a project that fails the wait must still carry the id
-      // so archiving can stop it (otherwise the container leaks — the seam
-      // is the authority on session state, but only we know the id).
+      // upstream, and a project that fails the wait must still carry the id.
+      // For a self-owned session that is what lets archiving stop it
+      // (otherwise the container leaks); an owner-account session that fails
+      // the wait stays in the owner's account, visible and theirs to remove —
+      // the Hub never force-stops it (ADR-007), which is the honest tradeoff.
+      // Created in the owner's account (N2, #420) when the seam reports an
+      // owner id → treated exactly like a bound session (ADR-007): it is the
+      // owner's, so archive/restore never stop or start it. Without an owner
+      // id the Hub created it self-owned (`legacy-technical`), the pre-#420
+      // behavior, and keeps lifecycle authority over it.
+      const onBehalf = ownerUserId !== null;
       this.store.setProjectSession(projectId, {
         sessionId,
         templateId: project.sessionTemplateId,
         lastKnownState: 'provisioning',
-        // honest until shared-terminal#420 (create-on-behalf): a session the
-        // Hub creates today lives in its own technical account (ADR-007)
         bindingMode: 'created',
-        ownership: 'legacy-technical',
+        ownership: onBehalf ? 'owner' : 'legacy-technical',
+        ownerAccountId: ownerUserId,
       });
       // A provisioned session is not yet a runnable one (B3-08): ask the
       // runtime, not the seam, whether it can actually take a turn.

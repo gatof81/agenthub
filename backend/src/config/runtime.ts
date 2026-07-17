@@ -28,6 +28,15 @@ export interface RealRuntimeConfig {
   seamPassword: string;
   /** injected into each run's exec env; never persisted or logged (SEC-07, 13 §5) */
   oauthToken: string;
+  /**
+   * The owner's admin-account user id (ADR-007, N2): when set, the Hub creates
+   * new project sessions **in the owner's account** on their behalf
+   * (shared-terminal#420) so they are visible and usable there. Absent →
+   * sessions are self-owned by the Hub's execution identity, the pre-#420
+   * behavior. A deployment identifier, never committed (R-09) — the Hub's
+   * account must be admin-flagged for the on-behalf create to be authorized.
+   */
+  seamOwnerUserId?: string;
 }
 
 export type RuntimeConfig = FakeRuntimeConfig | RealRuntimeConfig;
@@ -61,6 +70,8 @@ export function resolveRuntimeConfig(
       seamUsername: env.SEAM_USERNAME!,
       seamPassword: env.SEAM_PASSWORD!,
       oauthToken: env.CLAUDE_CODE_OAUTH_TOKEN!,
+      // optional (N2): absent keeps sessions self-owned (legacy-technical)
+      ...(env.SEAM_OWNER_USER_ID ? { seamOwnerUserId: env.SEAM_OWNER_USER_ID } : {}),
     };
   }
   throw new RuntimeConfigError(

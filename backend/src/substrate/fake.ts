@@ -129,21 +129,33 @@ export class FakeSubstrateExecPort implements SubstrateExecPort {
     this.queue.push(fixture);
   }
 
-  createSession(templateId: string, seed: SessionSeed): Promise<{ sessionId: string }> {
+  /**
+   * When set, `createSession` reports the session as created in the owner's
+   * account (N2, shared-terminal#420) — the real port's on-behalf path. Tests
+   * set it to exercise `ownership: 'owner'` for created (not just bound)
+   * sessions; null = self-owned, the pre-#420 behavior.
+   */
+  createOnBehalfUserId: string | null = null;
+
+  createSession(
+    templateId: string,
+    seed: SessionSeed,
+  ): Promise<{ sessionId: string; ownerUserId: string | null }> {
     this.sessionCounter += 1;
     this.seededSessions.push({ templateId, seed });
     const sessionId = `fakesess_${this.sessionCounter}`;
+    const onBehalf = this.createOnBehalfUserId !== null;
     // created sessions show up in discovery, like the real seam's listings
     this.knownSessions.set(sessionId, {
       sessionId,
       name: `hub-fake-${this.sessionCounter}`,
       status: 'running',
-      ownerUsername: 'fake-owner',
+      ownerUsername: onBehalf ? 'owner-admin' : 'fake-owner',
       createdAt: null,
       lastConnectedAt: null,
       externalRef: seed.externalRef ?? null,
     });
-    return Promise.resolve({ sessionId });
+    return Promise.resolve({ sessionId, ownerUserId: this.createOnBehalfUserId });
   }
 
   /** Real-port parity (#418): PATCH the ref on a known session; 404-shape on unknown. */

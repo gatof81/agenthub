@@ -244,6 +244,12 @@ export interface RealExecPortOptions {
    * UI guess (FR-48). Absent → own-scope rows report `ownerUsername: null`.
    */
   selfUsername?: string;
+  /**
+   * The owner's admin-account user id (N2, ADR-007). When set, `createSession`
+   * creates the session **in the owner's account** via `ownerUserId`
+   * (shared-terminal#420) and returns it. Absent → self-owned create.
+   */
+  ownerUserId?: string;
 }
 
 /** Cap the bootstrap-log tail carried on a provisioning error. */
@@ -273,7 +279,10 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
    * cannot mean "never ran" here because a seeded create always runs the
    * bootstrap (the create response says `bootstrapping: true`).
    */
-  async createSession(templateId: string, seed: SessionSeed): Promise<{ sessionId: string }> {
+  async createSession(
+    templateId: string,
+    seed: SessionSeed,
+  ): Promise<{ sessionId: string; ownerUserId: string | null }> {
     const tplRes = await this.request(
       'GET',
       `/api/templates/${encodeURIComponent(templateId)}`,
@@ -328,16 +337,37 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
 
     // substrate-side display name only — the Hub tracks sessions by id
     const name = `hub-${randomBytes(4).toString('hex')}`;
+    const ownerUserId = this.opts.ownerUserId ?? null;
     const res = await this.request('POST', '/api/sessions', {
       name,
       config,
       // top-level create field, not part of config (#418, verified at c2db7f7)
       ...(seed.externalRef !== undefined ? { externalRef: seed.externalRef } : {}),
+      // create in the owner's account on their behalf (#420, admin-only,
+      // verified at 1a5af57). Absent → self-owned, the pre-#420 behavior.
+      ...(ownerUserId !== null ? { ownerUserId } : {}),
     });
+    // On-behalf create charges the OWNER's budget, not the Hub's — a 429 here
+    // is the owner's quota. Two shapes, both verified at 1a5af57: a CPU/mem
+    // budget cap is `{error, cap:"cpu"|"mem"}` (routes/sessions.ts:273); the
+    // session-count cap is `{error, quota:<n>}` (:451). Name whichever the
+    // seam sent so the provisioning error says why, not a bare status.
+    if (res.status === 429) {
+      const q = (await res.json().catch(() => ({}))) as { error?: string; cap?: string; quota?: unknown };
+      const scope = ownerUserId !== null ? 'owner' : 'account';
+      // null (neither field present) → don't duplicate the word "quota"
+      const which = q.cap ?? (q.quota !== undefined ? 'session-count' : null);
+      throw new SeamProvisioningError(
+        which !== null
+          ? `session create refused: ${scope} ${which} quota exceeded`
+          : `session create refused: ${scope} quota exceeded`,
+        null,
+      );
+    }
     if (!res.ok) throw await SeamHttpError.from(res, 'createSession');
     const created = (await res.json()) as { sessionId: string; bootstrapping?: boolean };
     if (created.bootstrapping === true) await this.awaitBootstrap(created.sessionId);
-    return { sessionId: created.sessionId };
+    return { sessionId: created.sessionId, ownerUserId };
   }
 
   /**

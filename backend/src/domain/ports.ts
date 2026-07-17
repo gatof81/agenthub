@@ -150,8 +150,18 @@ export interface SessionListing {
 }
 
 export interface SubstrateExecPort {
-  /** UC-01: provision the project's substrate session from a template. */
-  createSession(templateId: string, seed: SessionSeed): Promise<{ sessionId: string }>;
+  /**
+   * UC-01: provision the project's substrate session from a template.
+   * `ownerUserId` is non-null when the session was created **in the owner's
+   * admin account** (create-on-behalf, shared-terminal#420 — N2): it is that
+   * account's id, and the orchestrator records `ownership: 'owner'`. `null`
+   * means the session is self-owned by the Hub's execution identity
+   * (`legacy-technical`), the pre-#420 behavior.
+   */
+  createSession(
+    templateId: string,
+    seed: SessionSeed,
+  ): Promise<{ sessionId: string; ownerUserId: string | null }>;
   /**
    * Session discovery (N1, FR-48): list the sessions the Hub can see, with
    * ownership and state. Read-only; the substrate stays the authority.
