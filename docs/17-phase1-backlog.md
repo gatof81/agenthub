@@ -103,7 +103,18 @@ review the last PR of Agent Hub" from impossible into a sentence
 
 **Increment-5 done:** one `DEV-Agent` works on two different repositories, and
 two different roles work on one repository, without either borrowing the
-other's workspace or instructions.
+other's workspace or instructions — **met 2026-07-17** (B5-01..04).
+
+**Known residual (accepted, owner 2026-07-17): projects provisioned before
+B5-04 keep their baked `CLAUDE.md`.** That file lives in the workspace, inside
+the container — not in the Hub's database — so B5-04 corrects what provisioning
+*writes*, and cannot retroactively unwrite it. A pre-B5-04 project therefore
+still carries its default agent's craft in the workspace, and a second role
+opened in it reads that craft *plus* its own per-turn instructions. Accepted
+rather than fixed: the affected projects are test fixtures, and the case the
+increment exists for — a project created for a real repository — is provisioned
+after this change and is clean from birth. Re-provisioning is the escape hatch
+if a real pre-B5-04 project ever needs the correction; it costs the workspace.
 
 ## Cross-cutting (throughout)
 
