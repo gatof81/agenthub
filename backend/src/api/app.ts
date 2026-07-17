@@ -41,7 +41,7 @@ export interface ApiDeps {
   /**
    * Directory of the built frontend (`frontend/dist`). When set, the backend
    * serves the SPA so the browser is same-origin with `/api` — the ADR-002
-   * single-hostname topology (túnel → one backend serving both). Absent in
+   * single-hostname topology (tunnel → one backend serving both). Absent in
    * tests and in dev (Vite serves the SPA and proxies `/api`); an API-only
    * boot (no built frontend) also leaves it unset and simply doesn't serve a
    * SPA. Static assets are public — the `/api` token gate does not cover

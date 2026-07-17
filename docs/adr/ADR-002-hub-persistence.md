@@ -19,8 +19,10 @@ commit delays the first token of every reply.
 
 Deployment shape (decided with the owner, resolves Q-05): the Hub mirrors
 shared-terminal's own topology — long-lived Node backend co-located on the
-substrate's host behind the Cloudflare tunnel, frontend on Cloudflare Pages,
-seam to the substrate over localhost. A Workers-based *backend* was considered
+substrate's host behind the Cloudflare tunnel, frontend on Cloudflare Pages
+(**superseded 2026-07-17 — the backend serves the SPA same-origin instead;
+see Consequences**), seam to the substrate over localhost. A Workers-based
+*backend* was considered
 and set aside: ADR-001's seam consumes long-lived NDJSON streams and keeps
 process state (run queue, exec registry, boot reconciliation); on Workers that
 requires Durable Objects + Queues — new moving parts against the
@@ -113,3 +115,15 @@ failure is data-loss risk R-16.
   so a single event can never balloon a snapshot or a query result).
 - Hub host disk is now stateful beyond workspaces: the SQLite file + WAL live
   outside the substrate's `WORKSPACE_ROOT`; doc 14 owns disk monitoring.
+- **Frontend placement amended (2026-07-17): the backend serves the built SPA
+  same-origin, not Cloudflare Pages.** The Context above named Pages, but the
+  frontend calls `/api` relative (the single-hostname intent of this ADR), and
+  Pages serves only static files — hosting the SPA there would split the
+  origin and force `VITE_API_URL` + CORS + cross-origin cookies, contradicting
+  the single-hostname constraint it was meant to satisfy. So a single
+  Cloudflare tunnel points at the co-located Node backend, which serves both
+  `/api` and the SPA (`buildApp`'s `staticDir`). Cloudflare's role in the
+  stack is unchanged in spirit — tunnel + R2; only the frontend *placement*
+  moves from Pages to the same backend. Browser auth for public exposure stays
+  open (Q-07): Cloudflare Access as the gate, with the backend verifying the
+  signed Access JWT — a later ADR.
