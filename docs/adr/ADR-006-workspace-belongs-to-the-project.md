@@ -70,7 +70,10 @@ one per repo** — chosen over per-repo SSH deploy keys and over a single
 global PAT. Rationale: least privilege, individually revocable, and a leak of
 one credential cannot reach the other repositories. Accepted cost: more
 friction when adding a project. The seam already stores repo auth encrypted
-in D1 (`sessionConfig.ts`), so the Hub holds no plaintext at rest.
+in D1 — `encryptAuthCredentials` (`sessionConfig.ts:1138`), verified at
+shared-terminal `main @ c35b6da`, whose own note states the intent: *"the
+whole point of `auth_json` / `encryptAuthCredentials` is that secrets never
+land in plaintext anywhere on disk"* — so the Hub holds no plaintext at rest.
 
 **Interactive credential flows stay impossible, and that is now explicit.**
 The runner is per-turn (ADR-003): a `gh auth login` device flow needs its
