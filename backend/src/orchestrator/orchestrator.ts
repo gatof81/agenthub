@@ -212,7 +212,14 @@ export class Orchestrator {
       }
       const { sessionId } = await this.execPort.createSession(project.sessionTemplateId, {
         settings: { allowedTools: agent.allowedTools },
-        claudeMd: [agent.instructions, instructions].filter(Boolean).join('\n\n'),
+        // The PROJECT's instructions, and only those (B5-04). The default
+        // agent's craft used to be baked in here alongside them, which made
+        // the workspace carry one role: every conversation in the project ran
+        // under the provisioning agent's instructions, so a QA conversation
+        // inherited DEV's. The role now travels per turn
+        // (`TurnRequest.instructions`); what stays is what the whole project
+        // shares.
+        claudeMd: instructions,
         ...(project.repo ? { repo: project.repo } : {}),
         // Provisioned, never authenticated inside a turn (FR-46): the runner
         // is per-turn, so a device flow's process dies with the exec. The
@@ -357,6 +364,7 @@ export class Orchestrator {
       content,
       caps: agent.defaultCaps,
       policy: agent.allowedTools,
+      instructions: agent.instructions,
     });
     this.notify.runState(conversationId, { runId: result.run.id, state: 'queued' });
     this.pump(conversation.projectId);
@@ -549,6 +557,11 @@ export class Orchestrator {
       caps: run.capsSnapshot,
       runtimeSessionId: conversation.runtimeSessionId,
       env: { ...this.runEnv, HUB_RUN_ID: run.id },
+      // Snapshotted at send like policy and caps (I-8), not read from live
+      // config: a queued run survives a restart, and the restart re-reads
+      // `agents.yaml` — so reading it here would run the turn under whatever
+      // the role says NOW, not what it said when the turn was queued.
+      instructions: run.instructionsSnapshot,
     };
 
     let seq = 0;

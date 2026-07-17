@@ -49,6 +49,7 @@ describe('backup restore drill (13 §4, offline)', () => {
       content: 'in-flight work',
       caps: DEV.defaultCaps,
       policy: DEV.allowedTools,
+      instructions: DEV.instructions,
     });
     store.dispatchNextRun(project.id);
     store.transitionRun(run.id, 'starting', 'streaming', { execId: 'exec_x', pgid: 2 });

@@ -221,6 +221,7 @@ export class MemoryHubStore implements HubStore {
       seamRequestId: null,
       capsSnapshot: clone(input.caps),
       policySnapshot: [...input.policy],
+      instructionsSnapshot: input.instructions,
       cliVersion: null,
       model: null,
       killOutcome: null,

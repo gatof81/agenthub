@@ -111,6 +111,18 @@ export interface TurnRequest {
   /** --resume handle; null on a conversation's first turn (FR-24). */
   runtimeSessionId: string | null;
   env: Record<string, string>;
+  /**
+   * The agent's craft, carried per turn (B5-04, ADR-006); null when the role
+   * declares none.
+   *
+   * Per turn rather than baked into the workspace at provisioning: several
+   * roles share one project's workspace (ADR-006), so a CLAUDE.md written
+   * once would run every conversation under the provisioning agent's
+   * instructions — a QA conversation under DEV's craft. The project's own
+   * instructions still belong in the workspace; they are the project's, and
+   * every role in it shares them.
+   */
+  instructions: string | null;
 }
 
 /**

@@ -61,6 +61,43 @@ describe('migration runner (09 §4)', () => {
     db.close();
   });
 
+  it('003: a run queued before B5-04 keeps a NULL role — unrecorded, not "none"', () => {
+    // The B5-01 lesson, as a test rather than a manual check: a migration must
+    // be exercised against a populated PRIOR-ERA database, not only from empty.
+    // Applying 003 to a fresh schema proves nothing about the rows it inherits.
+    const db = new DatabaseCtor(':memory:');
+    const real = loadMigrations();
+    const era002 = real.filter((m) => m.version <= 2);
+    expect(era002.length).toBeGreaterThan(0); // guard: never vacuously pass
+    migrate(db, era002);
+
+    db.exec(`
+      INSERT INTO projects (id, name, default_agent_id, status, created_at, updated_at)
+        VALUES ('proj_1', 'p', 'dev', 'ready', '2026-07-16T00:00:00.000Z', '2026-07-16T00:00:00.000Z');
+      INSERT INTO conversations (id, project_id, title, agent_id, status, created_at, updated_at)
+        VALUES ('conv_1', 'proj_1', 't', 'dev', 'active', '2026-07-16T00:00:00.000Z', '2026-07-16T00:00:00.000Z');
+      INSERT INTO messages (id, conversation_id, role, content, run_id, created_at)
+        VALUES ('msg_1', 'conv_1', 'user', 'legacy work', 'run_1', '2026-07-16T00:00:00.000Z');
+      INSERT INTO runs (id, conversation_id, message_id, state, caps_snapshot, policy_snapshot, created_at)
+        VALUES ('run_1', 'conv_1', 'msg_1', 'completed',
+                '{"maxTurns":10,"budgetUsd":1,"timeoutMs":60000}', '["Read"]',
+                '2026-07-16T00:00:00.000Z');
+    `);
+
+    expect(migrate(db, real)).toBe(3);
+
+    // The legacy run survives, and its role reads NULL: nothing truthful could
+    // be backfilled (agents.yaml is gitignored, SEC-10), so 003 records the gap
+    // instead of inventing a value that would look like an audit record.
+    const row = db.prepare(`SELECT * FROM runs WHERE id = 'run_1'`).get() as {
+      instructions_snapshot: string | null;
+      state: string;
+    };
+    expect(row.state).toBe('completed');
+    expect(row.instructions_snapshot).toBeNull();
+    db.close();
+  });
+
   it('a failing migration aborts and leaves no half-migrated database', () => {
     const db = new DatabaseCtor(':memory:');
     const real = loadMigrations();

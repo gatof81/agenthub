@@ -1,0 +1,33 @@
+-- 003_run_instructions_snapshot: the role's craft is snapshotted onto the run
+-- it was queued for (B5-04, ADR-006 consequence, I-8).
+--
+-- Why a snapshot and not a read of live config at dispatch: a queued run
+-- survives a restart (the queue is in this database; boot reconciliation
+-- re-pumps it), and a restart re-reads `agents.yaml`. Reading the role at
+-- dispatch would therefore run the turn under whatever the role says NOW
+-- rather than what it said when the turn was queued. This is the same reason
+-- caps_snapshot and policy_snapshot exist, applied to the same class of fact.
+--
+-- It is also the ONLY possible record. Agent configs are deployment-private
+-- and gitignored (SEC-10), so "what instructions did this run use?" — the
+-- single best explanation of why a run behaved as it did — is unanswerable
+-- forever without this column. There is no git history to recover it from.
+--
+-- NULLABLE, and NULL is not the empty string:
+--
+--   * NULL — a pre-B5-04 run. Its instructions were never recorded, so they
+--     are unrecoverable; NULL says "unknown", never "the role had none".
+--   * a string — what the run actually ran under. Always non-empty in
+--     practice: `instructions` is required and non-blank at config load
+--     (config/agents.ts), so a role cannot declare an empty craft.
+--
+-- No backfill, deliberately — unlike 002, there is nothing truthful to
+-- backfill FROM. Inventing today's `agents.yaml` as the value for historical
+-- runs would fabricate an audit record, which is worse than admitting the gap.
+--
+-- The NULL case degrades correctly rather than by luck: a legacy run dispatches
+-- with no `--append-system-prompt`, and the legacy workspace it runs in still
+-- carries the baked CLAUDE.md from provisioning — which is exactly the
+-- instructions it would have used before this change.
+
+ALTER TABLE runs ADD COLUMN instructions_snapshot TEXT;

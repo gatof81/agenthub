@@ -59,6 +59,7 @@ function seedInterrupted(withEvents: boolean): Seeded {
     content: 'crashy work',
     caps: DEV_AGENT.defaultCaps,
     policy: DEV_AGENT.allowedTools,
+    instructions: DEV_AGENT.instructions,
   });
   store.dispatchNextRun(project.id);
   store.transitionRun(run.id, 'starting', 'streaming', { execId: 'exec_zomb', pgid: 1 });
@@ -132,6 +133,7 @@ describe('boot reconciliation (UC-06)', () => {
       content: 'queued work',
       caps: DEV_AGENT.defaultCaps,
       policy: DEV_AGENT.allowedTools,
+      instructions: DEV_AGENT.instructions,
     });
     s.port.enqueueFixture({ streamLines: ['HUB_SWEEP|||'] }); // unknown-branch sweep (B3-02)
     s.port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });

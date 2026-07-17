@@ -53,6 +53,13 @@ export interface SendMessageInput {
   caps: Caps;
   /** Non-empty (I-7): a run without an explicit allowlist must be unrepresentable. */
   policy: string[];
+  /**
+   * The agent's craft at queue time (B5-04). Required, not optional: a role
+   * always declares one (config load rejects a blank), so a run that does not
+   * record what it ran under should be unrepresentable — `Run.instructions
+   * Snapshot` is nullable only to admit pre-B5-04 rows, never new ones.
+   */
+  instructions: string;
 }
 
 /** Patch applied alongside a guarded non-terminal transition. */
