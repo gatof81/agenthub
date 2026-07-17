@@ -13,6 +13,7 @@ import type {
   Conversation,
   Project,
   SessionListing,
+  Specialist,
   WorkspaceChoice,
   WorkspaceTemplate,
 } from '../lib/api.js';
@@ -21,6 +22,8 @@ import { ArchiveIcon, BackIcon } from './icons.js';
 interface Props {
   /** session discovery (N1, FR-48, ADR-007); null until loaded / on seam hiccup */
   sessionListing: SessionListing | null;
+  /** reusable professional identities (N3, ADR-008) */
+  specialists: Specialist[];
   projects: Project[];
   conversations: Conversation[];
   selectedProject: Project | null;
@@ -137,12 +140,41 @@ function ProjectsHome(props: Props): React.JSX.Element {
           </p>
         )}
       </div>
+      {props.specialists.length > 0 && <SpecialistsSection specialists={props.specialists} />}
       {props.sessionListing !== null && <SessionsSection listing={props.sessionListing} />}
       <button className="archived-link" onClick={props.onOpenArchived}>
         Archived
       </button>
       <p className="palette-hint muted">⌘K / Ctrl+K — commands</p>
     </nav>
+  );
+}
+
+/**
+ * Specialists (N3, ADR-008): reusable professional identities — name, role,
+ * and capabilities. Read-only in N3; direct conversation and personal
+ * sessions arrive in N3b.
+ */
+function SpecialistsSection({ specialists }: { specialists: Specialist[] }): React.JSX.Element {
+  return (
+    <>
+      <h2>Specialists</h2>
+      <ul className="nav-list">
+        {specialists.map((s) => (
+          <li key={s.id} className="nav-row">
+            <div className="nav-main session-row">
+              <span className="session-name">
+                {s.name}
+                {s.role !== null ? <span className="muted"> — {s.role}</span> : null}
+              </span>
+              {s.capabilities.length > 0 && (
+                <span className="muted session-meta">{s.capabilities.join(' · ')}</span>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 

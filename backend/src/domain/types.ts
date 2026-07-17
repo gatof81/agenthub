@@ -53,7 +53,7 @@ export interface Caps {
   timeoutMs: number;
 }
 
-/** Agent = professional role, config-defined in Phase 1 (FR-02); stateless template (18 §2). */
+/** Reusable professional identity (FR-02, 18 §2, ADR-008); named `Agent` to avoid a mid-flight rename — surfaced as `/api/specialists`. */
 export interface Agent {
   id: string;
   name: string;
@@ -61,6 +61,10 @@ export interface Agent {
   allowedTools: string[]; // mandatory, never empty-meaning-all (FR-11, SEC-02)
   runtime: 'claude-cli';
   defaultCaps: Caps;
+  /** professional role, e.g. "Software Developer", "QA Specialist" (ADR-008). */
+  role?: string;
+  /** free-form capability tags the router selects on (ADR-008, N4). */
+  capabilities?: string[];
 }
 
 /**

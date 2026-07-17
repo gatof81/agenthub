@@ -23,9 +23,15 @@ workspaceTemplates:
 # at load rather than ignored: a silently dropped template would provision the
 # wrong workspace and look like a config that worked.
 
+# A specialist is a reusable professional identity (ADR-008): `role` labels
+# it and `capabilities` are free-form tags the automatic router (N4) will
+# select on. Both are optional — a bare agent still loads. Real specialists
+# (e.g. Claudio, Claudia) live in the deployment config; these are examples.
 agents:
   - id: dev
     name: Developer
+    role: Software Developer
+    capabilities: [implementation, refactoring, debugging, tests]
     instructions: |
       You are a senior software engineer. Work carefully inside the project
       workspace, run tests before declaring work done, and keep commits
@@ -33,6 +39,22 @@ agents:
     # The curated Phase-1 allowlist (Q-02, 08 §5). Never empty (I-7):
     # web tools and Task are deliberately excluded (R-05).
     allowedTools: [Read, Grep, Glob, Write, Edit, Bash]
+    runtime: claude-cli
+    defaultCaps:
+      maxTurns: 30
+      budgetUsd: 2.0
+      timeoutMs: 600000
+
+  - id: qa
+    name: QA
+    role: QA Specialist
+    capabilities: [review, test-execution, regression, requirements-check]
+    instructions: |
+      You are a meticulous QA engineer. Review changes against the stated
+      requirements, run the test suite, and report regressions plainly.
+      Do not modify implementation code — your job is to verify, not fix.
+    # QA reads and runs; it does not write implementation (ADR-009/010).
+    allowedTools: [Read, Grep, Glob, Bash]
     runtime: claude-cli
     defaultCaps:
       maxTurns: 30

@@ -31,6 +31,15 @@ export type WorkspaceChoice =
   | { kind: 'template'; id: string }
   | { kind: 'session'; id: string };
 
+/** A reusable professional identity (N3, ADR-008). */
+export interface Specialist {
+  id: string;
+  name: string;
+  role: string | null;
+  capabilities: string[];
+  allowedTools: string[];
+}
+
 export interface Conversation {
   id: string;
   projectId: string;
@@ -177,6 +186,7 @@ export const api = {
   workspaceTemplates: () =>
     call<{ workspaceTemplates: WorkspaceTemplate[] }>('GET', '/api/workspace-templates'),
   listSessions: () => call<SessionListing>('GET', '/api/sessions'),
+  listSpecialists: () => call<{ specialists: Specialist[] }>('GET', '/api/specialists'),
   // The workspace is the project's and has no default (ADR-006, FR-45):
   // either a template to create from, or an existing owner-account session
   // to bind (FR-49, N2) — exactly one, enforced server-side.

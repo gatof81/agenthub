@@ -53,6 +53,8 @@ normative:**
 | `allowedTools` | the curated allowlist — **mandatory, never empty-meaning-all** (FR-11, SEC-02) |
 | `runtime` | `claude-cli` (only value in P1); the discriminator for the `RuntimeAdapter` |
 | `defaultCaps` | `{maxTurns, budgetUsd, timeoutMs}` — every run gets a caps snapshot (FR-17) |
+| `role?` | professional label, e.g. "Software Developer" (ADR-008, N3a); optional — pre-N3 configs omit it |
+| `capabilities?` | free-form tags the router (N4) selects on (ADR-008); optional list |
 
 Phase-2 forward constraint: this shape must survive becoming a stored,
 user-editable entity (Agent Registry) without field renames — and it stays a
