@@ -538,6 +538,7 @@ describe('session discovery (N1, FR-48, ADR-007)', () => {
         ownerUsername: 'owner-admin',
         createdAt: '2026-07-17T00:00:00.000Z',
         lastConnectedAt: null,
+        externalRef: null,
       },
       {
         sessionId: 's_hub',
@@ -546,6 +547,7 @@ describe('session discovery (N1, FR-48, ADR-007)', () => {
         ownerUsername: 'hub-service',
         createdAt: '2026-07-17T00:00:00.000Z',
         lastConnectedAt: null,
+        externalRef: null,
       },
     ]);
     expect(double.ownListCalls).toBe(0);
@@ -594,6 +596,7 @@ describe('session discovery (N1, FR-48, ADR-007)', () => {
       ownerUsername: null,
       createdAt: '2026-07-17T00:00:00.000Z',
       lastConnectedAt: null,
+      externalRef: null,
     });
     double.metaResponses.push({ status: 404, body: { error: 'Session not found' } });
     expect(await port.getSession('s_gone')).toBeNull();
@@ -608,6 +611,7 @@ describe('session discovery (N1, FR-48, ADR-007)', () => {
       ownerUsername: 'owner-admin',
       createdAt: null,
       lastConnectedAt: null,
+      externalRef: null,
     });
     const { sessionId } = await fake.createSession('tpl', {});
     let listing = await fake.listSessions();
@@ -619,5 +623,59 @@ describe('session discovery (N1, FR-48, ADR-007)', () => {
     listing = await fake.listSessions();
     expect(listing.sessions.map((s) => s.sessionId)).toEqual([sessionId]);
     expect(await fake.getSession('s_seed')).toBeNull();
+  });
+});
+
+describe('session external_ref (N2, shared-terminal#418)', () => {
+  it('setSessionExternalRef PATCHes the ref and null clears it', async () => {
+    double.patchRefResponses.push({ body: { sessionId: 's1', status: 'running' } });
+    double.patchRefResponses.push({ body: { sessionId: 's1', status: 'running' } });
+    await port.setSessionExternalRef('s1', 'agenthub:project:p1');
+    await port.setSessionExternalRef('s1', null);
+    expect(double.patchRefCalls).toEqual([
+      { sessionId: 's1', externalRef: 'agenthub:project:p1' },
+      { sessionId: 's1', externalRef: null },
+    ]);
+  });
+
+  it('a failed PATCH surfaces as SeamHttpError', async () => {
+    double.patchRefResponses.push({ status: 404, body: { error: 'Session not found' } });
+    await expect(port.setSessionExternalRef('s_gone', 'x')).rejects.toBeInstanceOf(SeamHttpError);
+  });
+
+  it('createSession sends externalRef as a TOP-LEVEL create field, not config', async () => {
+    double.templateResponses.push({ body: { config: {} } });
+    double.createResponses.push({ status: 201, body: { sessionId: 's_new', status: 'running' } });
+    await port.createSession('tpl', { externalRef: 'agenthub:project:p9' });
+    const call = double.createCalls[0] as Record<string, unknown>;
+    expect(call.externalRef).toBe('agenthub:project:p9');
+    expect((call.config as Record<string, unknown>).externalRef).toBeUndefined();
+  });
+
+  it('listing rows surface externalRef; fake parity via setSessionExternalRef (R-12)', async () => {
+    double.adminListResponses.push({
+      body: [
+        {
+          sessionId: 's_ref',
+          name: 'n',
+          status: 'running',
+          createdAt: '2026-07-17T00:00:00.000Z',
+          lastConnectedAt: null,
+          envVars: {},
+          ownerUsername: 'o',
+          externalRef: 'agenthub:project:p1',
+        },
+      ],
+    });
+    const listing = await port.listSessions();
+    expect(listing.sessions[0]?.externalRef).toBe('agenthub:project:p1');
+
+    const fake = new FakeSubstrateExecPort();
+    const { sessionId } = await fake.createSession('tpl', {});
+    await fake.setSessionExternalRef(sessionId, 'agenthub:project:p1');
+    expect((await fake.getSession(sessionId))?.externalRef).toBe('agenthub:project:p1');
+    await fake.setSessionExternalRef(sessionId, null);
+    expect((await fake.getSession(sessionId))?.externalRef).toBeNull();
+    await expect(fake.setSessionExternalRef('s_unknown', 'x')).rejects.toThrow(/unknown session/);
   });
 });

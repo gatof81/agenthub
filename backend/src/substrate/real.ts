@@ -201,6 +201,8 @@ function toSessionInfo(row: Record<string, unknown>, fallbackOwner: string | nul
     ownerUsername: typeof row.ownerUsername === 'string' ? row.ownerUsername : fallbackOwner,
     createdAt: typeof row.createdAt === 'string' ? row.createdAt : null,
     lastConnectedAt: typeof row.lastConnectedAt === 'string' ? row.lastConnectedAt : null,
+    // in serializeMeta since shared-terminal#418 (verified at c2db7f7)
+    externalRef: typeof row.externalRef === 'string' ? row.externalRef : null,
   };
 }
 
@@ -326,7 +328,12 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
 
     // substrate-side display name only — the Hub tracks sessions by id
     const name = `hub-${randomBytes(4).toString('hex')}`;
-    const res = await this.request('POST', '/api/sessions', { name, config });
+    const res = await this.request('POST', '/api/sessions', {
+      name,
+      config,
+      // top-level create field, not part of config (#418, verified at c2db7f7)
+      ...(seed.externalRef !== undefined ? { externalRef: seed.externalRef } : {}),
+    });
     if (!res.ok) throw await SeamHttpError.from(res, 'createSession');
     const created = (await res.json()) as { sessionId: string; bootstrapping?: boolean };
     if (created.bootstrapping === true) await this.awaitBootstrap(created.sessionId);
@@ -369,6 +376,21 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
     if (res.status === 404) return null;
     if (!res.ok) throw await SeamHttpError.from(res, 'getSession');
     return toSessionInfo((await res.json()) as Record<string, unknown>, null);
+  }
+
+  /**
+   * Write the session ↔ project link (N2, shared-terminal#418): `PATCH
+   * /api/sessions/:id {externalRef}` — the route's ONLY patchable field
+   * (unknown keys 400 upstream); `null` clears. Operate-tier (owner OR
+   * admin, verified at `c2db7f7`, `routes/sessions.ts:770-800`).
+   */
+  async setSessionExternalRef(sessionId: string, ref: string | null): Promise<void> {
+    const res = await this.request(
+      'PATCH',
+      `/api/sessions/${encodeURIComponent(sessionId)}`,
+      { externalRef: ref },
+    );
+    if (!res.ok) throw await SeamHttpError.from(res, 'setSessionExternalRef');
   }
 
   /** Archive path (FR-30): tolerant of a session that is already gone. */

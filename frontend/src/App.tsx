@@ -13,6 +13,7 @@ import {
   type Conversation,
   type Project,
   type SessionListing,
+  type WorkspaceChoice,
   type WorkspaceTemplate,
 } from './lib/api.js';
 import { Sidebar } from './components/Sidebar.js';
@@ -103,10 +104,16 @@ export function App(): React.JSX.Element {
   }, []);
 
   const createProject = useCallback(
-    async (name: string, sessionTemplateId: string) => {
+    async (name: string, workspace: WorkspaceChoice) => {
       const defaultAgent = agents[0]?.id ?? 'dev';
-      await api.createProject(name, defaultAgent, sessionTemplateId);
+      await api.createProject(name, defaultAgent, workspace);
       await refreshProjects();
+      // a bind marks the session with its project (external_ref) and the
+      // binding column — refresh so the Sessions list reflects it
+      void api
+        .listSessions()
+        .then(setSessionListing)
+        .catch(() => {});
     },
     [agents, refreshProjects],
   );
@@ -207,12 +214,13 @@ export function App(): React.JSX.Element {
       id: 'new-project',
       label: 'New project…',
       // the palette cannot ask two questions; it uses the first template and
-      // the sidebar form is where a choice is made
+      // the sidebar form is where a choice (template vs bind, FR-49) is made
       ...(templates[0]
         ? {
             input: {
               placeholder: 'Project name',
-              run: (name: string) => void createProject(name, templates[0]!.id),
+              run: (name: string) =>
+                void createProject(name, { kind: 'template', id: templates[0]!.id }),
             },
           }
         : { hint: 'no workspace templates configured', run: () => {} }),
@@ -299,7 +307,7 @@ export function App(): React.JSX.Element {
         onOpenProject={(p) => void openProject(p)}
         onOpenConversation={setSelectedConversation}
         templates={templates}
-        onCreateProject={(name, templateId) => void createProject(name, templateId)}
+        onCreateProject={(name, workspace) => void createProject(name, workspace)}
         onCreateConversation={() => void createConversation()}
         onBackToProjects={backToProjects}
         onArchiveProject={(p) => void archiveProject(p)}

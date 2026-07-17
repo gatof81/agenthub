@@ -57,6 +57,9 @@ interface ProjectRow {
   repo_ref: string | null;
   repo_target: string | null;
   session_last_state: string | null;
+  binding_mode: string | null;
+  owner_account_id: string | null;
+  session_ownership: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -131,6 +134,11 @@ function toProject(r: ProjectRow): Project {
       sessionId: r.session_id,
       templateId: r.session_template_id,
       lastKnownState: r.session_last_state,
+      // migration 004 backfills these; the ?? guards only a row written by
+      // a pre-004 binary against a post-004 schema (defensive, same values)
+      bindingMode: (r.binding_mode ?? 'created') as Project['sessionBinding']['bindingMode'],
+      ownerAccountId: r.owner_account_id,
+      ownership: (r.session_ownership ?? 'legacy-technical') as Project['sessionBinding']['ownership'],
     },
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -235,8 +243,9 @@ export class SqliteHubStore implements HubStore {
     this.db
       .prepare(
         `INSERT INTO projects (id, name, status, default_agent_id, workspace_template_id,
-                               repo_url, repo_ref, repo_target, instructions, created_at, updated_at)
-         VALUES (?, ?, 'provisioning', ?, ?, ?, ?, ?, ?, ?, ?)`,
+                               repo_url, repo_ref, repo_target, instructions,
+                               binding_mode, session_ownership, created_at, updated_at)
+         VALUES (?, ?, 'provisioning', ?, ?, ?, ?, ?, ?, 'created', 'legacy-technical', ?, ?)`,
       )
       .run(
         id,
@@ -290,7 +299,9 @@ export class SqliteHubStore implements HubStore {
     const existing = this.mustProject(id);
     this.db
       .prepare(
-        `UPDATE projects SET session_id = ?, session_template_id = ?, session_last_state = ?, updated_at = ? WHERE id = ?`,
+        `UPDATE projects SET session_id = ?, session_template_id = ?, session_last_state = ?,
+                             binding_mode = ?, owner_account_id = ?, session_ownership = ?,
+                             updated_at = ? WHERE id = ?`,
       )
       .run(
         binding.sessionId === undefined ? existing.sessionBinding.sessionId : binding.sessionId,
@@ -298,6 +309,11 @@ export class SqliteHubStore implements HubStore {
         binding.lastKnownState === undefined
           ? existing.sessionBinding.lastKnownState
           : binding.lastKnownState,
+        binding.bindingMode ?? existing.sessionBinding.bindingMode,
+        binding.ownerAccountId === undefined
+          ? existing.sessionBinding.ownerAccountId
+          : binding.ownerAccountId,
+        binding.ownership ?? existing.sessionBinding.ownership,
         this.now(),
         id,
       );

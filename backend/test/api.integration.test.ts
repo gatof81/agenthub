@@ -232,6 +232,7 @@ describe('GET /api/sessions — discovery (N1, FR-48, ADR-007)', () => {
       ownerUsername: 'owner-admin',
       createdAt: '2026-07-17T00:00:00.000Z',
       lastConnectedAt: null,
+      externalRef: null,
     });
     // a project bound to a session created through the Hub
     const created = await request(app)
@@ -270,5 +271,63 @@ describe('GET /api/sessions — discovery (N1, FR-48, ADR-007)', () => {
     const { app } = makeApiHarness();
     const res = await request(app).get('/api/sessions');
     expect(res.status).toBe(401);
+  });
+});
+
+describe('POST /api/projects — bind an existing session (N2, FR-49)', () => {
+  it('binds: 202, then ready with ownership recorded and nothing created', async () => {
+    const { app, port } = makeApiHarness();
+    port.seedSession({
+      sessionId: 's_edu',
+      name: 'Education Hz',
+      status: 'running',
+      ownerUsername: 'owner-admin',
+      createdAt: null,
+      lastConnectedAt: null,
+      externalRef: null,
+    });
+    const created = await request(app)
+      .post('/api/projects')
+      .set(AUTH)
+      .send({ name: 'Edu', defaultAgentId: 'dev', sessionId: 's_edu' });
+    expect(created.status).toBe(202);
+    await new Promise((r) => setTimeout(r, 10));
+    const res = await request(app).get(`/api/projects/${created.body.project.id}`).set(AUTH);
+    expect(res.body.project.status).toBe('ready');
+    expect(res.body.project.sessionBinding).toMatchObject({
+      sessionId: 's_edu',
+      bindingMode: 'existing',
+      ownership: 'owner',
+    });
+    expect(port.seededSessions).toHaveLength(0);
+  });
+
+  it('refuses both-or-neither of sessionId and sessionTemplateId (422)', async () => {
+    const { app } = makeApiHarness();
+    const neither = await request(app)
+      .post('/api/projects')
+      .set(AUTH)
+      .send({ name: 'x', defaultAgentId: 'dev' });
+    expect(neither.status).toBe(422);
+    const both = await request(app)
+      .post('/api/projects')
+      .set(AUTH)
+      .send({ name: 'x', defaultAgentId: 'dev', sessionTemplateId: 'tpl', sessionId: 's1' });
+    expect(both.status).toBe(422);
+  });
+
+  it('refuses a repo declaration on the bind path (the session already has its workspace)', async () => {
+    const { app } = makeApiHarness();
+    const res = await request(app)
+      .post('/api/projects')
+      .set(AUTH)
+      .send({
+        name: 'x',
+        defaultAgentId: 'dev',
+        sessionId: 's1',
+        repo: { url: 'https://github.com/o/r' },
+      });
+    expect(res.status).toBe(422);
+    expect(res.body.detail).toMatch(/repo cannot be declared/);
   });
 });

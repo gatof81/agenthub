@@ -136,7 +136,7 @@ export function buildApp(deps: ApiDeps): express.Express {
 
   // — projects —
   app.post('/api/projects', (req, res) => {
-    const { name, defaultAgentId, sessionTemplateId, repo, instructions } = (req.body ??
+    const { name, defaultAgentId, sessionTemplateId, sessionId, repo, instructions } = (req.body ??
       {}) as Record<string, unknown>;
     if (typeof name !== 'string' || name.trim() === '') {
       res.status(422).json({ code: 'validation', detail: 'name required' });
@@ -159,16 +159,36 @@ export function buildApp(deps: ApiDeps): express.Express {
     // then accept anything, which is precisely the confusing failure this
     // prevents. Empty list ⇒ no project can be created, exactly as the
     // contract says.
-    if (typeof sessionTemplateId !== 'string' || sessionTemplateId.trim() === '') {
-      res.status(422).json({ code: 'validation', detail: 'sessionTemplateId required' });
+    //
+    // N2 (FR-49, ADR-007): the workspace declaration is now EITHER a template
+    // (create path) OR an existing owner-account session to bind — exactly
+    // one. Bind creates nothing upstream; the session already is the
+    // workspace, so a repo declaration alongside it is a contradiction (the
+    // session carries its own repo) and is refused rather than ignored.
+    const bindSessionId = typeof sessionId === 'string' && sessionId.trim() !== ''
+      ? sessionId.trim()
+      : null;
+    const hasTemplate = typeof sessionTemplateId === 'string' && sessionTemplateId.trim() !== '';
+    if ((bindSessionId !== null) === hasTemplate) {
+      res.status(422).json({
+        code: 'validation',
+        detail: 'exactly one of sessionTemplateId (create) and sessionId (bind, FR-49) is required',
+      });
+      return;
+    }
+    if (bindSessionId !== null && repo !== undefined && repo !== null) {
+      res.status(422).json({
+        code: 'validation',
+        detail: 'repo cannot be declared when binding an existing session — the session already carries its workspace (FR-49)',
+      });
       return;
     }
     // Validate and use the SAME value. Trimming for the checks and storing the
     // raw string let `"tpl "` clear both guards and reach the seam as an
     // unknown template — the project then died in `error` with nothing
     // pointing at a trailing space.
-    const templateId = sessionTemplateId.trim();
-    if (!deps.workspaceTemplates.some((t) => t.id === templateId)) {
+    const templateId = hasTemplate ? (sessionTemplateId as string).trim() : null;
+    if (templateId !== null && !deps.workspaceTemplates.some((t) => t.id === templateId)) {
       res.status(422).json({
         code: 'validation',
         detail: `sessionTemplateId must be one of the deployment's workspace templates (GET /api/workspace-templates)`,
@@ -215,6 +235,7 @@ export function buildApp(deps: ApiDeps): express.Express {
       name: name.trim(),
       defaultAgentId,
       sessionTemplateId: templateId,
+      ...(bindSessionId !== null ? { existingSessionId: bindSessionId } : {}),
       ...(r !== null
         ? {
             repo: {

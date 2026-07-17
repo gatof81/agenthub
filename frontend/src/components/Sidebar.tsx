@@ -9,7 +9,13 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import type { Conversation, Project, SessionListing, WorkspaceTemplate } from '../lib/api.js';
+import type {
+  Conversation,
+  Project,
+  SessionListing,
+  WorkspaceChoice,
+  WorkspaceTemplate,
+} from '../lib/api.js';
 import { ArchiveIcon, BackIcon } from './icons.js';
 
 interface Props {
@@ -22,8 +28,8 @@ interface Props {
   onOpenProject: (p: Project) => void;
   onOpenConversation: (c: Conversation) => void;
   templates: WorkspaceTemplate[];
-  /** a project declares its workspace at creation (ADR-006, FR-45) */
-  onCreateProject: (name: string, sessionTemplateId: string) => void;
+  /** a project declares its workspace at creation (ADR-006, FR-45): a template to create from, or an existing session to bind (FR-49) */
+  onCreateProject: (name: string, workspace: WorkspaceChoice) => void;
   onCreateConversation: () => void;
   onBackToProjects: () => void;
   onArchiveProject: (p: Project) => void;
@@ -47,11 +53,30 @@ function StatusBadge({ project }: { project: Project }): React.JSX.Element | nul
 
 function ProjectsHome(props: Props): React.JSX.Element {
   const [newProjectName, setNewProjectName] = useState('');
-  // The workspace has no default (ADR-006): the first template is a starting
-  // selection, not a fallback — if none are configured, creation is disabled
-  // rather than sending a guess the API would 422.
-  const [templateId, setTemplateId] = useState('');
-  const effectiveTemplateId = templateId || (props.templates[0]?.id ?? '');
+  // The workspace has no default (ADR-006): the first option is a starting
+  // selection, not a fallback — with nothing to choose from, creation is
+  // disabled rather than sending a guess the API would 422. Since N2 the
+  // choice is template-or-session (FR-49): binding an existing owner
+  // session creates nothing and is listed first — it is the corrected
+  // model's primary path (ADR-007).
+  const [workspaceKey, setWorkspaceKey] = useState('');
+  const bindableSessions = (props.sessionListing?.sessions ?? []).filter(
+    (s) => s.projectId === null,
+  );
+  const workspaceOptions: Array<{ key: string; label: string; choice: WorkspaceChoice }> = [
+    ...bindableSessions.map((s) => ({
+      key: `s:${s.sessionId}`,
+      label: `Bind session: ${s.name}${s.ownerUsername !== null ? ` (${s.ownerUsername})` : ''}`,
+      choice: { kind: 'session', id: s.sessionId } as WorkspaceChoice,
+    })),
+    ...props.templates.map((t) => ({
+      key: `t:${t.id}`,
+      label: `New session: ${t.name}`,
+      choice: { kind: 'template', id: t.id } as WorkspaceChoice,
+    })),
+  ];
+  const effectiveKey = workspaceKey || (workspaceOptions[0]?.key ?? '');
+  const effectiveChoice = workspaceOptions.find((o) => o.key === effectiveKey)?.choice ?? null;
   return (
     <nav className="sidebar">
       <h2>Projects</h2>
@@ -80,33 +105,35 @@ function ProjectsHome(props: Props): React.JSX.Element {
           onChange={(e) => setNewProjectName(e.target.value)}
           placeholder="New project name…"
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && newProjectName.trim() !== '' && effectiveTemplateId !== '') {
-              props.onCreateProject(newProjectName.trim(), effectiveTemplateId);
+            if (e.key === 'Enter' && newProjectName.trim() !== '' && effectiveChoice !== null) {
+              props.onCreateProject(newProjectName.trim(), effectiveChoice);
               setNewProjectName('');
             }
           }}
         />
         {/* The workspace is the project's and has no default (ADR-006, FR-45),
-            so it is chosen here. One template needs no menu — showing a
-            single-option select would be asking a question with one answer. */}
-        {props.templates.length > 1 && (
+            so it is chosen here: bind an existing session (FR-49) or create
+            from a template. One option needs no menu — a single-option select
+            would be asking a question with one answer. */}
+        {workspaceOptions.length > 1 && (
           <select
             className="template-select"
-            value={effectiveTemplateId}
-            onChange={(e) => setTemplateId(e.target.value)}
-            aria-label="Workspace template"
+            value={effectiveKey}
+            onChange={(e) => setWorkspaceKey(e.target.value)}
+            aria-label="Project workspace"
           >
-            {props.templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
+            {workspaceOptions.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
               </option>
             ))}
           </select>
         )}
-        {props.templates.length === 0 && (
+        {workspaceOptions.length === 0 && (
           <p className="empty-hint">
-            No workspace templates configured — a project cannot declare a workspace, so creation is
-            disabled. Add <code>workspaceTemplates:</code> to the deployment config.
+            No workspace templates configured and no bindable sessions visible — a project cannot
+            declare a workspace, so creation is disabled. Add <code>workspaceTemplates:</code> to
+            the deployment config or create a session in Shared Terminal.
           </p>
         )}
       </div>

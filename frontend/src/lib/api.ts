@@ -17,8 +17,19 @@ export interface Project {
   name: string;
   status: 'provisioning' | 'ready' | 'error' | 'archived';
   defaultAgentId: string;
-  sessionBinding: { sessionId: string | null };
+  sessionBinding: {
+    sessionId: string | null;
+    /** ADR-007 (N2): how the project got its session and who owns it */
+    bindingMode?: 'existing' | 'created';
+    ownership?: 'owner' | 'legacy-technical';
+    ownerAccountId?: string | null;
+  };
 }
+
+/** What a new project declares as its workspace (FR-45/FR-49): exactly one. */
+export type WorkspaceChoice =
+  | { kind: 'template'; id: string }
+  | { kind: 'session'; id: string };
 
 export interface Conversation {
   id: string;
@@ -166,18 +177,21 @@ export const api = {
   workspaceTemplates: () =>
     call<{ workspaceTemplates: WorkspaceTemplate[] }>('GET', '/api/workspace-templates'),
   listSessions: () => call<SessionListing>('GET', '/api/sessions'),
-  // sessionTemplateId is required: the workspace is the project's and has no
-  // default — the agent no longer carries one (ADR-006, FR-45).
+  // The workspace is the project's and has no default (ADR-006, FR-45):
+  // either a template to create from, or an existing owner-account session
+  // to bind (FR-49, N2) — exactly one, enforced server-side.
   createProject: (
     name: string,
     defaultAgentId: string,
-    sessionTemplateId: string,
+    workspace: WorkspaceChoice,
     instructions?: string,
   ) =>
     call<{ project: Project }>('POST', '/api/projects', {
       name,
       defaultAgentId,
-      sessionTemplateId,
+      ...(workspace.kind === 'template'
+        ? { sessionTemplateId: workspace.id }
+        : { sessionId: workspace.id }),
       instructions,
     }),
   getProject: (id: string) =>

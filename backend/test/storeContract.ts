@@ -66,7 +66,16 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
         repo: { url: 'https://github.com/o/r', ref: 'main' },
       });
       expect(p.status).toBe('provisioning');
-      expect(p.sessionBinding).toEqual({ sessionId: null, templateId: null, lastKnownState: null });
+      expect(p.sessionBinding).toEqual({
+        sessionId: null,
+        templateId: null,
+        lastKnownState: null,
+        // N2 defaults (migration 004 semantics): a template-created session
+        // lives in the Hub's technical account until shared-terminal#420
+        bindingMode: 'created',
+        ownerAccountId: null,
+        ownership: 'legacy-technical',
+      });
       // The workspace DECLARATION is present from create; the BINDING is not.
       // Two different questions that once shared a column (ADR-006, migration
       // 002) — asserting both here is what keeps them from being merged again.
@@ -100,6 +109,31 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
         sessionId: 'sess_1',
         templateId: 'tpl_1',
         lastKnownState: 'running',
+        bindingMode: 'created',
+        ownerAccountId: null,
+        ownership: 'legacy-technical',
+      });
+      store.close();
+    });
+
+    it('round-trips an owner binding (N2, FR-49) — the column mapping has no other cover', () => {
+      const store = makeStore();
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: null });
+      store.setProjectSession(p.id, {
+        sessionId: 's_owned',
+        lastKnownState: 'running',
+        bindingMode: 'existing',
+        ownerAccountId: 'owner-admin',
+        ownership: 'owner',
+      });
+      const read = store.getProject(p.id)!;
+      expect(read.sessionBinding).toEqual({
+        sessionId: 's_owned',
+        templateId: null,
+        lastKnownState: 'running',
+        bindingMode: 'existing',
+        ownerAccountId: 'owner-admin',
+        ownership: 'owner',
       });
       store.close();
     });

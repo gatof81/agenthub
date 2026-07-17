@@ -127,6 +127,24 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-17** — **N2 project binding, bind-existing half (doc 19 §7,
+  FR-49).** Upstream #416 (operate-tier exec) and #418 (`external_ref`)
+  shipped and were verified at `c2db7f7` before consuming them. A project
+  now binds an existing owner-account session — the Hub validates it
+  upstream, records `{bindingMode: 'existing', ownership: 'owner',
+  ownerAccountId}` (migration 004; existing rows backfill
+  `created`/`legacy-technical`, never reassigned), back-links the session
+  via `external_ref = agenthub:project:<id>` (also written at create), and
+  creates **nothing**. Lifecycle authority follows ownership: archive/
+  restore never stop or start an `owner` session (it is the owner's to
+  control, ADR-007) — restore of a bound project whose session was deleted
+  outside the Hub still surfaces `409 session_gone` (FR-44 generalized).
+  API: `POST /api/projects` takes exactly one of `sessionTemplateId` |
+  `sessionId`, and refuses `repo` on the bind path (the session already
+  carries its workspace). UI: the create form offers "Bind session: …"
+  (unbound owner sessions, listed first) and "New session: …" (templates).
+  The create-new-in-owner-account half waits on shared-terminal#420.
+
 - **2026-07-17** — **N1 session discovery (doc 19 §7, FR-48).**
   `SubstrateExecPort` grows `listSessions`/`getSession`; the real port
   prefers `GET /api/admin/sessions` (the only listing with owner

@@ -71,6 +71,8 @@ export class SeamDouble {
   readonly ownListResponses: ScriptedResponse[] = [];
   adminListCalls = 0;
   ownListCalls = 0;
+  readonly patchRefResponses: ScriptedResponse[] = [];
+  readonly patchRefCalls: Array<{ sessionId: string; externalRef: string | null }> = [];
   /**
    * Whether the authenticated account carries the admin flag. `false` makes
    * `GET /api/admin/sessions` answer requireAdmin's 403 (`auth.ts` at
@@ -207,6 +209,28 @@ export class SeamDouble {
         body: { sessionId: 'sess_double1', status: 'running', bootstrapping: true },
       };
       res.writeHead(scripted.status ?? 201, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(scripted.body ?? {}));
+      return;
+    }
+
+    // PATCH /sessions/:id — externalRef, the route's only patchable field
+    // (#418, verified at c2db7f7: unknown keys 400, null clears)
+    const patchMeta = /^\/api\/sessions\/([^/]+)$/.exec(url);
+    if (req.method === 'PATCH' && patchMeta) {
+      const fields = Object.keys((body ?? {}) as Record<string, unknown>);
+      if (!fields.includes('externalRef') || fields.some((k) => k !== 'externalRef')) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: 'body.externalRef is required' }));
+        return;
+      }
+      this.patchRefCalls.push({
+        sessionId: patchMeta[1]!,
+        externalRef: (body as { externalRef: string | null }).externalRef,
+      });
+      const scripted = this.patchRefResponses.shift() ?? {
+        body: { sessionId: patchMeta[1], status: 'running' },
+      };
+      res.writeHead(scripted.status ?? 200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(scripted.body ?? {}));
       return;
     }
