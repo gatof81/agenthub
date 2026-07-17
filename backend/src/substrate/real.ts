@@ -276,9 +276,29 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
         );
       }
     }
+    // The project's repo overrides whatever the template happens to clone:
+    // the workspace is the project's declaration (ADR-006, FR-45), and a
+    // template is a preset, not an authority.
+    //
+    // `auth` is folded in HERE, at the last moment before dispatch, and only
+    // when a repo is actually being cloned. It came in as its own argument
+    // and is never attached to the stored `repo` shape, so there is no object
+    // in the Hub that carries both the metadata and the secret (SEC-11). The
+    // seam encrypts it on receipt (`encryptAuthCredentials`,
+    // `sessionConfig.ts:1138` @ shared-terminal c35b6da).
+    const repoConfig =
+      seed.repo === undefined
+        ? undefined
+        : {
+            url: seed.repo.url,
+            ...(seed.repo.ref !== undefined ? { ref: seed.repo.ref } : {}),
+            ...(seed.repo.target !== undefined ? { target: seed.repo.target } : {}),
+            auth: seed.repoAuth ?? { kind: 'none' },
+          };
     const config: Record<string, unknown> = {
       ...(template.config ?? {}),
       ...(Object.keys(agentSeed).length > 0 ? { agentSeed } : {}),
+      ...(repoConfig !== undefined ? { repo: repoConfig } : {}),
     };
 
     // substrate-side display name only — the Hub tracks sessions by id

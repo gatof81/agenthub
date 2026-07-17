@@ -7,6 +7,8 @@
 
 import type {
   Caps,
+  RepoAuth,
+  RepoSpec,
   KillOutcome,
   ProjectStatus,
   RunErrorCode,
@@ -46,6 +48,18 @@ export interface SessionSeed {
   /** agentSeed material (02 §3): agent settings + project instructions. */
   settings?: unknown;
   claudeMd?: string;
+  /**
+   * The project's repository, cloned into the workspace at bootstrap
+   * (FR-45). The seam's session config owns the clone; the Hub declares it.
+   */
+  repo?: RepoSpec;
+  /**
+   * Repo credential (FR-46/47). Travels to the seam and is never persisted
+   * Hub-side. Deliberately NOT a field of `repo`: keeping the stored half
+   * and the secret half as separate values means no code path can pass them
+   * around as one object and write them together (SEC-11).
+   */
+  repoAuth?: RepoAuth;
 }
 
 /**
