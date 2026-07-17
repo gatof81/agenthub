@@ -37,7 +37,7 @@ All routes under `/api`, behind the single-credential gateway middleware
 | `GET /api/conversations` | list across projects with status + last message | archived filtered by default; `?archived=true` lists them (FR-43) |
 | `GET /api/conversations/:id` | detail + messages (paged) | `?before=<messageId>&limit=` |
 | `PATCH /api/conversations/:id` | rename / archive / **restore** | `{title?}` or `{status: "archived"}` (FR-01) or `{status: "active"}` (FR-43). Restoring into an archived project → `409 project_archived` (I-12) |
-| `POST /api/conversations/:id/messages` | send message → creates the run (FR-03) | body `{content}`; returns `202 {messageId, runId, runState}` — `queued` or `starting` (UC-03); `409` while the **project** is `provisioning`/`error` |
+| `POST /api/conversations/:id/messages` | send message → creates the run (FR-03) | body `{content}`; returns `202 {messageId, runId, runState}` — `queued` or `starting` (UC-03); `409` while the workspace is not ready — the **project** is `provisioning`/`error`, or (a direct specialist conversation, N3b-2) its specialist session is unbound |
 | `GET /api/runs/:id` | run detail: state, snapshots, activity projection, usage, **summary**, error | activity derived on read (06 §2); summary per FR-42. "Snapshots" = caps, policy **and the role's instructions** (B5-04) — what the run actually ran under, which agent configs being gitignored (SEC-10) makes unanswerable anywhere else |
 | `POST /api/runs/:id/cancel` | cancel active or queued run (FR-20) | returns `202`; final state + `killOutcome`/`sweepResult` arrive via SSE and `GET /api/runs/:id` |
 | `GET /api/conversations/:id/events` | **SSE stream** (ADR-004) | `Last-Event-ID` replay; §3 |
