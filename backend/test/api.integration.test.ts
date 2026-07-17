@@ -142,6 +142,15 @@ describe('HTTP API (08 §1)', () => {
       .send({ name: 'x', defaultAgentId: 'dev', sessionTemplateId: 'not-a-real-template' });
     expect(badTemplate.status).toBe(422);
     expect(badTemplate.body.detail).toContain('workspace-templates');
+    // a padded id must be stored as the value that was VALIDATED — trimming
+    // for the check and storing the raw string sent " tpl " to the seam as an
+    // unknown template, killing the project with nothing pointing at a space
+    const padded = await request(app)
+      .post('/api/projects')
+      .set(AUTH)
+      .send({ name: 'padded', defaultAgentId: 'dev', sessionTemplateId: '  tpl  ' });
+    expect(padded.status).toBe(202);
+    expect(padded.body.project.sessionTemplateId).toBe('tpl');
     // repo.auth gets the same treatment: a malformed shape must 422 here, not
     // reach the seam and come back as an opaque substrate error
     const badAuth = await request(app)

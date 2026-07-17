@@ -152,7 +152,12 @@ export function buildApp(deps: ApiDeps): express.Express {
       res.status(422).json({ code: 'validation', detail: 'sessionTemplateId required' });
       return;
     }
-    if (!deps.workspaceTemplates.some((t) => t.id === sessionTemplateId.trim())) {
+    // Validate and use the SAME value. Trimming for the checks and storing the
+    // raw string let `"tpl "` clear both guards and reach the seam as an
+    // unknown template — the project then died in `error` with nothing
+    // pointing at a trailing space.
+    const templateId = sessionTemplateId.trim();
+    if (!deps.workspaceTemplates.some((t) => t.id === templateId)) {
       res.status(422).json({
         code: 'validation',
         detail: `sessionTemplateId must be one of the deployment's workspace templates (GET /api/workspace-templates)`,
@@ -186,7 +191,7 @@ export function buildApp(deps: ApiDeps): express.Express {
         typeof rawAuth.pat === 'string' &&
         rawAuth.pat.trim() !== ''
       ) {
-        repoAuth = { kind: 'pat', pat: rawAuth.pat };
+        repoAuth = { kind: 'pat', pat: rawAuth.pat.trim() };
       } else {
         res.status(422).json({
           code: 'validation',
@@ -196,13 +201,13 @@ export function buildApp(deps: ApiDeps): express.Express {
       }
     }
     const project = orchestrator.createProject({
-      name,
+      name: name.trim(),
       defaultAgentId,
-      sessionTemplateId,
+      sessionTemplateId: templateId,
       ...(r !== null
         ? {
             repo: {
-              url: r.url as string,
+              url: (r.url as string).trim(),
               ...(typeof r.ref === 'string' ? { ref: r.ref } : {}),
               ...(typeof r.target === 'string' ? { target: r.target } : {}),
             },
