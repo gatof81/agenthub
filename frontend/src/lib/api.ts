@@ -246,6 +246,11 @@ export const api = {
     call<{ conversation: Conversation }>('PATCH', `/api/conversations/${id}`, {
       status: 'archived',
     }),
+  // Conversations earn a name from their first message (backend auto-title) and
+  // can be renamed by hand — same PATCH, title only (the backend ignores a
+  // blank one). I-10/I-6: projectId and agentId have no update path.
+  renameConversation: (id: string, title: string) =>
+    call<{ conversation: Conversation }>('PATCH', `/api/conversations/${id}`, { title }),
   // Restore. A project whose session was hard-deleted upstream cannot come
   // back — the API answers 409 `session_gone` and leaves it archived rather
   // than handing over a fresh empty workspace wearing the old name (FR-44).

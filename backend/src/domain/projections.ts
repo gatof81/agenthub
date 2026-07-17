@@ -26,6 +26,28 @@ export interface Activity {
   items: ActivityItem[];
 }
 
+/** The placeholder title a conversation is born with, until its first message
+ * or an explicit rename earns it a real one (11 §9). Shared so the create
+ * default and the auto-title guard can never drift apart. */
+export const DEFAULT_CONVERSATION_TITLE = 'New conversation';
+
+/**
+ * A short, human title derived from a conversation's first user message, so the
+ * sidebar reads as distinct threads instead of a wall of the default (11 §9).
+ * Collapsed to one line and cut on a word boundary near 48 chars
+ * with an ellipsis when trimmed. Returns '' when there is no titleable text, so
+ * the caller keeps the default.
+ */
+export function deriveConversationTitle(content: string): string {
+  const oneLine = content.replace(/\s+/g, ' ').trim();
+  if (oneLine === '') return '';
+  const MAX = 48;
+  if (oneLine.length <= MAX) return oneLine;
+  const cut = oneLine.slice(0, MAX);
+  const lastSpace = cut.lastIndexOf(' ');
+  return `${(lastSpace > 24 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+}
+
 interface ToolUsePayload {
   name?: string;
   input?: { command?: string; file_path?: string };

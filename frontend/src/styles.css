@@ -32,7 +32,11 @@ body {
 .app {
   display: grid;
   grid-template-columns: 250px 1fr auto;
-  height: 100%;
+  /* Dynamic viewport height so the composer stays pinned under mobile browser
+     chrome / the keyboard (100vh would sit behind the URL bar); 100vh fallback
+     for engines without dvh. */
+  height: 100vh;
+  height: 100dvh;
 }
 
 /* — sidebar — */
@@ -217,7 +221,10 @@ body {
 .switcher-menu .switcher-all:hover { color: var(--text); }
 
 /* — thread — */
-.thread { display: flex; flex-direction: column; min-width: 0; }
+/* min-height:0 lets the flex column shrink below its content so .messages
+   scrolls internally instead of pushing the composer off-screen (the classic
+   flexbox overflow trap). */
+.thread { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .thread header {
   display: flex;
   align-items: center;
@@ -227,8 +234,22 @@ body {
   background: var(--panel);
 }
 .thread header h2 { flex: 1; font-size: 15px; margin: 0; }
+.thread-title { cursor: text; border-radius: 6px; padding: 2px 6px; margin: 0 -6px; }
+.thread-title:hover { background: var(--panel-2); }
+.thread-title-edit {
+  flex: 1;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  background: var(--panel-2);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+.thread-title-edit:focus { outline: none; }
 .thread .back { display: none; }
-.messages { flex: 1; overflow-y: auto; padding: 16px; }
+.messages { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px; }
 .msg { max-width: 46em; margin-bottom: 12px; padding: 10px 13px; border-radius: 10px; }
 .msg pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: inherit; }
 .msg-user { background: var(--accent-strong); color: #fff; margin-left: auto; }
@@ -238,6 +259,8 @@ body {
   display: flex;
   gap: 8px;
   padding: 12px 14px;
+  /* clear the iPhone home-indicator / safe area so the input isn't cut off */
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
   background: var(--panel);
 }
