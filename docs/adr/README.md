@@ -17,9 +17,11 @@ predate the separate-repos decision and are superseded by the list below.
 | [ADR-008](./ADR-008-specialists-and-execution-target.md) | Specialists as reusable identities with optional personal sessions; conversation modes with automatic routing; model router proposes, **deterministic execution-target selector** chooses the session, orchestrator enforces | **accepted** (owner, 2026-07-17) |
 | [ADR-009](./ADR-009-task-lifecycle-dev-qa-approval.md) | Task entity with the developer → QA → human-approval lifecycle; `ImplementationReport`/`QaReport` work products; complete only after QA **and** owner approval | **accepted** (owner, 2026-07-17) |
 | [ADR-010](./ADR-010-code-sharing-strategies.md) | Sharing a project's code with a specialist: strategy ladder (project session / worktree / read-only / diff / artifact) under least privilege; repo authority stays with the project session | **accepted** (owner, 2026-07-17) |
+| [ADR-011](./ADR-011-browser-auth-cloudflare-access.md) | Browser auth via Cloudflare Access — the backend verifies the signed `Cf-Access-Jwt-Assertion` (aud + iss + JWKS signature), never the forgeable email header; bearer token retained for localhost/programmatic. Resolves Q-07 for Phase-1 browser auth | **accepted** (owner, 2026-07-17) |
 
-Remaining candidate (deliberately deferred, non-blocking): Hub user/auth model
-(Q-07) — written when multi-user pressure is real.
+Remaining candidate (deliberately deferred, non-blocking): a full Hub-owned
+user/tenant login (ADR-011 Option 4) — written if Cloudflare-independent
+deployment or multi-user is ever required.
 
 ## Format
 

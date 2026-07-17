@@ -10,6 +10,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveAccessVerifier } from './api/accessAuth.js';
 import { buildApp } from './api/app.js';
 import { Broadcaster } from './api/broadcaster.js';
 import { BackupService } from './backup/service.js';
@@ -170,6 +171,11 @@ async function main(): Promise<void> {
   const spaDir = existsSync(join(staticDir, 'index.html')) ? staticDir : undefined;
   logger.info('spa.static', { serving: spaDir !== undefined });
 
+  // Cloudflare Access JWT verification for browser traffic (Q-07, ADR-011).
+  // Absent env → bearer-only (dev/local). Names only, never values (SEC-04).
+  const accessVerifier = resolveAccessVerifier(process.env);
+  logger.info('access.jwt', { enabled: accessVerifier !== null });
+
   const app = buildApp({
     store,
     orchestrator,
@@ -177,6 +183,7 @@ async function main(): Promise<void> {
     workspaceTemplates,
     broadcaster,
     authToken,
+    ...(accessVerifier !== null ? { accessVerifier } : {}),
     ...(spaDir !== undefined ? { staticDir: spaDir } : {}),
     logger,
     metricsSnapshot: () => ({ ...metrics.snapshot() }),

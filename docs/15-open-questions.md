@@ -14,8 +14,8 @@ proceeds unless vetoed.
 | Q-03 | Turn semantics & queuing | MVP-blocking | 1 message = 1 run; queue during a run |
 | Q-04 | Seam auth: service token vs user JWT | MVP-blocking · security | Resolved by ADR-007 (supersedes ADR-001's provisional): owner-owned sessions, dedicated account as audited execution identity |
 | Q-05 | Hub deployment & exposure | important · infra | **Resolved (owner, 2026-07-14): shared-terminal shape — see ADR-002** |
-| Q-06 | Frontend framework | UX | **Resolved (owner, 2026-07-14): React + Vite** (Angular considered) — see doc 11 §1; target Cloudflare Pages fixed by ADR-002 |
-| Q-07 | Hub users & auth model | important | Single-user first; don't preclude delegation to substrate auth |
+| Q-06 | Frontend framework | UX | **Resolved (owner, 2026-07-14): React + Vite** (Angular considered) — see doc 11 §1; served same-origin by the backend (ADR-002, amended 2026-07-17 from Cloudflare Pages) |
+| Q-07 | Hub users & auth model | important | Single-user first; don't preclude delegation to substrate auth. **Resolved for Phase-1 browser auth by ADR-011 (owner, 2026-07-17)**; full user/tenant model remains future work |
 | Q-08 | Zombie accumulation vs `PidsLimit` | infra · upstream | **RESOLVED upstream (2026-07-14)**: `Init: true` shipped (shared-terminal#387), smoke Phase 9 pins it |
 | Q-09 | Backend stack | important | **Resolved with doc 07 (2026-07-14): TypeScript/Node** — challenge window closed, no failing constraint produced |
 | Q-10 | Claude auth inside the runtime | important · security | **Resolved (owner + S-01, 2026-07-14): subscription OAuth** — works headless via env var, cost fields populated |
@@ -97,9 +97,10 @@ talking over localhost avoids exposing the seam publicly and keeps latency nil.
 **Resolved (owner, 2026-07-14), recorded in
 [ADR-002](./adr/ADR-002-hub-persistence.md):** the Hub mirrors
 shared-terminal's topology — long-lived Node backend co-located on the
-substrate host behind the Cloudflare tunnel, frontend on Cloudflare Pages,
-seam over localhost, SQLite local + R2 backups for persistence (ADR-002 final
-after the S-03 gate fired on D1 latency). A Workers-based backend was
+substrate host behind the Cloudflare tunnel, the backend serving the SPA
+same-origin (Cloudflare Pages was the original placement, amended 2026-07-17 —
+see ADR-002 Consequences), seam over localhost, SQLite local + R2 backups for
+persistence (ADR-002 final after the S-03 gate fired on D1 latency). A Workers-based backend was
 considered and set aside (long-lived streams + process state would demand
 Durable Objects and a public seam). Hostname/exposure details stay out of this
 repo (public-repo hygiene, R-09).
@@ -107,8 +108,9 @@ repo (public-repo hygiene, R-09).
 ## Q-06 — Frontend framework `UX` `future`
 
 Greenfield decision — shared-terminal's "no framework" rule does not apply here.
-**Resolved (owner, 2026-07-14): React + Vite**, deployed static to Cloudflare
-Pages (target fixed by [ADR-002](./adr/ADR-002-hub-persistence.md)). Rationale
+**Resolved (owner, 2026-07-14): React + Vite**, built static and served
+same-origin by the backend (Cloudflare Pages originally, amended 2026-07-17 —
+[ADR-002](./adr/ADR-002-hub-persistence.md) Consequences). Rationale
 and the considered alternatives (Angular latest, SvelteKit, SolidJS, vanilla)
 are in [11-ux-specification.md §1](./11-ux-specification.md): the Mac
 productivity surface (command palette, resizable panels, inspector, drag &
@@ -122,6 +124,14 @@ the reality for the foreseeable future. **Provisional:** design Phase 1 as
 single-user with an auth boundary thin enough to swap; do not build a user
 system. Interacts with Q-04 (if the Hub owns a substrate account, Hub users and
 substrate users are decoupled anyway).
+
+**Resolved for browser auth by [ADR-011](./adr/ADR-011-browser-auth-cloudflare-access.md)
+(owner, 2026-07-17):** public exposure at `<hub-hostname>` made the thin
+boundary real. The backend verifies the signed Cloudflare Access JWT
+(`Cf-Access-Jwt-Assertion` — aud + iss + JWKS signature + expiry) for browser
+traffic and retains the bearer token for localhost/programmatic; Access owns
+the allow policy, so the Hub stays single-user without its own user store. A
+full Hub-owned login remains future work (ADR-011 Option 4).
 
 ## Q-08 — Zombie accumulation vs `PidsLimit` `infra` `upstream`
 
