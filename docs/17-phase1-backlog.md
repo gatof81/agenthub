@@ -105,7 +105,7 @@ review the last PR of Agent Hub" from impossible into a sentence
 
 **Increment-5 done:** one `DEV-Agent` works on two different repositories, and
 two different roles work on one repository, without either borrowing the
-other's workspace or instructions — **met 2026-07-17** (B5-01..04).
+other's workspace, instructions, or tools — **met 2026-07-17** (B5-01..05).
 
 **Known residual (accepted, owner 2026-07-17): projects provisioned before
 B5-04 keep their baked `CLAUDE.md`.** That file lives in the workspace, inside
