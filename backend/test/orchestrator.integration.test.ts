@@ -20,7 +20,6 @@ const DEV_AGENT: Agent = {
   name: 'Developer',
   instructions: 'You are the dev agent.',
   allowedTools: ['Read', 'Grep', 'Glob', 'Write', 'Edit', 'Bash'],
-  sessionTemplateId: 'tpl_default',
   runtime: 'claude-cli',
   defaultCaps: { maxTurns: 10, budgetUsd: 1, timeoutMs: 60_000 },
 };
@@ -42,7 +41,7 @@ function makeHarness(store: HubStore, gate?: () => Promise<void>): Harness {
     agents: new Map([[DEV_AGENT.id, DEV_AGENT]]),
   });
   const readyProject = async (): Promise<Project> => {
-    const p = orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+    const p = orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
     await orch.idle();
     return store.getProject(p.id)!;
   };
@@ -259,7 +258,7 @@ function suite(name: string, makeStore: () => HubStore): void {
     it('send is refused while the project is provisioning/error (409 semantics, 08 §1)', () => {
       const { store, orch } = makeHarness(makeStore());
       // store-level project without provisioning (simulates in-progress UC-01)
-      const project = store.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const project = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
       const conv = store.createConversation({ projectId: project.id, title: 't', agentId: 'dev' });
       expect(() => orch.send(conv.id, 'x')).toThrow(OrchestratorError);
       try {

@@ -59,7 +59,6 @@ export interface Agent {
   name: string;
   instructions: string;
   allowedTools: string[]; // mandatory, never empty-meaning-all (FR-11, SEC-02)
-  sessionTemplateId: string;
   runtime: 'claude-cli';
   defaultCaps: Caps;
 }
@@ -72,11 +71,40 @@ export interface SessionBinding {
   lastKnownState: string | null;
 }
 
+/**
+ * The repo credential (FR-47, SEC-11). Crosses the Hub in memory on the way
+ * to the seam's encrypted session config and is never persisted here — the
+ * Hub cannot leak what it does not hold. A fine-grained PAT scoped to this
+ * one repository (owner decision, 2026-07-16), so a leak reaches one repo.
+ */
+export type RepoAuth = { kind: 'none' } | { kind: 'pat'; pat: string };
+
+/** Where a project's work happens (ADR-006, FR-45) — the project's, never the agent's. */
+export interface RepoSpec {
+  url: string;
+  ref?: string;
+  /** workspace-relative clone target; empty/absent = workspace root */
+  target?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
   status: ProjectStatus;
   defaultAgentId: string;
+  /**
+   * The substrate template this project's session is created from. Lives
+   * here, not on `Agent`: an agent is a stateless role reusable across
+   * projects (18 §2), so it cannot own a workspace — one DEV-Agent must be
+   * able to work on two different repos (ADR-006, FR-45).
+   */
+  sessionTemplateId: string | null;
+  /**
+   * The repository cloned into the workspace. `auth` is deliberately NOT
+   * here: the PAT reaches the seam's encrypted session config directly and
+   * is never stored by the Hub (FR-47, SEC-11).
+   */
+  repo: RepoSpec | null;
   instructions: string | null; // sensitive: seeded via agentSeed, never logged
   sessionBinding: SessionBinding;
   createdAt: string;

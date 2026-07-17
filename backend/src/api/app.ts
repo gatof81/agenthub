@@ -7,7 +7,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { deriveActivity, sseFromRunEvent } from '../domain/projections.js';
-import type { Agent } from '../domain/types.js';
+import type { Agent, RepoAuth } from '../domain/types.js';
 import { Orchestrator, OrchestratorError } from '../orchestrator/orchestrator.js';
 import { NOOP_LOGGER, type Logger } from '../domain/ports.js';
 import { NotFoundError, ValidationError, type HubStore } from '../store/types.js';
@@ -111,7 +111,8 @@ export function buildApp(deps: ApiDeps): express.Express {
 
   // — projects —
   app.post('/api/projects', (req, res) => {
-    const { name, defaultAgentId, instructions } = (req.body ?? {}) as Record<string, unknown>;
+    const { name, defaultAgentId, sessionTemplateId, repo, instructions } = (req.body ??
+      {}) as Record<string, unknown>;
     if (typeof name !== 'string' || name.trim() === '') {
       res.status(422).json({ code: 'validation', detail: 'name required' });
       return;
@@ -120,9 +121,37 @@ export function buildApp(deps: ApiDeps): express.Express {
       res.status(422).json({ code: 'validation', detail: 'defaultAgentId must be a configured agent' });
       return;
     }
+    if (typeof sessionTemplateId !== 'string' || sessionTemplateId.trim() === '') {
+      // The workspace is the project's (ADR-006, FR-45) and it has no sane
+      // default: falling back to the agent's template is exactly the
+      // conflation this replaced.
+      res.status(422).json({ code: 'validation', detail: 'sessionTemplateId required' });
+      return;
+    }
+    const r = (repo ?? null) as { url?: unknown; ref?: unknown; target?: unknown; auth?: unknown } | null;
+    if (r !== null && (typeof r.url !== 'string' || r.url.trim() === '')) {
+      res.status(422).json({ code: 'validation', detail: 'repo.url required when repo is given' });
+      return;
+    }
+    // repo.auth never reaches the store: it is handed to the seam at
+    // provisioning and forgotten (FR-47, SEC-11). Split it off here so no
+    // downstream call can accidentally persist it.
+    const repoAuth =
+      r !== null && typeof r.auth === 'object' && r.auth !== null ? (r.auth as RepoAuth) : null;
     const project = orchestrator.createProject({
       name,
       defaultAgentId,
+      sessionTemplateId,
+      ...(r !== null
+        ? {
+            repo: {
+              url: r.url as string,
+              ...(typeof r.ref === 'string' ? { ref: r.ref } : {}),
+              ...(typeof r.target === 'string' ? { target: r.target } : {}),
+            },
+          }
+        : {}),
+      ...(repoAuth ? { repoAuth } : {}),
       instructions: typeof instructions === 'string' ? instructions : null,
     });
     res.status(202).json({ project }); // status: "provisioning" (UC-01)

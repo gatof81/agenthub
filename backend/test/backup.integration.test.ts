@@ -25,7 +25,6 @@ const DEV: Agent = {
   name: 'Developer',
   instructions: 'dev',
   allowedTools: ['Read', 'Bash'],
-  sessionTemplateId: 'tpl',
   runtime: 'claude-cli',
   defaultCaps: { maxTurns: 10, budgetUsd: 1, timeoutMs: 60_000 },
 };
@@ -41,7 +40,7 @@ describe('backup restore drill (13 §4, offline)', () => {
     // — a "live" store that crashes mid-run —
     const dbPath = join(dir, 'hub.sqlite');
     const store = new SqliteHubStore(dbPath);
-    const project = store.createProject({ name: 'keepme', defaultAgentId: 'dev' });
+    const project = store.createProject({ name: 'keepme', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
     store.setProjectSession(project.id, { sessionId: 'sess_1', templateId: 'tpl' });
     store.updateProject(project.id, { status: 'ready' });
     const conv = store.createConversation({ projectId: project.id, title: 't', agentId: 'dev' });

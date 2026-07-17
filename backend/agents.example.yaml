@@ -7,6 +7,12 @@
 #
 # Every agent is a professional-role template (01 §1, 18 §2): stateless,
 # reusable across projects; accumulated knowledge never binds to it.
+#
+# An agent declares NO workspace — no session template, no repo. That belongs
+# to the project (ADR-006, FR-45), which is what lets one Developer agent work
+# on several repositories. Declaring `sessionTemplateId` here is now rejected
+# at load rather than ignored: a silently dropped template would provision the
+# wrong workspace and look like a config that worked.
 
 agents:
   - id: dev
@@ -18,7 +24,6 @@ agents:
     # The curated Phase-1 allowlist (Q-02, 08 §5). Never empty (I-7):
     # web tools and Task are deliberately excluded (R-05).
     allowedTools: [Read, Grep, Glob, Write, Edit, Bash]
-    sessionTemplateId: default
     runtime: claude-cli
     defaultCaps:
       maxTurns: 30

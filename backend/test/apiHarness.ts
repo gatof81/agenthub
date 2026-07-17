@@ -18,7 +18,6 @@ export const DEV_AGENT: Agent = {
   name: 'Developer',
   instructions: 'dev agent',
   allowedTools: ['Read', 'Grep', 'Glob', 'Write', 'Edit', 'Bash'],
-  sessionTemplateId: 'tpl_default',
   runtime: 'claude-cli',
   defaultCaps: { maxTurns: 10, budgetUsd: 1, timeoutMs: 60_000 },
 };

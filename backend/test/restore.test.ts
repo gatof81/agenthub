@@ -18,7 +18,6 @@ const AGENT: Agent = {
   name: 'Developer',
   instructions: 'dev',
   allowedTools: ['Read'],
-  sessionTemplateId: 'tpl',
   runtime: 'claude-cli',
   defaultCaps: { maxTurns: 10, budgetUsd: 2, timeoutMs: 60_000 },
 };
@@ -32,7 +31,7 @@ async function harness() {
     execPort: port,
     agents: new Map([[AGENT.id, AGENT]]),
   });
-  const project = orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+  const project = orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
   await orch.idle();
   return { store, port, orch, projectId: project.id };
 }

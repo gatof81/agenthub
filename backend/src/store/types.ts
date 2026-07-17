@@ -6,6 +6,7 @@
  */
 
 import type {
+  RepoSpec,
   Caps,
   Conversation,
   ConversationStatus,
@@ -29,6 +30,10 @@ import type {
 export interface CreateProjectInput {
   name: string;
   defaultAgentId: string;
+  /** the project's workspace (ADR-006, FR-45) — never the agent's */
+  sessionTemplateId?: string | null;
+  /** `auth` is absent by design: the PAT goes to the seam, never here (FR-47, SEC-11) */
+  repo?: RepoSpec | null;
   instructions?: string | null;
 }
 

@@ -40,7 +40,7 @@ function ev(id: string, seq: number, type: NewRunEvent['type'], payload: unknown
 
 /** Creates project→conversation→queued run, returns the trio. */
 function seedRun(store: HubStore) {
-  const project = store.createProject({ name: 'p', defaultAgentId: 'dev' });
+  const project = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
   const conv = store.createConversation({ projectId: project.id, title: 't', agentId: 'dev' });
   const { message, run } = store.sendMessage({
     conversationId: conv.id,
@@ -57,7 +57,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
 
     it('creates a project in provisioning status with an empty session binding (UC-01)', () => {
       const store = makeStore();
-      const p = store.createProject({ name: 'agent hub', defaultAgentId: 'dev' });
+      const p = store.createProject({ name: 'agent hub', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
       expect(p.status).toBe('provisioning');
       expect(p.sessionBinding).toEqual({ sessionId: null, templateId: null, lastKnownState: null });
       expect(store.getProject(p.id)?.name).toBe('agent hub');
@@ -66,7 +66,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
 
     it('archived projects are filtered by default (08 §1)', () => {
       const store = makeStore();
-      const p = store.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
       store.updateProject(p.id, { status: 'archived' });
       expect(store.listProjects().map((x) => x.id)).not.toContain(p.id);
       expect(store.listProjects({ includeArchived: true }).map((x) => x.id)).toContain(p.id);
@@ -75,7 +75,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
 
     it('updates the session binding partially', () => {
       const store = makeStore();
-      const p = store.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
       store.setProjectSession(p.id, { sessionId: 'sess_1', templateId: 'tpl_1' });
       const after = store.setProjectSession(p.id, { lastKnownState: 'running' });
       expect(after.sessionBinding).toEqual({
@@ -91,7 +91,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       expect(() =>
         store.createConversation({ projectId: 'proj_missing', title: 't', agentId: 'dev' }),
       ).toThrow(NotFoundError);
-      const p = store.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
       const c = store.createConversation({ projectId: p.id, title: 't', agentId: 'dev' });
       const renamed = store.updateConversation(c.id, { title: 'renamed' });
       expect(renamed.agentId).toBe('dev');
@@ -116,7 +116,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
 
     it('rejects an empty allowlist — a run without an explicit policy is unrepresentable (I-7)', () => {
       const store = makeStore();
-      const p = store.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
       const c = store.createConversation({ projectId: p.id, title: 't', agentId: 'dev' });
       expect(() =>
         store.sendMessage({ conversationId: c.id, content: 'x', caps: CAPS, policy: [] }),
@@ -129,7 +129,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
 
     it('rejects non-positive caps (FR-17 hard limits from day 1)', () => {
       const store = makeStore();
-      const p = store.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
       const c = store.createConversation({ projectId: p.id, title: 't', agentId: 'dev' });
       expect(() =>
         store.sendMessage({
@@ -144,7 +144,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
 
     it('caps oversized message content with a truncation marker (09 §6)', () => {
       const store = makeStore();
-      const p = store.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
       const c = store.createConversation({ projectId: p.id, title: 't', agentId: 'dev' });
       const { message } = store.sendMessage({
         conversationId: c.id,
@@ -161,7 +161,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
 
     it('dispatches FIFO per project and refuses a second active run (I-2)', () => {
       const store = makeStore();
-      const p = store.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
       const c1 = store.createConversation({ projectId: p.id, title: 'a', agentId: 'dev' });
       const c2 = store.createConversation({ projectId: p.id, title: 'b', agentId: 'dev' });
       const r1 = store.sendMessage({ conversationId: c1.id, content: '1', caps: CAPS, policy: POLICY }).run;
@@ -447,7 +447,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
 
     it('pages messages backwards with before/limit (08 §1)', () => {
       const store = makeStore();
-      const p = store.createProject({ name: 'p', defaultAgentId: 'dev' });
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
       const c = store.createConversation({ projectId: p.id, title: 't', agentId: 'dev' });
       const ids: string[] = [];
       for (let i = 0; i < 5; i++) {

@@ -56,7 +56,7 @@ describe('HTTP API (08 §1)', () => {
     const created = await request(app)
       .post('/api/projects')
       .set(AUTH)
-      .send({ name: 'my project', defaultAgentId: 'dev' });
+      .send({ name: 'my project', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
     expect(created.status).toBe(202);
     expect(created.body.project.status).toBe('provisioning');
     await orch.idle();
@@ -77,7 +77,7 @@ describe('HTTP API (08 §1)', () => {
   it('send → 202 {runId}; GET /api/runs/:id returns activity + usage + summary when terminal (UC-02)', async () => {
     const { app, orch, port } = makeApiHarness();
     const project = (
-      await request(app).post('/api/projects').set(AUTH).send({ name: 'p', defaultAgentId: 'dev' })
+      await request(app).post('/api/projects').set(AUTH).send({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' })
     ).body.project;
     await orch.idle();
     const conv = (
@@ -109,7 +109,7 @@ describe('HTTP API (08 §1)', () => {
 
   it('409 while the project is provisioning (08 §1) with the state in the body', async () => {
     const { app, store } = makeApiHarness();
-    const project = store.createProject({ name: 'p', defaultAgentId: 'dev' }); // stays provisioning
+    const project = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' }); // stays provisioning
     const conv = store.createConversation({ projectId: project.id, title: 't', agentId: 'dev' });
     const sent = await request(app)
       .post(`/api/conversations/${conv.id}/messages`)
@@ -126,7 +126,7 @@ describe('HTTP API (08 §1)', () => {
       (await request(app).post('/api/projects').set(AUTH).send({ name: '' })).status,
     ).toBe(422);
     expect(
-      (await request(app).post('/api/projects').set(AUTH).send({ name: 'x', defaultAgentId: 'nope' }))
+      (await request(app).post('/api/projects').set(AUTH).send({ name: 'x', defaultAgentId: 'nope', sessionTemplateId: 'tpl' }))
         .status,
     ).toBe(422);
     expect((await request(app).get('/api/runs/run_missing').set(AUTH)).status).toBe(404);
@@ -136,7 +136,7 @@ describe('HTTP API (08 §1)', () => {
   it('cancel: 202 on cancellable, 409 with state on terminal (UC-04)', async () => {
     const { app, orch, port } = makeApiHarness();
     const project = (
-      await request(app).post('/api/projects').set(AUTH).send({ name: 'p', defaultAgentId: 'dev' })
+      await request(app).post('/api/projects').set(AUTH).send({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' })
     ).body.project;
     await orch.idle();
     const conv = (
@@ -156,7 +156,7 @@ describe('HTTP API (08 §1)', () => {
   it('archiving a project stops its session (PATCH semantics, FR-30)', async () => {
     const { app, orch, port } = makeApiHarness();
     const project = (
-      await request(app).post('/api/projects').set(AUTH).send({ name: 'p', defaultAgentId: 'dev' })
+      await request(app).post('/api/projects').set(AUTH).send({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' })
     ).body.project;
     await orch.idle();
     const patched = await request(app)

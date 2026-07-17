@@ -32,6 +32,8 @@ import {
 } from '../domain/projections.js';
 import type {
   Agent,
+  RepoAuth,
+  RepoSpec,
   Conversation,
   KillOutcome,
   Message,
@@ -169,23 +171,42 @@ export class Orchestrator {
   createProject(input: {
     name: string;
     defaultAgentId: string;
+    /** the project's workspace (ADR-006, FR-45) — never the agent's */
+    sessionTemplateId: string;
+    repo?: RepoSpec | null;
+    /** provisioning-time credential; passed to the seam, never stored (FR-47, SEC-11) */
+    repoAuth?: RepoAuth | null;
     instructions?: string | null;
   }): Project {
     const agent = this.mustAgent(input.defaultAgentId);
     const project = this.store.createProject(input);
     const key = `provision_${project.id}`;
-    const promise = this.provision(project.id, agent, input.instructions ?? '').finally(() => {
+    const promise = this.provision(project, agent, input.instructions ?? '', input.repoAuth ?? null).finally(() => {
       this.inFlight.delete(key);
     });
     this.inFlight.set(key, promise);
     return project;
   }
 
-  private async provision(projectId: string, agent: Agent, instructions: string): Promise<void> {
+  private async provision(
+    project: Project,
+    agent: Agent,
+    instructions: string,
+    repoAuth: RepoAuth | null,
+  ): Promise<void> {
+    const projectId = project.id;
     try {
-      const { sessionId } = await this.execPort.createSession(agent.sessionTemplateId, {
+      // The workspace comes from the PROJECT (ADR-006, FR-45). Reading it
+      // from the agent — as this did — meant a role carried a repo, so one
+      // DEV-Agent could serve exactly one repository.
+      const { sessionId } = await this.execPort.createSession(project.sessionTemplateId ?? '', {
         settings: { allowedTools: agent.allowedTools },
         claudeMd: [agent.instructions, instructions].filter(Boolean).join('\n\n'),
+        ...(project.repo ? { repo: project.repo } : {}),
+        // Provisioned, never authenticated inside a turn (FR-46): the runner
+        // is per-turn, so a device flow's process dies with the exec. The
+        // credential goes to the seam here and is never persisted by us.
+        ...(repoAuth ? { repoAuth } : {}),
       });
       // Bind BEFORE the readiness wait: from here on a session exists
       // upstream, and a project that fails the wait must still carry the id
@@ -193,7 +214,7 @@ export class Orchestrator {
       // is the authority on session state, but only we know the id).
       this.store.setProjectSession(projectId, {
         sessionId,
-        templateId: agent.sessionTemplateId,
+        templateId: project.sessionTemplateId,
         lastKnownState: 'provisioning',
       });
       // A provisioned session is not yet a runnable one (B3-08): ask the

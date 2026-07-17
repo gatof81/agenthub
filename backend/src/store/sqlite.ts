@@ -52,6 +52,10 @@ interface ProjectRow {
   instructions: string | null;
   session_id: string | null;
   session_template_id: string | null;
+  workspace_template_id: string | null;
+  repo_url: string | null;
+  repo_ref: string | null;
+  repo_target: string | null;
   session_last_state: string | null;
   created_at: string;
   updated_at: string;
@@ -113,6 +117,14 @@ function toProject(r: ProjectRow): Project {
     name: r.name,
     status: r.status,
     defaultAgentId: r.default_agent_id,
+    // the workspace is the project's (ADR-006). `sessionBinding.templateId`
+    // mirrors it for the seam reference; this is the declaration.
+    sessionTemplateId: r.workspace_template_id,
+    repo: r.repo_url === null ? null : {
+      url: r.repo_url,
+      ...(r.repo_ref !== null ? { ref: r.repo_ref } : {}),
+      ...(r.repo_target !== null ? { target: r.repo_target } : {}),
+    },
     instructions: r.instructions,
     sessionBinding: {
       sessionId: r.session_id,
@@ -220,10 +232,22 @@ export class SqliteHubStore implements HubStore {
     const id = this.id('proj');
     this.db
       .prepare(
-        `INSERT INTO projects (id, name, status, default_agent_id, instructions, created_at, updated_at)
-         VALUES (?, ?, 'provisioning', ?, ?, ?, ?)`,
+        `INSERT INTO projects (id, name, status, default_agent_id, workspace_template_id,
+                               repo_url, repo_ref, repo_target, instructions, created_at, updated_at)
+         VALUES (?, ?, 'provisioning', ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(id, input.name, input.defaultAgentId, input.instructions ?? null, now, now);
+      .run(
+        id,
+        input.name,
+        input.defaultAgentId,
+        input.sessionTemplateId ?? null,
+        input.repo?.url ?? null,
+        input.repo?.ref ?? null,
+        input.repo?.target ?? null,
+        input.instructions ?? null,
+        now,
+        now,
+      );
     return this.mustProject(id);
   }
 
