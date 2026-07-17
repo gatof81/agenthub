@@ -198,3 +198,23 @@ the same way the 2026-07-15 sidebar feedback refined §4.
   and can be renamed inline from its header. The first message titles it only
   while the title is still the birth default — an explicit rename, or any later
   message, is never overwritten.
+
+## 10. Response formatting (owner decision 2026-07-17)
+
+Assistant responses render as **Markdown**; the agent emits Markdown, so the
+conversation shows real structure — headings, lists, tables, fenced code —
+instead of one flat monospace block. User messages stay plain text: they are
+typed, not authored as Markdown.
+
+- **Flavor:** GitHub-Flavored Markdown (tables, task lists, strikethrough,
+  autolinks).
+- **Safety:** raw HTML in a response is **never** rendered as markup — it is
+  shown as text. Untrusted model output cannot inject DOM (no sanitizer is
+  needed because no raw HTML is parsed).
+- **Code blocks:** monospace, own background, horizontal scroll (never wrapped),
+  with a copy-to-clipboard affordance. **Syntax highlighting is deferred** — not
+  worth a heavy highlighter dependency in Phase 1.
+- **Links** open in a new tab and never hand the opener to the target.
+- **Line semantics** are standard Markdown (a single newline is not a hard
+  break); the agent separates blocks with blank lines. Revisit only if real
+  output reads wrong.

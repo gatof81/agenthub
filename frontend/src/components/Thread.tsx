@@ -16,6 +16,7 @@ import {
 } from '../lib/api.js';
 import { subscribeConversation, type SseEvent } from '../lib/sse.js';
 import { Inspector } from './Inspector.js';
+import { Markdown } from './Markdown.js';
 
 interface LiveRun {
   runId: string;
@@ -212,12 +213,12 @@ export function Thread({
         <div className="messages">
           {messages.map((m) => (
             <div key={m.id} className={`msg msg-${m.role}`}>
-              <pre>{m.content}</pre>
+              {m.role === 'assistant' ? <Markdown>{m.content}</Markdown> : <pre>{m.content}</pre>}
             </div>
           ))}
           {liveRun && (
             <div className="msg msg-assistant msg-live">
-              {liveRun.deltaText !== '' && <pre>{liveRun.deltaText}</pre>}
+              {liveRun.deltaText !== '' && <Markdown>{liveRun.deltaText}</Markdown>}
               <RunStateBadge run={liveRun} />
             </div>
           )}
