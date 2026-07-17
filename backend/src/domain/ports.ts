@@ -112,8 +112,12 @@ export interface TurnRequest {
   runtimeSessionId: string | null;
   env: Record<string, string>;
   /**
-   * The agent's craft, carried per turn (B5-04, ADR-006); null when the role
-   * declares none.
+   * The agent's craft, carried per turn (B5-04, ADR-006). `null` ONLY for a
+   * pre-B5-04 run whose role was never recorded — unrecorded, not absent: a
+   * role cannot declare an empty craft, because config load rejects a blank
+   * one. There is no legitimate declared-none case to open a path for; such a
+   * run omits `--append-system-prompt` and relies on the baked CLAUDE.md its
+   * pre-B5-04 workspace still carries.
    *
    * Per turn rather than baked into the workspace at provisioning: several
    * roles share one project's workspace (ADR-006), so a CLAUDE.md written

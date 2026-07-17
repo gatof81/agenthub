@@ -56,8 +56,9 @@ export interface SendMessageInput {
   /**
    * The agent's craft at queue time (B5-04). Required, not optional: a role
    * always declares one (config load rejects a blank), so a run that does not
-   * record what it ran under should be unrepresentable — `Run.instructions
-   * Snapshot` is nullable only to admit pre-B5-04 rows, never new ones.
+   * record what it ran under should be unrepresentable.
+   * `Run.instructionsSnapshot` is nullable only to admit pre-B5-04 rows,
+   * never new ones.
    */
   instructions: string;
 }
