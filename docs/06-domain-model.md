@@ -49,7 +49,7 @@ normative:**
 | Field | Notes |
 | --- | --- |
 | `id`, `name` | stable slug; referenced by conversations |
-| `instructions` | the role's craft. Seeded via agentSeed at provisioning today; once several roles share one project this must travel **per turn** instead, as tools already do (ADR-006 consequence) |
+| `instructions` | the role's craft. Seeded via agentSeed at provisioning today; once several roles share one project it will need to travel **per turn** instead, as tools already do — **blocked pending B5-04**, whose mechanism (`--append-system-prompt` or equivalent) is unverified against CLI 2.1.207 (ADR-006 consequence) |
 | `allowedTools` | the curated allowlist — **mandatory, never empty-meaning-all** (FR-11, SEC-02) |
 | `runtime` | `claude-cli` (only value in P1); the discriminator for the `RuntimeAdapter` |
 | `defaultCaps` | `{maxTurns, budgetUsd, timeoutMs}` — every run gets a caps snapshot (FR-17) |
