@@ -126,6 +126,13 @@ function suite(name: string, makeStore: () => HubStore): void {
       // agent's (B5-04): the workspace is shared by every role in the project,
       // so baking DEV's craft into it ran QA's conversations under DEV.
       expect(port.seededSessions[0]!.seed.claudeMd).not.toContain('dev agent');
+      // ...and it carries no tool allowlist at all (S-05). Same bug class: the
+      // seed used to write the provisioning agent's tools into the workspace's
+      // user-level settings, which a CLI that honors that key would hand to
+      // every conversation in the project. Tools are the turn's business
+      // (`--allowedTools`, I-7), never the workspace's.
+      expect(port.seededSessions[0]!.seed).not.toHaveProperty('settings');
+      expect(JSON.stringify(port.seededSessions[0]!.seed)).not.toContain('Bash');
 
       const conv = orch.createConversation({ projectId: project.id });
       expect(conv.agentId).toBe('dev'); // defaults from the project

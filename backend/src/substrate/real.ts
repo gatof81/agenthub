@@ -255,18 +255,16 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
     const template = (await tplRes.json()) as { config?: Record<string, unknown> };
 
     const templateSeed = (template.config?.agentSeed ?? {}) as Record<string, unknown>;
-    // wire shape (sessionConfig.ts AgentSeedSpec, live-E2E finding): both
-    // fields are byte-capped STRINGS — `settings` is the serialized JSON
-    // that becomes the settings file, not an object
-    const settingsString =
-      seed.settings === undefined
-        ? undefined
-        : typeof seed.settings === 'string'
-          ? seed.settings
-          : JSON.stringify(seed.settings);
+    // The template's own agentSeed passes through untouched — including its
+    // `settings`, which the Hub deliberately never overrides (S-05; see the
+    // `SessionSeed` port). Deployment-wide settings belong to the template,
+    // which is the project's workspace declaration (FR-45), not to a seed
+    // assembled from whichever role happened to provision.
+    //
+    // wire shape (sessionConfig.ts AgentSeedSpec, live-E2E finding):
+    // agentSeed fields are byte-capped STRINGS.
     const agentSeed: Record<string, unknown> = {
       ...templateSeed,
-      ...(settingsString !== undefined ? { settings: settingsString } : {}),
       ...(seed.claudeMd !== undefined ? { claudeMd: seed.claudeMd } : {}),
     };
     for (const [field, value] of Object.entries(agentSeed)) {

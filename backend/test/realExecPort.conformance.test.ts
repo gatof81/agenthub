@@ -325,22 +325,23 @@ describe('session provisioning (B2-02: template → create → agentSeed → boo
     expect(double.bootstrapLogCalls.length).toBe(2); // polled until the log landed
   });
 
-  it('seed fields override the template agentSeed per-field', async () => {
+  it('seed fields override the template agentSeed per-field, but never its settings (S-05)', async () => {
     double.templateResponses.push({
-      body: { config: { agentSeed: { settings: '{"old":true}', claudeMd: 'template md' } } },
+      body: { config: { agentSeed: { settings: '{"theme":"tpl"}', claudeMd: 'template md' } } },
     });
     double.createResponses.push({
       status: 201,
       body: { sessionId: 'sess_o', status: 'running' }, // no bootstrapping flag
     });
-    await fastPort().createSession('tpl', {
-      settings: { allowedTools: ['Read'] },
-      claudeMd: 'seeded md',
-    });
+    await fastPort().createSession('tpl', { claudeMd: 'seeded md' });
     const sent = double.createCalls[0] as { config: { agentSeed: unknown } };
     expect(sent.config.agentSeed).toEqual({
-      settings: '{"allowedTools":["Read"]}', // serialized for the wire
-      claudeMd: 'seeded md',
+      claudeMd: 'seeded md', // seed field folded in over the template's
+      // The template's settings survive because the Hub sends none. There is
+      // no seed shape that can reach this field: `SessionSeed` has no
+      // `settings` (S-05), so a workspace can never be handed one role's
+      // tool allowlist.
+      settings: '{"theme":"tpl"}',
     });
   });
 
@@ -488,7 +489,7 @@ describe('parity with the fake port (doc 17 B2-01 "done when"; R-12)', () => {
 
   it('createSession resolves to {sessionId} and stopSession to void from both ports', async () => {
     const fake = new FakeSubstrateExecPort();
-    const seed = { settings: { allowedTools: ['Read'] }, claudeMd: 'md' };
+    const seed = { claudeMd: 'md' };
     const fakeCreated = await fake.createSession('tpl', seed);
     expect(fakeCreated.sessionId).toMatch(/\S/);
     await expect(fake.stopSession(fakeCreated.sessionId)).resolves.toBeUndefined();

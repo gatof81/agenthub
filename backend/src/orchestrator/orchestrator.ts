@@ -178,10 +178,14 @@ export class Orchestrator {
     repoAuth?: RepoAuth | null;
     instructions?: string | null;
   }): Project {
-    const agent = this.mustAgent(input.defaultAgentId);
+    // Validation only — provisioning itself no longer takes the agent (S-05):
+    // nothing about the workspace is the role's (ADR-006). The call stays
+    // because `defaultAgentId` must still name a real role at create time,
+    // and this is where that is knowable.
+    this.mustAgent(input.defaultAgentId);
     const project = this.store.createProject(input);
     const key = `provision_${project.id}`;
-    const promise = this.provision(project, agent, input.instructions ?? '', input.repoAuth ?? null).finally(() => {
+    const promise = this.provision(project, input.instructions ?? '', input.repoAuth ?? null).finally(() => {
       this.inFlight.delete(key);
     });
     this.inFlight.set(key, promise);
@@ -190,7 +194,6 @@ export class Orchestrator {
 
   private async provision(
     project: Project,
-    agent: Agent,
     instructions: string,
     repoAuth: RepoAuth | null,
   ): Promise<void> {
@@ -211,7 +214,13 @@ export class Orchestrator {
         );
       }
       const { sessionId } = await this.execPort.createSession(project.sessionTemplateId, {
-        settings: { allowedTools: agent.allowedTools },
+        // No `settings` seed (S-05): this used to write the provisioning
+        // agent's allowlist into the workspace, the same one-role-baked-into-a-
+        // shared-workspace bug B5-04 fixed for instructions. Tools travel per
+        // turn (`--allowedTools`, I-7); the seed added nothing but a way for a
+        // future CLI version to grant DEV's tools to a QA turn. See the
+        // `SessionSeed` port for what S-05 measured.
+        //
         // The PROJECT's instructions, and only those (B5-04). The default
         // agent's craft used to be baked in here alongside them, which made
         // the workspace carry one role: every conversation in the project ran
