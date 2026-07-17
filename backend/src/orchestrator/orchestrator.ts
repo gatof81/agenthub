@@ -41,6 +41,7 @@ import type {
   Project,
   Run,
   RunErrorCode,
+  SessionOwnership,
   SweepResult,
   TerminalRunState,
   UsageSource,
@@ -173,19 +174,39 @@ export class Orchestrator {
    */
   async listSessions(): Promise<{
     scope: 'all' | 'own';
-    sessions: Array<SessionInfo & { projectId: string | null; projectName: string | null }>;
+    sessions: Array<
+      SessionInfo & {
+        projectId: string | null;
+        projectName: string | null;
+        // The bound project's lifecycle owner (ADR-007), lifted onto the live
+        // row so the UI can tell the Hub's own generic sessions
+        // (`legacy-technical`) from the owner's; `null` when no Hub project
+        // binds this session (an unbound session is nobody's project session).
+        ownership: SessionOwnership | null;
+      }
+    >;
   }> {
     const listing = await this.execPort.listSessions();
-    const bindings = new Map<string, { id: string; name: string }>();
+    const bindings = new Map<string, { id: string; name: string; ownership: SessionOwnership }>();
     for (const p of this.store.listProjects({ includeArchived: true })) {
       const sessionId = p.sessionBinding.sessionId;
-      if (sessionId !== null) bindings.set(sessionId, { id: p.id, name: p.name });
+      if (sessionId !== null)
+        bindings.set(sessionId, {
+          id: p.id,
+          name: p.name,
+          ownership: p.sessionBinding.ownership,
+        });
     }
     return {
       scope: listing.scope,
       sessions: listing.sessions.map((s) => {
         const bound = bindings.get(s.sessionId);
-        return { ...s, projectId: bound?.id ?? null, projectName: bound?.name ?? null };
+        return {
+          ...s,
+          projectId: bound?.id ?? null,
+          projectName: bound?.name ?? null,
+          ownership: bound?.ownership ?? null,
+        };
       }),
     };
   }

@@ -253,10 +253,15 @@ describe('GET /api/sessions — discovery (N1, FR-48, ADR-007)', () => {
       ownerUsername: 'owner-admin',
       projectId: null,
       projectName: null,
+      // unbound by any Hub project → nobody's project session (ADR-007)
+      ownership: null,
     });
     const bound = rows.find((s) => s.projectId !== null);
     expect(bound).toBeDefined();
     expect(bound?.projectName).toBe('Test');
+    // template-created with no on-behalf owner id → the Hub's own generic
+    // session; the UI hides these, so the row must carry the discriminator.
+    expect(bound?.ownership).toBe('legacy-technical');
   });
 
   it('surfaces the degraded own scope instead of presenting it as the estate (FR-48)', async () => {

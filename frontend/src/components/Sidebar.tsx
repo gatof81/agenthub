@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { ownerVisibleSessions } from '../lib/api.js';
 import type {
   Conversation,
   Project,
@@ -185,6 +186,9 @@ function SpecialistsSection({ specialists }: { specialists: Specialist[] }): Rea
  * shared-terminal#419.
  */
 function SessionsSection({ listing }: { listing: SessionListing }): React.JSX.Element {
+  // The owner's own sessions only: the Hub's generic `legacy-technical`
+  // sessions exist to back a project and are noise here (ADR-007).
+  const sessions = ownerVisibleSessions(listing);
   return (
     <>
       <h2>Sessions</h2>
@@ -195,7 +199,7 @@ function SessionsSection({ listing }: { listing: SessionListing }): React.JSX.El
         </p>
       )}
       <ul className="nav-list">
-        {listing.sessions.map((s) => (
+        {sessions.map((s) => (
           <li key={s.sessionId} className="nav-row">
             <div className="nav-main session-row">
               <span className="session-name">{s.name}</span>
@@ -207,7 +211,7 @@ function SessionsSection({ listing }: { listing: SessionListing }): React.JSX.El
             <span className={`badge session-${s.status}`}>{s.status}</span>
           </li>
         ))}
-        {listing.sessions.length === 0 && <li className="empty-hint">No sessions visible.</li>}
+        {sessions.length === 0 && <li className="empty-hint">No sessions visible.</li>}
       </ul>
     </>
   );

@@ -77,7 +77,7 @@ them (doc 19 maps the dependencies; discovery needs none of them).
   identity*: it authenticates as itself, executes authorized operations on
   the owner's sessions, and owns nothing the owner cares about. SEC-06 is
   rewritten accordingly; Q-04's provisional resolution is superseded.
-- Existing Hub-created sessions are marked **`legacy-technical-ownership`**
+- Existing Hub-created sessions are marked **`legacy-technical`**
   at migration: they keep working through the old path, and each can be
   rebound or retired deliberately — never silently reassigned.
 - **The owner controls the session lifecycle from outside the Hub.** FR-44's
