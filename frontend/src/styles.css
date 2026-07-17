@@ -85,6 +85,12 @@ body {
   justify-content: center;
   width: 30px;
   height: 30px;
+  /* The global `button` rule sets `padding: 9px 14px`, and with
+     `box-sizing: border-box` a fixed 30px box left the icon 2px of content
+     width — which read as "the icon is too small" when it was being crushed.
+     A flex-centred fixed-size icon button wants no padding at all: the box IS
+     the hit target, and the icon sits in the middle of it. */
+  padding: 0;
   background: none;
   border: 0;
   color: var(--muted);
@@ -143,6 +149,7 @@ body {
   justify-content: center;
   width: 38px;
   height: 38px;
+  padding: 0; /* same crush as .row-action — see the note there */
   background: var(--panel-2);
   border: 1px solid var(--border);
   color: var(--muted);
