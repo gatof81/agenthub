@@ -15,7 +15,7 @@ proceeds unless vetoed.
 | Q-04 | Seam auth: service token vs user JWT | MVP-blocking · security | Resolved by ADR-007 (supersedes ADR-001's provisional): owner-owned sessions, dedicated account as audited execution identity |
 | Q-05 | Hub deployment & exposure | important · infra | **Resolved (owner, 2026-07-14): shared-terminal shape — see ADR-002** |
 | Q-06 | Frontend framework | UX | **Resolved (owner, 2026-07-14): React + Vite** (Angular considered) — see doc 11 §1; served same-origin by the backend (ADR-002, amended 2026-07-17 from Cloudflare Pages) |
-| Q-07 | Hub users & auth model | important | Single-user first; don't preclude delegation to substrate auth |
+| Q-07 | Hub users & auth model | important | Single-user first; don't preclude delegation to substrate auth. **Resolved for Phase-1 browser auth by ADR-011 (owner, 2026-07-17)**; full user/tenant model remains future work |
 | Q-08 | Zombie accumulation vs `PidsLimit` | infra · upstream | **RESOLVED upstream (2026-07-14)**: `Init: true` shipped (shared-terminal#387), smoke Phase 9 pins it |
 | Q-09 | Backend stack | important | **Resolved with doc 07 (2026-07-14): TypeScript/Node** — challenge window closed, no failing constraint produced |
 | Q-10 | Claude auth inside the runtime | important · security | **Resolved (owner + S-01, 2026-07-14): subscription OAuth** — works headless via env var, cost fields populated |
