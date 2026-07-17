@@ -63,12 +63,30 @@ export interface Agent {
   defaultCaps: Caps;
 }
 
+/**
+ * Who functionally owns the project's substrate session (ADR-007, N2).
+ * `owner` — the owner's admin account: the Hub is only an execution identity
+ * there and must never stop, start, or delete the session on its own accord.
+ * `legacy-technical` — the Hub's own seam account (pre-correction estate, and
+ * template-created sessions until shared-terminal#420 enables
+ * create-on-behalf): the Hub owns the lifecycle, as before.
+ */
+export type SessionOwnership = 'owner' | 'legacy-technical';
+
+/** How the project got its session (ADR-007, FR-49). */
+export type BindingMode = 'existing' | 'created';
+
 /** SessionBinding value object on Project (06 §2): the substrate seam reference. */
 export interface SessionBinding {
   sessionId: string | null;
   templateId: string | null;
   /** UX cache only (FR-33) — never a basis for decisions the seam can answer live. */
   lastKnownState: string | null;
+  /** `existing` = bound to a session the owner already had (FR-49). */
+  bindingMode: BindingMode;
+  /** Substrate account owning the session; null = unrecorded (legacy rows). */
+  ownerAccountId: string | null;
+  ownership: SessionOwnership;
 }
 
 /**

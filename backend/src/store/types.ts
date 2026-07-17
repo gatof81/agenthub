@@ -31,11 +31,13 @@ export interface CreateProjectInput {
   name: string;
   defaultAgentId: string;
   /**
-   * The project's workspace (ADR-006, FR-45) — never the agent's. Required:
-   * every new project declares one, and leaving it optional let a direct-store
-   * caller compile without it and exercise the null path.
+   * The project's workspace (ADR-006, FR-45) — never the agent's. Still a
+   * required KEY (an optional field let a direct-store caller compile
+   * without it and exercise the null path by accident); `null` is legal only
+   * on the bind path (FR-49), where an existing session is the workspace and
+   * there is no template to declare.
    */
-  sessionTemplateId: string;
+  sessionTemplateId: string | null;
   /** `auth` is absent by design: the PAT goes to the seam, never here (FR-47, SEC-11) */
   repo?: RepoSpec | null;
   instructions?: string | null;

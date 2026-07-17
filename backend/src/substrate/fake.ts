@@ -141,8 +141,19 @@ export class FakeSubstrateExecPort implements SubstrateExecPort {
       ownerUsername: 'fake-owner',
       createdAt: null,
       lastConnectedAt: null,
+      externalRef: seed.externalRef ?? null,
     });
     return Promise.resolve({ sessionId });
+  }
+
+  /** Real-port parity (#418): PATCH the ref on a known session; 404-shape on unknown. */
+  setSessionExternalRef(sessionId: string, ref: string | null): Promise<void> {
+    const info = this.knownSessions.get(sessionId);
+    if (!info || this.goneSessions.has(sessionId)) {
+      return Promise.reject(new Error(`setSessionExternalRef: unknown session ${sessionId}`));
+    }
+    this.knownSessions.set(sessionId, { ...info, externalRef: ref });
+    return Promise.resolve();
   }
 
   async *exec(sessionId: string, req: ExecRequest): AsyncIterable<SeamEvent> {

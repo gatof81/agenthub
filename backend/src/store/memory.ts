@@ -84,7 +84,17 @@ export class MemoryHubStore implements HubStore {
       sessionTemplateId: input.sessionTemplateId ?? null,
       repo: input.repo ?? null,
       instructions: input.instructions ?? null,
-      sessionBinding: { sessionId: null, templateId: null, lastKnownState: null },
+      sessionBinding: {
+        sessionId: null,
+        templateId: null,
+        lastKnownState: null,
+        // same defaults the SQLite insert writes (migration 004 semantics):
+        // template-created sessions live in the Hub's technical account
+        // until shared-terminal#420 enables create-on-behalf (ADR-007)
+        bindingMode: 'created',
+        ownerAccountId: null,
+        ownership: 'legacy-technical',
+      },
       createdAt: now,
       updatedAt: now,
     };
@@ -121,6 +131,10 @@ export class MemoryHubStore implements HubStore {
     if (binding.templateId !== undefined) p.sessionBinding.templateId = binding.templateId;
     if (binding.lastKnownState !== undefined)
       p.sessionBinding.lastKnownState = binding.lastKnownState;
+    if (binding.bindingMode !== undefined) p.sessionBinding.bindingMode = binding.bindingMode;
+    if (binding.ownerAccountId !== undefined)
+      p.sessionBinding.ownerAccountId = binding.ownerAccountId;
+    if (binding.ownership !== undefined) p.sessionBinding.ownership = binding.ownership;
     p.updatedAt = this.now();
     return clone(p);
   }

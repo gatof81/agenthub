@@ -51,6 +51,11 @@ export interface SessionSeed {
    */
   claudeMd?: string;
   /**
+   * Session ↔ project link written at create (shared-terminal#418, N2);
+   * top-level create field upstream, not part of `config`.
+   */
+  externalRef?: string;
+  /**
    * The project's repository, cloned into the workspace at bootstrap
    * (FR-45). The seam's session config owns the clone; the Hub declares it.
    */
@@ -121,6 +126,14 @@ export interface SessionInfo {
   ownerUsername: string | null;
   createdAt: string | null;
   lastConnectedAt: string | null;
+  /**
+   * Opaque client metadata upstream (shared-terminal#418, ≤128 chars). The
+   * Hub writes `agenthub:project:<id>` at bind/provision time (N2) so the
+   * session ↔ project link survives a Hub database restore and shows up in
+   * every listing. Reconciliation aid — the Hub's own binding row stays the
+   * working truth.
+   */
+  externalRef: string | null;
 }
 
 export interface SessionListing {
@@ -149,6 +162,12 @@ export interface SubstrateExecPort {
    * upstream (a state to surface, never to repair — ADR-007, FR-44).
    */
   getSession(sessionId: string): Promise<SessionInfo | null>;
+  /**
+   * Write the session ↔ project link (N2, shared-terminal#418). `null`
+   * clears it (unbind). Operate-tier upstream — works on owner-account
+   * sessions once the execution identity is admin-flagged (ADR-007).
+   */
+  setSessionExternalRef(sessionId: string, ref: string | null): Promise<void>;
   /** Archiving a project stops its session (08 §1 PATCH semantics, FR-30). */
   stopSession(sessionId: string): Promise<void>;
   /**

@@ -23,13 +23,16 @@ account; SEC-06 as amended by ADR-007 — see the correction note below).
 `X-Request-Id` emitted on every response and echoed in `started` — recorded
 per run (OPS-04).
 
-> **Correction note (2026-07-17, ADR-007):** ownership-only exec is the
-> verified behavior at `0cd4ed5` and the blocker for the corrected model,
-> where the Hub's account executes in **owner-owned** sessions.
+> **Correction note (2026-07-17, ADR-007) — RESOLVED upstream same day:**
+> ownership-only exec was the verified behavior at `0cd4ed5` and the blocker
+> for the corrected model.
 > [shared-terminal#416](https://github.com/gatof81/shared-terminal/issues/416)
-> asks for operate-tier (owner OR admin, audited) authorization on the three
-> exec routes; this doc re-tracks the canonical `EXEC_API.md` when it lands
-> (increment N1/N2, doc 19).
+> shipped at `63da9cf` (upstream PR #422), verified at `c2db7f7`: all three
+> exec routes now authorize via `assertCanOperate` (owner OR admin,
+> `routes/exec.ts:96,360,403`) — non-admin non-owners still 403 — and a
+> cross-user exec skips the owner's idle bump and lands in the observe/audit
+> trail. The Hub's admin-flagged execution identity can run structured turns
+> in owner-account sessions with **no Hub-side code change**.
 
 ## Deltas: merged contract vs the ADR-001 proposal
 
@@ -112,6 +115,7 @@ Surface consumed by `listSessions`/`getSession`, verified at
 | `GET /api/admin/sessions` → array of serializeMeta rows + `userId`, `ownerUsername` (`routes/admin.ts:113-158`; `requireAdmin` → `403 {error:"Admin privileges required"}`, `auth.ts`) | preferred listing: the only one with per-row owner attribution (ADR-007). Hard cap 500 rows upstream (`ADMIN_LIST_LIMIT = 500`, `sessionManager.ts:179`, applied in `listAll`'s `LIMIT` at `sessionManager.ts:498`). `403` (no admin flag) degrades the port to the own listing with `scope:'own'` — surfaced, never silent |
 | `GET /api/sessions` → array of serializeMeta rows (caller's own, terminated excluded; `routes/sessions.ts:440-489`) | degraded own-scope listing; rows attributed to the configured `selfUsername` since the wire carries no owner for the caller's own rows |
 | `GET /api/sessions/:id` (operate-tier since upstream PR #412, `routes/sessions.ts:501`) | single-session metadata; `404` → `null` at the port (gone is a state to surface, FR-44, never repair) |
+| `PATCH /api/sessions/:id` `{externalRef: string \| null}` (shared-terminal#418, verified at `c2db7f7`, `routes/sessions.ts:770-800`) | session ↔ project back-link (N2): the Hub writes `agenthub:project:<id>` at bind/provision, `null` clears. The route's ONLY patchable field — unknown keys 400; ≤128 chars (`EXTERNAL_REF_MAX_LEN`, `routes/sessions.ts:68`); operate-tier. `externalRef` also rides `POST /api/sessions` as a TOP-LEVEL create field (not `config`) and appears in `serializeMeta`, so every listing carries it |
 
 The port drops `envVars` and container details at the boundary — session env
 can carry secrets and the shape flows to the Hub API/UI (SEC-04/05).

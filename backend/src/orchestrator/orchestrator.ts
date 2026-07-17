@@ -200,8 +200,17 @@ export class Orchestrator {
   createProject(input: {
     name: string;
     defaultAgentId: string;
-    /** the project's workspace (ADR-006, FR-45) — never the agent's */
-    sessionTemplateId: string;
+    /**
+     * The project's workspace (ADR-006, FR-45) — never the agent's. `null`
+     * only on the bind path: an existing session already IS the workspace.
+     */
+    sessionTemplateId: string | null;
+    /**
+     * Bind an existing owner-account session instead of creating one
+     * (FR-49, ADR-007). Exactly one of this and `sessionTemplateId` — the
+     * API validates; reaching here with both or neither is a logic error.
+     */
+    existingSessionId?: string | null;
     repo?: RepoSpec | null;
     /** provisioning-time credential; passed to the seam, never stored (FR-47, SEC-11) */
     repoAuth?: RepoAuth | null;
@@ -212,13 +221,73 @@ export class Orchestrator {
     // because `defaultAgentId` must still name a real role at create time,
     // and this is where that is knowable.
     this.mustAgent(input.defaultAgentId);
-    const project = this.store.createProject(input);
+    const bindTo = input.existingSessionId ?? null;
+    if ((bindTo === null) === (input.sessionTemplateId === null)) {
+      throw new Error(
+        'createProject: exactly one of sessionTemplateId and existingSessionId (FR-49)',
+      );
+    }
+    const project = this.store.createProject({
+      name: input.name,
+      defaultAgentId: input.defaultAgentId,
+      sessionTemplateId: input.sessionTemplateId,
+      repo: input.repo ?? null,
+      instructions: input.instructions ?? null,
+    });
     const key = `provision_${project.id}`;
-    const promise = this.provision(project, input.instructions ?? '', input.repoAuth ?? null).finally(() => {
+    const promise = (
+      bindTo !== null
+        ? this.bindExisting(project.id, bindTo)
+        : this.provision(project, input.instructions ?? '', input.repoAuth ?? null)
+    ).finally(() => {
       this.inFlight.delete(key);
     });
     this.inFlight.set(key, promise);
     return project;
+  }
+
+  /**
+   * Bind an existing owner-account session (FR-49, ADR-007). Creates
+   * NOTHING upstream: validates the session exists, records the binding
+   * (`ownership: 'owner'` — the Hub is an execution identity there, never
+   * the lifecycle authority), back-links the session via `external_ref`
+   * (#418), and the project is usable. A stopped session binds fine — its
+   * state is surfaced (FR-33), not judged.
+   */
+  private async bindExisting(projectId: string, sessionId: string): Promise<void> {
+    try {
+      const info = await this.execPort.getSession(sessionId);
+      if (info === null) {
+        // gone/unknown upstream: an error state to show, never a session to
+        // conjure (FR-44's principle at bind time)
+        throw new Error(`session ${sessionId} not found upstream`);
+      }
+      this.store.setProjectSession(projectId, {
+        sessionId,
+        lastKnownState: info.status,
+        bindingMode: 'existing',
+        ownerAccountId: info.ownerUsername,
+        ownership: 'owner',
+      });
+      // Best-effort back-link: the Hub's binding row is the working truth;
+      // the ref is the restore/reconciliation aid. A session whose owner
+      // strips the ref stays bound — losing the aid must not break the bind.
+      try {
+        await this.execPort.setSessionExternalRef(sessionId, `agenthub:project:${projectId}`);
+      } catch {
+        this.logger.warn('project.bind_external_ref_failed', { projectId, sessionId });
+      }
+      this.store.updateProject(projectId, { status: 'ready' });
+      this.notify.projectState(projectId, 'ready');
+      this.logger.info('project.bound', { projectId, sessionId });
+    } catch {
+      // The status change is observable via SSE/GET, but not the cause; log
+      // it so the failing step is diagnosable, matching this method's own
+      // success/inner-catch logging (and `project.restored` in restoreProject).
+      this.logger.warn('project.bind_failed', { projectId, sessionId });
+      this.store.updateProject(projectId, { status: 'error' });
+      this.notify.projectState(projectId, 'error');
+    }
   }
 
   private async provision(
@@ -263,6 +332,8 @@ export class Orchestrator {
         // is per-turn, so a device flow's process dies with the exec. The
         // credential goes to the seam here and is never persisted by us.
         ...(repoAuth ? { repoAuth } : {}),
+        // session ↔ project back-link from birth (#418, N2)
+        externalRef: `agenthub:project:${projectId}`,
       });
       // Bind BEFORE the readiness wait: from here on a session exists
       // upstream, and a project that fails the wait must still carry the id
@@ -272,6 +343,10 @@ export class Orchestrator {
         sessionId,
         templateId: project.sessionTemplateId,
         lastKnownState: 'provisioning',
+        // honest until shared-terminal#420 (create-on-behalf): a session the
+        // Hub creates today lives in its own technical account (ADR-007)
+        bindingMode: 'created',
+        ownership: 'legacy-technical',
       });
       // A provisioned session is not yet a runnable one (B3-08): ask the
       // runtime, not the seam, whether it can actually take a turn.
@@ -285,11 +360,20 @@ export class Orchestrator {
     }
   }
 
-  /** PATCH archive semantics: archiving stops the session (08 §1, FR-30). */
+  /**
+   * PATCH archive semantics (08 §1, FR-30) — scoped by ownership (ADR-007):
+   * a `legacy-technical` session is the Hub's to stop; an `owner` session is
+   * the owner's — archiving such a project is a Hub-side act ONLY, the
+   * session keeps running for the owner's manual work. Never force-stop what
+   * the Hub does not own.
+   */
   async archiveProject(projectId: string): Promise<Project> {
     const project = this.store.getProject(projectId);
     if (!project) throw new OrchestratorError('not_found', `project ${projectId}`);
-    if (project.sessionBinding.sessionId) {
+    if (
+      project.sessionBinding.sessionId &&
+      project.sessionBinding.ownership === 'legacy-technical'
+    ) {
       try {
         await this.execPort.stopSession(project.sessionBinding.sessionId);
         this.store.setProjectSession(projectId, { lastKnownState: 'stopped' });
@@ -325,6 +409,25 @@ export class Orchestrator {
         'session_gone',
         `project ${projectId} has no session to restore (FR-44)`,
       );
+    }
+    // Ownership scopes the restore too (ADR-007): an `owner` session was
+    // never stopped by the archive, so there is nothing to start — but a
+    // session the owner hard-deleted meanwhile must still surface as
+    // `session_gone` rather than come back as a ready project whose next
+    // turn fails (FR-44's reasoning, generalized to owner lifecycle).
+    if (project.sessionBinding.ownership === 'owner') {
+      const info = await this.execPort.getSession(sessionId);
+      if (info === null) {
+        throw new OrchestratorError(
+          'session_gone',
+          `session ${sessionId} no longer exists upstream (FR-44)`,
+        );
+      }
+      this.store.setProjectSession(projectId, { lastKnownState: info.status });
+      const restored = this.store.updateProject(projectId, { status: 'ready' });
+      this.notify.projectState(projectId, 'ready');
+      this.logger.info('project.restored', { projectId, sessionId });
+      return restored;
     }
     // Translate the port's error into the orchestrator's own vocabulary: the
     // API depends on the orchestrator, not on the substrate (07 §2), so it
