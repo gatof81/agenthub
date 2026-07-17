@@ -142,6 +142,31 @@ describe('HTTP API (08 §1)', () => {
       .send({ name: 'x', defaultAgentId: 'dev', sessionTemplateId: 'not-a-real-template' });
     expect(badTemplate.status).toBe(422);
     expect(badTemplate.body.detail).toContain('workspace-templates');
+    // repo.auth gets the same treatment: a malformed shape must 422 here, not
+    // reach the seam and come back as an opaque substrate error
+    const badAuth = await request(app)
+      .post('/api/projects')
+      .set(AUTH)
+      .send({
+        name: 'x',
+        defaultAgentId: 'dev',
+        sessionTemplateId: 'tpl',
+        repo: { url: 'https://github.com/o/r', auth: { kind: 'pat' } }, // no pat
+      });
+    expect(badAuth.status).toBe(422);
+    expect(badAuth.body.detail).toContain('repo.auth');
+    // and the rejection must not echo the credential back (SEC-04/05)
+    const leaky = await request(app)
+      .post('/api/projects')
+      .set(AUTH)
+      .send({
+        name: 'x',
+        defaultAgentId: 'dev',
+        sessionTemplateId: 'tpl',
+        repo: { url: 'https://github.com/o/r', auth: { kind: 'nope', pat: 'ghp_LEAK_CANARY' } },
+      });
+    expect(leaky.status).toBe(422);
+    expect(JSON.stringify(leaky.body)).not.toContain('ghp_LEAK_CANARY');
     expect(
       (await request(app).post('/api/projects').set(AUTH).send({ name: 'x', defaultAgentId: 'nope', sessionTemplateId: 'tpl' }))
         .status,

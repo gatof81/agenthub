@@ -167,8 +167,34 @@ export function buildApp(deps: ApiDeps): express.Express {
     // repo.auth never reaches the store: it is handed to the seam at
     // provisioning and forgotten (FR-47, SEC-11). Split it off here so no
     // downstream call can accidentally persist it.
-    const repoAuth =
-      r !== null && typeof r.auth === 'object' && r.auth !== null ? (r.auth as RepoAuth) : null;
+    //
+    // Validated like every other field at this boundary. A blind cast let
+    // `{kind:'oops'}` or a `pat` branch with no pat through to the seam,
+    // producing an opaque substrate error instead of a 422 that says what is
+    // wrong — the same failure this route already refuses for
+    // sessionTemplateId. The detail never echoes the credential (SEC-04/05):
+    // it names the shape, not the value.
+    const rawAuth = r !== null && typeof r.auth === 'object' && r.auth !== null
+      ? (r.auth as Record<string, unknown>)
+      : null;
+    let repoAuth: RepoAuth | null = null;
+    if (rawAuth !== null) {
+      if (rawAuth.kind === 'none') {
+        repoAuth = { kind: 'none' };
+      } else if (
+        rawAuth.kind === 'pat' &&
+        typeof rawAuth.pat === 'string' &&
+        rawAuth.pat.trim() !== ''
+      ) {
+        repoAuth = { kind: 'pat', pat: rawAuth.pat };
+      } else {
+        res.status(422).json({
+          code: 'validation',
+          detail: 'repo.auth must be {kind:"none"} or {kind:"pat", pat:"<token>"}',
+        });
+        return;
+      }
+    }
     const project = orchestrator.createProject({
       name,
       defaultAgentId,
