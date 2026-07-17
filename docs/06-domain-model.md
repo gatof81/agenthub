@@ -94,8 +94,9 @@ permission overrides.
 | Field | Notes |
 | --- | --- |
 | `id`, `title`, `status` | status: `active \| archived` — provisioning belongs to the project |
-| `projectId` | immutable (I-10) |
-| `agentId` | immutable in `direct` mode (the built behavior); defaults from the project. The correction adds `mode: automatic \| preferred-specialist \| direct` with `automatic` as the eventual default — there, no immutable agentId exists and the acting specialist is recorded per run/step (ADR-008, FR-51, N4) |
+| `projectId` | the project, or **`null`** for a direct conversation with a specialist (N3b-2) — which runs in the specialist's personal session, not a project's. Immutable once set (I-10) |
+| `mode` | `direct \| preferred-specialist \| automatic` (N3b-2, ADR-008). `direct` is the only mode built — a pinned specialist (or a project's agent). `automatic`/`preferred-specialist` arrive with the N4 router |
+| `agentId` | the agent (project) or specialist (direct); immutable in `direct` mode (the built behavior). In `automatic` mode (N4) no immutable agentId exists and the acting specialist is recorded per run/step (ADR-008, FR-51) |
 | `runtimeSessionId` | the CLI's own session id used for `--resume`; updated from each result event (S-01: stable across resumes, but drift is captured, FR-24). Many CLI sessions coexist in one workspace — directly verified by S-01's published run (five distinct sessions in one container, one resumed by id while the others coexisted; see the [S-01 fixtures](./spikes/S-01/fixtures/run-20260714T142930Z/)) — which is what lets conversations share the project's container |
 
 ### SessionBinding (value object on Project)
@@ -175,7 +176,7 @@ model-authored fields are a later enrichment, not Phase 1.
 | # | Invariant | Enforced by |
 | --- | --- | --- |
 | I-1 | One user message triggers at most one run; every run has exactly one triggering message | FR-03; unique index on `Run.messageId` |
-| I-2 | At most one run per **workspace** (substrate session) is in a non-terminal state; queued runs dispatch FIFO per workspace. In the built increments project : session : workspace are 1:1:1, so this reads "one active run per project" — the lock follows the workspace as specialist sessions arrive (ADR-008, 18 §2) | FR-04/19; transactional dispatch (NFR-01) |
+| I-2 | At most one run per **workspace** (substrate session) is in a non-terminal state; queued runs dispatch FIFO per workspace. The workspace key is the project id for a project conversation, or `specialist:<agentId>` for a direct specialist conversation (N3b-2) — "the lock follows the workspace" (18 §2, realized in N3b-2) | FR-04/19; transactional dispatch (NFR-01) |
 | I-3 | Run state changes follow the 05 state machine only, each transition one transaction | UC-06 preamble |
 | I-4 | `RunEvent` ingestion is idempotent (`id`) and ordered (`runId, seq`) | FR-13 |
 | I-5 | Every terminal run has exactly one `UsageRecord`, even if its values are unknown | FR-18 |
@@ -183,7 +184,7 @@ model-authored fields are a later enrichment, not Phase 1.
 | I-7 | `policySnapshot` is non-empty on every run — a run without an explicit allowlist must be unrepresentable | FR-11, SEC-01/02 |
 | I-8 | `capsSnapshot`/`policySnapshot` are immutable once the run leaves `queued`; `cliVersion`/`model` are **write-once** when the init event records them and immutable after | SEC-08 audit trail |
 | — | (I-9 is a retired draft-era number — assigned to the FR-22 cancel counter and withdrawn with it before merge; invariant IDs, like requirement IDs, are never reused) | — |
-| I-10 | `Conversation.projectId` never changes **once set**; it becomes nullable for specialist general conversations (owner decision 2026-07-17, ADR-008 — migration 005) | ADR-005, ADR-008 |
+| I-10 | `Conversation.projectId` never changes **once set**; it is nullable for direct specialist conversations (owner decision 2026-07-17, ADR-008 — migration 006, N3b-2) | ADR-005, ADR-008 |
 | I-11 | Every terminal run has exactly one `RunSummary`, written in the terminal transition's transaction | FR-42 |
 | I-12 | An active conversation never belongs to an archived project — archiving a project stops the session its conversations share (FR-40), so an active conversation there could not take a turn. Archiving a project archives its conversations with it; restoring a conversation requires its project to be restored first | FR-43 |
 

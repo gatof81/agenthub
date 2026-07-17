@@ -116,6 +116,13 @@ export function App(): React.JSX.Element {
     [refreshSpecialists],
   );
 
+  // start a direct conversation with a specialist (N3b-2) and open it
+  const chatWithSpecialist = useCallback(async (specialistId: string) => {
+    const { conversation } = await api.createSpecialistConversation(specialistId);
+    setSelectedProject(null); // a specialist conversation has no project
+    setSelectedConversation(conversation);
+  }, []);
+
   useEffect(() => {
     if (!authed) return;
     void refreshProjects();
@@ -350,6 +357,7 @@ export function App(): React.JSX.Element {
         sessionListing={sessionListing}
         specialists={specialists}
         onBindSpecialistSession={(id, w) => void bindSpecialistSession(id, w)}
+        onChatWithSpecialist={(id) => void chatWithSpecialist(id)}
         projects={projects}
         conversations={conversations}
         selectedProject={selectedProject}

@@ -421,6 +421,34 @@ export function buildApp(deps: ApiDeps): express.Express {
     res.status(201).json({ conversation }); // instant — no provisioning (ADR-005)
   });
 
+  // Direct conversation with a specialist (N3b-2, ADR-008): no project, runs
+  // in the specialist's personal session. 422 if the specialist has no bound
+  // session (nowhere to run — bind one first, N3b-1).
+  app.post('/api/specialists/:id/conversations', (req, res, next) => {
+    const specialistId = req.params.id;
+    if (!agents.has(specialistId)) {
+      res.status(404).json({ code: 'not_found', detail: 'unknown specialist' });
+      return;
+    }
+    if (!store.getSpecialistSession(specialistId)) {
+      res.status(422).json({
+        code: 'validation',
+        detail: 'bind a session to this specialist first (N3b-1)',
+      });
+      return;
+    }
+    const { title } = (req.body ?? {}) as Record<string, unknown>;
+    try {
+      const conversation = orchestrator.createSpecialistConversation(
+        specialistId,
+        typeof title === 'string' && title.trim() !== '' ? title : undefined,
+      );
+      res.status(201).json({ conversation });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   app.get('/api/conversations', (req, res) => {
     const includeArchived = req.query['archived'] === 'true';
     const conversations = store.listConversations({ includeArchived }).map((c) => {

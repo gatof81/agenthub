@@ -116,3 +116,14 @@ treat the direction as one-way.
 - Supersedes: SEC-06's dedicated-ownership clause, Q-04's provisional
   resolution, and ADR-005's implicit provision-on-create assumption
   (ADR-005's aggregate decision itself stands).
+- **Specialist-session refinement (owner decision, 2026-07-17, N3b-2):** the
+  blanket "the Hub never starts an owner session" is narrowed for a
+  *specialist's personal session* (ADR-008) — the Hub MAY **start** it on
+  demand, because using the specialist from the Hub is the owner-delegated
+  purpose of that session. The Hub still never **stops or deletes** an owner
+  session (the owner and the substrate idle-sweeper own that). Upstream today
+  makes `POST /sessions/:id/start` owner-only, so the Hub's admin identity
+  gets 403 — [shared-terminal#429](https://github.com/gatof81/shared-terminal/issues/429)
+  asks for operate-tier start (like #416 for exec); until it ships, an
+  offline specialist session yields a clear "start it in Shared Terminal"
+  failure and auto-starts once #429 lands.

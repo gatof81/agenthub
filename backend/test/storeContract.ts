@@ -600,5 +600,28 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       expect(store.getSpecialistSession('claudia')!.status).toBe('offline');
       store.close();
     });
+
+    it('creates a project-less specialist conversation and serializes runs per workspace (N3b-2)', () => {
+      const store = makeStore();
+      const conv = store.createConversation({ projectId: null, title: 'c', agentId: 'claudio', mode: 'direct' });
+      expect(conv.projectId).toBeNull();
+      expect(conv.mode).toBe('direct');
+      const read = store.getConversation(conv.id)!;
+      expect(read.projectId).toBeNull();
+      // dispatch by the specialist workspace key
+      const msg = store.sendMessage({
+        conversationId: conv.id, content: 'hi', caps: CAPS, policy: POLICY, instructions: INSTRUCTIONS,
+      });
+      expect(msg.run.state).toBe('queued');
+      const dispatched = store.dispatchNextRun('specialist:claudio');
+      expect(dispatched?.id).toBe(msg.run.id);
+      expect(dispatched?.state).toBe('starting');
+      // a second queued run in the same specialist workspace does NOT dispatch
+      store.createConversation({ projectId: null, title: 'c2', agentId: 'claudio', mode: 'direct' });
+      const conv2 = store.listConversations().find((c) => c.title === 'c2')!;
+      store.sendMessage({ conversationId: conv2.id, content: 'x', caps: CAPS, policy: POLICY, instructions: INSTRUCTIONS });
+      expect(store.dispatchNextRun('specialist:claudio')).toBeUndefined();
+      store.close();
+    });
   });
 }

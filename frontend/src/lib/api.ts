@@ -52,9 +52,11 @@ export interface Specialist {
 
 export interface Conversation {
   id: string;
-  projectId: string;
+  /** null = a direct conversation with a specialist (N3b-2), no project */
+  projectId: string | null;
   title: string;
   agentId: string;
+  mode: 'direct' | 'preferred-specialist' | 'automatic';
   status: 'active' | 'archived';
 }
 
@@ -242,6 +244,13 @@ export const api = {
     call<{ conversation: Conversation }>('POST', `/api/projects/${projectId}/conversations`, {
       title,
     }),
+  // direct conversation with a specialist (N3b-2) — runs in its personal session
+  createSpecialistConversation: (specialistId: string, title?: string) =>
+    call<{ conversation: Conversation }>(
+      'POST',
+      `/api/specialists/${specialistId}/conversations`,
+      { title },
+    ),
   getConversation: (id: string) =>
     call<{ conversation: Conversation; messages: Message[] }>('GET', `/api/conversations/${id}`),
   sendMessage: (conversationId: string, content: string) =>

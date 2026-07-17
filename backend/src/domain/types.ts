@@ -156,16 +156,40 @@ export interface Project {
   updatedAt: string;
 }
 
+/**
+ * How the conversation picks its specialist (ADR-008). N3b-2 uses only
+ * `direct` (a pinned specialist, or a project's agent); `automatic` and
+ * `preferred-specialist` arrive with the N4 router.
+ */
+export type ConversationMode = 'direct' | 'preferred-specialist' | 'automatic';
+
 export interface Conversation {
   id: string;
-  projectId: string; // immutable (I-10)
+  /**
+   * The project this conversation belongs to, or `null` for a direct
+   * conversation with a specialist (N3b-2, ADR-008) — which runs in the
+   * specialist's personal session, not a project's. Never changes once set
+   * (I-10 relaxed to "immutable once set").
+   */
+  projectId: string | null;
   title: string;
-  agentId: string; // immutable in Phase 1 (I-6)
+  agentId: string; // the agent (project) or specialist (direct); immutable in direct mode (I-6)
+  mode: ConversationMode;
   status: ConversationStatus;
   /** The CLI's own session id used for --resume (FR-24) — a runtime session, NOT a substrate session (06 §1). */
   runtimeSessionId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * The workspace a conversation's runs serialize on (I-2, N3b-2): the project
+ * id for a project conversation, or `specialist:<agentId>` for a direct
+ * specialist conversation (which runs in the specialist's personal session).
+ * "The lock follows the workspace" (18 §2).
+ */
+export function workspaceKeyFor(c: Pick<Conversation, 'projectId' | 'agentId'>): string {
+  return c.projectId ?? `specialist:${c.agentId}`;
 }
 
 export interface Message {

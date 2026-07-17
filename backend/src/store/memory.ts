@@ -5,6 +5,7 @@
  */
 
 import { randomIds, systemClock, type Clock, type IdGen } from '../domain/ids.js';
+import { workspaceKeyFor } from '../domain/types.js';
 import {
   assertLegalTransition,
   isTerminal,
@@ -162,7 +163,7 @@ export class MemoryHubStore implements HubStore {
   // — conversations —
 
   createConversation(input: CreateConversationInput): Conversation {
-    this.mustProjectRef(input.projectId);
+    if (input.projectId !== null) this.mustProjectRef(input.projectId);
     if (!input.agentId?.trim()) throw new ValidationError('agentId required');
     const now = this.now();
     const conv: Conversation = {
@@ -170,6 +171,7 @@ export class MemoryHubStore implements HubStore {
       projectId: input.projectId,
       title: input.title,
       agentId: input.agentId,
+      mode: input.mode ?? 'direct',
       status: 'active',
       runtimeSessionId: null,
       createdAt: now,
@@ -275,13 +277,15 @@ export class MemoryHubStore implements HubStore {
     return { message: clone(message), run: clone(run) };
   }
 
-  dispatchNextRun(projectId: string): Run | undefined {
-    this.mustProjectRef(projectId);
-    const projectRuns = this.projectRuns(projectId);
-    if (projectRuns.some((r) => r.state === 'starting' || r.state === 'streaming')) {
+  dispatchNextRun(workspaceKey: string): Run | undefined {
+    // I-2 per workspace (N3b-2): serialize on the conversation's workspace key
+    // (project id, or `specialist:<agentId>`), not the project — a specialist
+    // workspace has no project row.
+    const runs = this.workspaceRuns(workspaceKey);
+    if (runs.some((r) => r.state === 'starting' || r.state === 'streaming')) {
       return undefined;
     }
-    const next = projectRuns.find((r) => r.state === 'queued');
+    const next = runs.find((r) => r.state === 'queued');
     if (!next) return undefined;
     // find+mutate is atomic in single-threaded JS — the in-memory analog of
     // the SQLite guarded `UPDATE … WHERE state = 'queued'`.
@@ -480,6 +484,13 @@ export class MemoryHubStore implements HubStore {
   private projectRuns(projectId: string): Run[] {
     const convIds = new Set(
       this.conversations.filter((c) => c.projectId === projectId).map((c) => c.id),
+    );
+    return this.runs.filter((r) => convIds.has(r.conversationId));
+  }
+
+  private workspaceRuns(workspaceKey: string): Run[] {
+    const convIds = new Set(
+      this.conversations.filter((c) => workspaceKeyFor(c) === workspaceKey).map((c) => c.id),
     );
     return this.runs.filter((r) => convIds.has(r.conversationId));
   }

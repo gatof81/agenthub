@@ -53,20 +53,38 @@ export function currentSchemaVersion(db: Database): number {
 /** Applies every migration above the stored version, in order, one tx each. */
 export function migrate(db: Database, migrations: Migration[] = loadMigrations()): number {
   const sorted = [...migrations].sort((a, b) => a.version - b.version);
-  for (const m of sorted) {
-    if (m.version <= currentSchemaVersion(db)) continue;
-    const apply = db.transaction(() => {
-      db.exec(m.sql);
-      db.prepare(
-        `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      ).run(String(m.version));
-    });
-    try {
-      apply();
-    } catch (err) {
-      throw new MigrationError(m.name, err);
+  // Table rebuilds (e.g. migration 006 makes conversations.project_id nullable)
+  // DROP a table that messages/runs reference, which trips FK enforcement.
+  // PRAGMA foreign_keys is a no-op inside a transaction, so toggle it here —
+  // around every migration transaction — and, when it was on, verify no orphan
+  // was introduced before restoring. better-sqlite3 enables FKs by default, so
+  // this matters for every caller, not just SqliteHubStore.
+  const fkWasOn = db.pragma('foreign_keys', { simple: true }) === 1;
+  if (fkWasOn) db.pragma('foreign_keys = OFF');
+  try {
+    for (const m of sorted) {
+      if (m.version <= currentSchemaVersion(db)) continue;
+      const apply = db.transaction(() => {
+        db.exec(m.sql);
+        db.prepare(
+          `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+        ).run(String(m.version));
+      });
+      try {
+        apply();
+      } catch (err) {
+        throw new MigrationError(m.name, err);
+      }
     }
+    if (fkWasOn) {
+      const violations = db.pragma('foreign_key_check') as unknown[];
+      if (violations.length > 0) {
+        throw new Error(`foreign_key_check found ${violations.length} violation(s) after migration`);
+      }
+    }
+  } finally {
+    if (fkWasOn) db.pragma('foreign_keys = ON');
   }
   return currentSchemaVersion(db);
 }
