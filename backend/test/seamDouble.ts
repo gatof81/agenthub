@@ -218,9 +218,18 @@ export class SeamDouble {
     const patchMeta = /^\/api\/sessions\/([^/]+)$/.exec(url);
     if (req.method === 'PATCH' && patchMeta) {
       const fields = Object.keys((body ?? {}) as Record<string, unknown>);
-      if (!fields.includes('externalRef') || fields.some((k) => k !== 'externalRef')) {
+      // Two distinct 400s upstream (routes/sessions.ts @ c2db7f7): the field
+      // must be present, and no other key is patchable — mirror both messages
+      // so a reader debugging against the double sees which one fired.
+      if (!fields.includes('externalRef')) {
         res.writeHead(400, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ error: 'body.externalRef is required' }));
+        return;
+      }
+      const unknownKey = fields.find((k) => k !== 'externalRef');
+      if (unknownKey !== undefined) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: `body.${unknownKey} is not a patchable field` }));
         return;
       }
       this.patchRefCalls.push({
