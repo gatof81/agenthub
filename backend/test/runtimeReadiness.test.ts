@@ -90,7 +90,6 @@ const AGENT: Agent = {
   name: 'Developer',
   instructions: 'dev',
   allowedTools: ['Read'],
-  sessionTemplateId: 'tpl',
   runtime: 'claude-cli',
   defaultCaps: { maxTurns: 10, budgetUsd: 2, timeoutMs: 60_000 },
 };
@@ -116,7 +115,7 @@ describe('provisioning waits for the runtime (B3-08)', () => {
       seen.push('probed');
       return Promise.resolve();
     });
-    const project = orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+    const project = orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
     await orch.idle();
     expect(seen).toEqual(['probed']);
     expect(store.getProject(project.id)!.status).toBe('ready');
@@ -124,7 +123,7 @@ describe('provisioning waits for the runtime (B3-08)', () => {
 
   it('a runtime that never becomes ready fails the project but keeps the session id', async () => {
     const { store, orch } = harness(() => Promise.reject(new RuntimeNotReadyError('never')));
-    const project = orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+    const project = orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
     await orch.idle();
     const failed = store.getProject(project.id)!;
     expect(failed.status).toBe('error');

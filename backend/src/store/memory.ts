@@ -81,6 +81,8 @@ export class MemoryHubStore implements HubStore {
       name: input.name,
       status: 'provisioning',
       defaultAgentId: input.defaultAgentId,
+      sessionTemplateId: input.sessionTemplateId ?? null,
+      repo: input.repo ?? null,
       instructions: input.instructions ?? null,
       sessionBinding: { sessionId: null, templateId: null, lastKnownState: null },
       createdAt: now,

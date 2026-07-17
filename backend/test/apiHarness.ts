@@ -18,7 +18,6 @@ export const DEV_AGENT: Agent = {
   name: 'Developer',
   instructions: 'dev agent',
   allowedTools: ['Read', 'Grep', 'Glob', 'Write', 'Edit', 'Bash'],
-  sessionTemplateId: 'tpl_default',
   runtime: 'claude-cli',
   defaultCaps: { maxTurns: 10, budgetUsd: 1, timeoutMs: 60_000 },
 };
@@ -53,6 +52,9 @@ export function makeApiHarness(
     store,
     orchestrator: orch,
     agents: new Map([[DEV_AGENT.id, DEV_AGENT]]),
+    // the create route validates against these (ADR-006, FR-45) — the tests
+    // must go through the same gate a real client does
+    workspaceTemplates: [{ id: 'tpl', name: 'Test workspace' }],
     broadcaster,
     authToken: TEST_TOKEN,
     heartbeatMs: opts.heartbeatMs ?? 3600_000, // effectively off in tests by default

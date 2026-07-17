@@ -17,11 +17,12 @@ export class AgentConfigError extends Error {
 }
 
 interface RawAgent {
+  /** rejected, not read (ADR-006) — see the guard in parseAgent */
+  sessionTemplateId?: unknown;
   id?: unknown;
   name?: unknown;
   instructions?: unknown;
   allowedTools?: unknown;
-  sessionTemplateId?: unknown;
   runtime?: unknown;
   defaultCaps?: { maxTurns?: unknown; budgetUsd?: unknown; timeoutMs?: unknown };
 }
@@ -47,8 +48,15 @@ function validateAgent(raw: RawAgent, index: number): Agent {
       `${where}: allowedTools must be a non-empty list of tool names (I-7 — an agent without an explicit allowlist is unrepresentable)`,
     );
   }
-  if (typeof raw.sessionTemplateId !== 'string' || raw.sessionTemplateId.trim() === '') {
-    throw new AgentConfigError(`${where}: sessionTemplateId required`);
+  // An agent used to declare `sessionTemplateId`. It no longer may: the
+  // workspace belongs to the project (ADR-006, FR-45), and a role that
+  // carries one cannot be reused across repos. Reject it loudly rather than
+  // ignore it — a silently dropped template would provision the wrong
+  // workspace and look like a config that worked.
+  if (raw.sessionTemplateId !== undefined) {
+    throw new AgentConfigError(
+      `${where}: sessionTemplateId no longer belongs on an agent — the workspace is the project's (ADR-006). Move it to the project.`,
+    );
   }
   if (raw.runtime !== 'claude-cli') {
     throw new AgentConfigError(`${where}: runtime must be "claude-cli" (only Phase-1 value)`);
@@ -67,7 +75,6 @@ function validateAgent(raw: RawAgent, index: number): Agent {
     name: raw.name,
     instructions: raw.instructions,
     allowedTools: raw.allowedTools as string[],
-    sessionTemplateId: raw.sessionTemplateId,
     runtime: 'claude-cli',
     defaultCaps: { maxTurns, budgetUsd, timeoutMs },
   };

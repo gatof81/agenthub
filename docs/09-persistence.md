@@ -34,7 +34,14 @@ CREATE TABLE projects (
   default_agent_id   TEXT NOT NULL,
   instructions       TEXT,                        -- seeded via agentSeed (FR-41); sensitive → never logged
   session_id         TEXT,                        -- SessionBinding (ADR-005: one workspace per project)
-  session_template_id TEXT,                       -- the PROJECT's template, not the agent's (ADR-006, FR-45)
+  session_template_id TEXT,                       -- SessionBinding: what the LIVE session was built from; NULL until provisioned
+  -- Project.sessionTemplateId (ADR-006, FR-45): what the project DECLARES,
+  -- from create. NOT the same field as session_template_id above — they
+  -- coincide today and drift once a declaration is edited after
+  -- provisioning, when the binding must keep saying what is actually
+  -- running. Merging them breaks the empty-binding-on-create invariant
+  -- (UC-01).
+  workspace_template_id TEXT,
   session_last_state TEXT,                        -- UX cache only (06 §2)
   -- Project.repo (FR-45): the non-sensitive half only. `auth` is ABSENT by
   -- design, not by omission — the PAT lives solely in the seam's encrypted

@@ -100,7 +100,7 @@ describe('SSE stream (ADR-004)', () => {
     const { server, base } = await listen(h);
     servers.push(server);
 
-    const project = h.orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+    const project = h.orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
     await h.orch.idle();
     const conv = h.orch.createConversation({ projectId: project.id });
 
@@ -171,7 +171,7 @@ describe('SSE stream (ADR-004)', () => {
     const h = makeApiHarness(undefined, { heartbeatMs: 30 });
     const { server, base } = await listen(h);
     servers.push(server);
-    const project = h.orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+    const project = h.orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
     await h.orch.idle();
     const conv = h.orch.createConversation({ projectId: project.id });
 
@@ -220,7 +220,7 @@ describe('SSE stream (ADR-004)', () => {
     const h = makeApiHarness();
     const { server, base } = await listen(h);
     servers.push(server);
-    h.orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+    h.orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
     await h.orch.idle();
     const project = h.store.listProjects()[0]!;
     const conv = h.orch.createConversation({ projectId: project.id });
@@ -242,7 +242,7 @@ describe('SSE stream (ADR-004)', () => {
     const h = makeApiHarness();
     const { server, base } = await listen(h);
     servers.push(server);
-    h.orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+    h.orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
     await h.orch.idle();
     const project = h.store.listProjects()[0]!;
     const conv = h.orch.createConversation({ projectId: project.id });

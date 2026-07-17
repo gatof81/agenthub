@@ -30,13 +30,33 @@ describe('agent config (FR-02)', () => {
     expect(() => parseAgentsYaml(bad)).toThrow(AgentConfigError);
   });
 
+  it("rejects sessionTemplateId on an agent — the workspace is the project's (ADR-006)", () => {
+    // The guard this PR leads with: an agent declaring a workspace is a role
+    // carrying a repo, which ADR-006 removed. Rejecting beats ignoring — a
+    // silently dropped template provisions the WRONG workspace and looks like
+    // a config that worked.
+    const yaml = `
+agents:
+  - id: dev
+    name: Developer
+    instructions: dev
+    allowedTools: [Read]
+    sessionTemplateId: default
+    runtime: claude-cli
+    defaultCaps: { maxTurns: 10, budgetUsd: 1, timeoutMs: 60000 }
+`;
+    expect(() => parseAgentsYaml(yaml)).toThrow(/sessionTemplateId/);
+    // and it must say where the field went, not merely that it is unwelcome
+    expect(() => parseAgentsYaml(yaml)).toThrow(/project/);
+  });
+
   it('rejects unknown runtimes and duplicate ids', () => {
     expect(() => parseAgentsYaml(EXAMPLE.replace('runtime: claude-cli', 'runtime: warp-drive'))).toThrow(
       AgentConfigError,
     );
     const doc = parseAgentsYaml(EXAMPLE);
     expect(doc.size).toBe(1);
-    const dup = `${EXAMPLE}\n  - id: dev\n    name: Dup\n    instructions: x\n    allowedTools: [Read]\n    sessionTemplateId: default\n    runtime: claude-cli\n    defaultCaps: { maxTurns: 1, budgetUsd: 1, timeoutMs: 1000 }\n`;
+    const dup = `${EXAMPLE}\n  - id: dev\n    name: Dup\n    instructions: x\n    allowedTools: [Read]\n    runtime: claude-cli\n    defaultCaps: { maxTurns: 1, budgetUsd: 1, timeoutMs: 1000 }\n`;
     expect(() => parseAgentsYaml(dup)).toThrow(/duplicate/);
   });
 });

@@ -15,6 +15,7 @@ import { BackupService } from './backup/service.js';
 import { LocalSnapshotSink } from './backup/localSink.js';
 import { R2SnapshotSink } from './backup/r2Sink.js';
 import { loadAgents } from './config/agents.js';
+import { loadWorkspaceTemplates } from './config/workspaceTemplates.js';
 import { resolveBackupConfig } from './config/backup.js';
 import { resolveTokenPrices } from './config/budget.js';
 import { resolveRuntimeConfig } from './config/runtime.js';
@@ -78,6 +79,8 @@ async function main(): Promise<void> {
   const runtimeConfig = resolveRuntimeConfig(process.env);
 
   const agents = loadAgents(agentsPath);
+  // the client picks the project's workspace from these (ADR-006, FR-45)
+  const workspaceTemplates = loadWorkspaceTemplates(agentsPath);
   const store = new SqliteHubStore(dbPath);
   const broadcaster = new Broadcaster();
 
@@ -152,6 +155,7 @@ async function main(): Promise<void> {
     store,
     orchestrator,
     agents,
+    workspaceTemplates,
     broadcaster,
     authToken,
     logger,

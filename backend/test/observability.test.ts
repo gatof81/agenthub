@@ -19,7 +19,6 @@ const AGENT: Agent = {
   name: 'Developer',
   instructions: 'dev',
   allowedTools: ['Read', 'Bash'],
-  sessionTemplateId: 'tpl',
   runtime: 'claude-cli',
   defaultCaps: { maxTurns: 10, budgetUsd: 2, timeoutMs: 60_000 },
 };
@@ -78,7 +77,7 @@ describe('no-payload logging (SEC-04/05, 13 §5 / BX-02)', () => {
       agents: new Map([[AGENT.id, AGENT]]),
       logger,
     });
-    const project = orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+    const project = orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
     await orch.idle();
     const conversation = orch.createConversation({ projectId: project.id });
     port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
@@ -133,7 +132,7 @@ describe('CountingMetrics', () => {
       agents: new Map([[AGENT.id, AGENT]]),
       metrics,
     });
-    const project = orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+    const project = orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
     await orch.idle();
     const conversation = orch.createConversation({ projectId: project.id });
     port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });

@@ -19,7 +19,6 @@ const DEV_AGENT: Agent = {
   name: 'Developer',
   instructions: 'dev',
   allowedTools: ['Read', 'Bash'],
-  sessionTemplateId: 'tpl',
   runtime: 'claude-cli',
   defaultCaps: { maxTurns: 10, budgetUsd: 1, timeoutMs: 60_000 },
 };
@@ -51,7 +50,7 @@ function seedInterrupted(withEvents: boolean): Seeded {
     execPort: port,
     agents: new Map([[DEV_AGENT.id, DEV_AGENT]]),
   });
-  const project = store.createProject({ name: 'p', defaultAgentId: 'dev' });
+  const project = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
   store.setProjectSession(project.id, { sessionId: 'sess_1', templateId: 'tpl' });
   store.updateProject(project.id, { status: 'ready' });
   const conv = store.createConversation({ projectId: project.id, title: 't', agentId: 'dev' });
@@ -145,7 +144,7 @@ describe('boot reconciliation (UC-06)', () => {
 describe('boot reconciliation hardening (B3-02)', () => {
   it('a project caught mid-provisioning heals to error (UC-01 failure path)', async () => {
     const s = seedInterrupted(false);
-    const stuck = s.store.createProject({ name: 'stuck', defaultAgentId: 'dev' });
+    const stuck = s.store.createProject({ name: 'stuck', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
     expect(s.store.getProject(stuck.id)!.status).toBe('provisioning');
     s.port.statusAnswer = { state: 'unknown' };
     await s.orch.reconcile();

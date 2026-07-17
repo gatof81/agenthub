@@ -7,7 +7,8 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { deriveActivity, sseFromRunEvent } from '../domain/projections.js';
-import type { Agent } from '../domain/types.js';
+import type { Agent, RepoAuth } from '../domain/types.js';
+import type { WorkspaceTemplate } from '../config/workspaceTemplates.js';
 import { Orchestrator, OrchestratorError } from '../orchestrator/orchestrator.js';
 import { NOOP_LOGGER, type Logger } from '../domain/ports.js';
 import { NotFoundError, ValidationError, type HubStore } from '../store/types.js';
@@ -29,6 +30,13 @@ export interface ApiDeps {
   logger?: Logger;
   /** metrics snapshot for /api/health detail (B3-07); absent → omitted */
   metricsSnapshot?: () => Record<string, unknown>;
+  /**
+   * What a project may declare as its workspace (ADR-006, FR-45). Required,
+   * not optional: the create route validates against it, and an optional dep
+   * would have let a harness skip it and quietly disable that validation —
+   * test convenience shaping production behaviour.
+   */
+  workspaceTemplates: WorkspaceTemplate[];
 }
 
 function requestId(): string {
@@ -109,9 +117,16 @@ export function buildApp(deps: ApiDeps): express.Express {
     });
   });
 
+  // The client cannot invent a template id: the workspace is the project's
+  // and has no default (ADR-006, FR-45), so it needs the list to choose from.
+  app.get('/api/workspace-templates', (_req, res) => {
+    res.json({ workspaceTemplates: deps.workspaceTemplates });
+  });
+
   // — projects —
   app.post('/api/projects', (req, res) => {
-    const { name, defaultAgentId, instructions } = (req.body ?? {}) as Record<string, unknown>;
+    const { name, defaultAgentId, sessionTemplateId, repo, instructions } = (req.body ??
+      {}) as Record<string, unknown>;
     if (typeof name !== 'string' || name.trim() === '') {
       res.status(422).json({ code: 'validation', detail: 'name required' });
       return;
@@ -120,9 +135,85 @@ export function buildApp(deps: ApiDeps): express.Express {
       res.status(422).json({ code: 'validation', detail: 'defaultAgentId must be a configured agent' });
       return;
     }
+    // The workspace is the project's (ADR-006, FR-45) and it has no sane
+    // default: falling back to the agent's template is exactly the conflation
+    // this replaced. Validated against the configured list the same way
+    // defaultAgentId is validated against the agents map — the comment on
+    // /api/workspace-templates claims a client "cannot invent a template id",
+    // and a claim the boundary does not enforce is just a wish. Unvalidated,
+    // a made-up or stale id returned 202 and the project failed later at the
+    // seam, with nothing pointing at the cause.
+    //
+    // No `length > 0` escape hatch: a deployment that configured none would
+    // then accept anything, which is precisely the confusing failure this
+    // prevents. Empty list ⇒ no project can be created, exactly as the
+    // contract says.
+    if (typeof sessionTemplateId !== 'string' || sessionTemplateId.trim() === '') {
+      res.status(422).json({ code: 'validation', detail: 'sessionTemplateId required' });
+      return;
+    }
+    // Validate and use the SAME value. Trimming for the checks and storing the
+    // raw string let `"tpl "` clear both guards and reach the seam as an
+    // unknown template — the project then died in `error` with nothing
+    // pointing at a trailing space.
+    const templateId = sessionTemplateId.trim();
+    if (!deps.workspaceTemplates.some((t) => t.id === templateId)) {
+      res.status(422).json({
+        code: 'validation',
+        detail: `sessionTemplateId must be one of the deployment's workspace templates (GET /api/workspace-templates)`,
+      });
+      return;
+    }
+    const r = (repo ?? null) as { url?: unknown; ref?: unknown; target?: unknown; auth?: unknown } | null;
+    if (r !== null && (typeof r.url !== 'string' || r.url.trim() === '')) {
+      res.status(422).json({ code: 'validation', detail: 'repo.url required when repo is given' });
+      return;
+    }
+    // repo.auth never reaches the store: it is handed to the seam at
+    // provisioning and forgotten (FR-47, SEC-11). Split it off here so no
+    // downstream call can accidentally persist it.
+    //
+    // Validated like every other field at this boundary. A blind cast let
+    // `{kind:'oops'}` or a `pat` branch with no pat through to the seam,
+    // producing an opaque substrate error instead of a 422 that says what is
+    // wrong — the same failure this route already refuses for
+    // sessionTemplateId. The detail never echoes the credential (SEC-04/05):
+    // it names the shape, not the value.
+    const rawAuth = r !== null && typeof r.auth === 'object' && r.auth !== null
+      ? (r.auth as Record<string, unknown>)
+      : null;
+    let repoAuth: RepoAuth | null = null;
+    if (rawAuth !== null) {
+      if (rawAuth.kind === 'none') {
+        repoAuth = { kind: 'none' };
+      } else if (
+        rawAuth.kind === 'pat' &&
+        typeof rawAuth.pat === 'string' &&
+        rawAuth.pat.trim() !== ''
+      ) {
+        repoAuth = { kind: 'pat', pat: rawAuth.pat.trim() };
+      } else {
+        res.status(422).json({
+          code: 'validation',
+          detail: 'repo.auth must be {kind:"none"} or {kind:"pat", pat:"<token>"}',
+        });
+        return;
+      }
+    }
     const project = orchestrator.createProject({
-      name,
+      name: name.trim(),
       defaultAgentId,
+      sessionTemplateId: templateId,
+      ...(r !== null
+        ? {
+            repo: {
+              url: (r.url as string).trim(),
+              ...(typeof r.ref === 'string' ? { ref: r.ref } : {}),
+              ...(typeof r.target === 'string' ? { target: r.target } : {}),
+            },
+          }
+        : {}),
+      ...(repoAuth ? { repoAuth } : {}),
       instructions: typeof instructions === 'string' ? instructions : null,
     });
     res.status(202).json({ project }); // status: "provisioning" (UC-01)

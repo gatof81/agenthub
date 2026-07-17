@@ -5,7 +5,15 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, clearToken, getToken, setToken, type Conversation, type Project } from './lib/api.js';
+import {
+  api,
+  clearToken,
+  getToken,
+  setToken,
+  type Conversation,
+  type Project,
+  type WorkspaceTemplate,
+} from './lib/api.js';
 import { Sidebar } from './components/Sidebar.js';
 import { Thread, type ThreadCommands } from './components/Thread.js';
 import { CommandPalette, type PaletteCommand } from './components/CommandPalette.js';
@@ -48,6 +56,7 @@ export function App(): React.JSX.Element {
   const [authed, setAuthed] = useState(getToken() !== null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
+  const [templates, setTemplates] = useState<WorkspaceTemplate[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -65,6 +74,8 @@ export function App(): React.JSX.Element {
     if (!authed) return;
     void refreshProjects();
     void api.agents().then((r) => setAgents(r.agents));
+    // a project must declare its workspace (ADR-006, FR-45) — offer the choice
+    void api.workspaceTemplates().then((r) => setTemplates(r.workspaceTemplates));
   }, [authed, refreshProjects]);
 
   // poll provisioning projects until they settle (UC-01; SSE needs a conversation)
@@ -83,9 +94,9 @@ export function App(): React.JSX.Element {
   }, []);
 
   const createProject = useCallback(
-    async (name: string) => {
+    async (name: string, sessionTemplateId: string) => {
       const defaultAgent = agents[0]?.id ?? 'dev';
-      await api.createProject(name, defaultAgent);
+      await api.createProject(name, defaultAgent, sessionTemplateId);
       await refreshProjects();
     },
     [agents, refreshProjects],
@@ -186,7 +197,16 @@ export function App(): React.JSX.Element {
     cmds.push({
       id: 'new-project',
       label: 'New project…',
-      input: { placeholder: 'Project name', run: (name) => void createProject(name) },
+      // the palette cannot ask two questions; it uses the first template and
+      // the sidebar form is where a choice is made
+      ...(templates[0]
+        ? {
+            input: {
+              placeholder: 'Project name',
+              run: (name: string) => void createProject(name, templates[0]!.id),
+            },
+          }
+        : { hint: 'no workspace templates configured', run: () => {} }),
     });
     if (selectedProject?.status === 'ready') {
       cmds.push({
@@ -237,6 +257,7 @@ export function App(): React.JSX.Element {
     selectedProject,
     selectedConversation,
     createProject,
+    templates,
     createConversation,
     openProject,
     backToProjects,
@@ -267,7 +288,8 @@ export function App(): React.JSX.Element {
         selectedConversation={selectedConversation}
         onOpenProject={(p) => void openProject(p)}
         onOpenConversation={setSelectedConversation}
-        onCreateProject={(name) => void createProject(name)}
+        templates={templates}
+        onCreateProject={(name, templateId) => void createProject(name, templateId)}
         onCreateConversation={() => void createConversation()}
         onBackToProjects={backToProjects}
         onArchiveProject={(p) => void archiveProject(p)}

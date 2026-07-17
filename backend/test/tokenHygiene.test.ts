@@ -23,7 +23,6 @@ const AGENT: Agent = {
   name: 'Developer',
   instructions: 'You are the dev agent.',
   allowedTools: ['Read', 'Bash'],
-  sessionTemplateId: 'tpl_default',
   runtime: 'claude-cli',
   defaultCaps: { maxTurns: 10, budgetUsd: 1, timeoutMs: 60_000 },
 };
@@ -41,7 +40,7 @@ describe('OAuth token hygiene (13 §5)', () => {
       runEnv: { CLAUDE_CODE_OAUTH_TOKEN: TOKEN },
     });
 
-    const project = orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+    const project = orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
     await orch.idle();
     const conversation = orch.createConversation({ projectId: project.id });
 

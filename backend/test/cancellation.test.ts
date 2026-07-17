@@ -17,7 +17,6 @@ const AGENT: Agent = {
   name: 'Developer',
   instructions: 'You are the dev agent.',
   allowedTools: ['Read', 'Bash'],
-  sessionTemplateId: 'tpl_default',
   runtime: 'claude-cli',
   defaultCaps: { maxTurns: 10, budgetUsd: 1, timeoutMs: 60_000 },
 };
@@ -69,7 +68,7 @@ async function harness(portOpts: FakeExecPortOptions = {}) {
     agents: new Map([[AGENT.id, AGENT]]),
     notify,
   });
-  const project = orch.createProject({ name: 'p', defaultAgentId: 'dev' });
+  const project = orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
   await orch.idle();
   const conversation = orch.createConversation({ projectId: project.id });
   return { store, port, orch, notify, conversation };
