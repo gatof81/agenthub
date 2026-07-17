@@ -236,7 +236,7 @@ the database.
 
 | Flow | Requirements exercised |
 | --- | --- |
-| UC-01 | FR-01/02/04/25/30/33, FR-40/41, FR-45/46 |
+| UC-01 | FR-01/02/04/25/30/33, FR-40/41, FR-45/46/47 |
 | UC-02 | FR-03/05/10–14/16/17/18/42, NFR-01/06, SEC-06/07, OPS-04 |
 | UC-03 | FR-04/19, UX-03 |
 | UC-04 | FR-18/20/21, UX-04/06 (FR-22 retired) |
@@ -248,9 +248,10 @@ the database.
 | UC-10 | OPS-01/02/03 |
 | UC-11 | FR-40/43/44, I-12, UX-08 |
 
-Not flow-shaped (hence absent above): SEC-01/02/04/05/08/10 (enforcement and
+Not flow-shaped (hence absent above): SEC-01/02/04/05/08/10/11 (enforcement and
 cross-cutting security properties, asserted in code review and tests, not in
-a single flow) · SEC-09 (forward constraint) · NFR-02/03/04/08
+a single flow — SEC-11's per-repo credential scoping is bounded by
+construction, not by any one step) · SEC-09 (forward constraint) · NFR-02/03/04/08
 (design/test-time properties) · NFR-07 (deferred to the doc-07/11 transport
 decision) · OPS-05/06 (continuous monitoring) · UX-01 (cross-cutting
 presentation rule; FR-03 is its flow-side twin in UC-02) · UX-07
