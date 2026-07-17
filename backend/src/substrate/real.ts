@@ -348,14 +348,19 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
       ...(ownerUserId !== null ? { ownerUserId } : {}),
     });
     // On-behalf create charges the OWNER's budget, not the Hub's — a 429 here
-    // means the owner's session/CPU/mem quota, surfaced with the cap the seam
-    // reports (`{error, cap}` for budget, `{error, quota}` for count) so the
-    // provisioning error says why rather than a bare status (handoff note).
+    // is the owner's quota. Two shapes, both verified at 1a5af57: a CPU/mem
+    // budget cap is `{error, cap:"cpu"|"mem"}` (routes/sessions.ts:273); the
+    // session-count cap is `{error, quota:<n>}` (:451). Name whichever the
+    // seam sent so the provisioning error says why, not a bare status.
     if (res.status === 429) {
       const q = (await res.json().catch(() => ({}))) as { error?: string; cap?: string; quota?: unknown };
-      const which = q.cap ?? (q.quota !== undefined ? 'session-count' : 'quota');
+      const scope = ownerUserId !== null ? 'owner' : 'account';
+      // null (neither field present) → don't duplicate the word "quota"
+      const which = q.cap ?? (q.quota !== undefined ? 'session-count' : null);
       throw new SeamProvisioningError(
-        `session create refused: ${ownerUserId !== null ? 'owner' : 'account'} ${which} quota exceeded`,
+        which !== null
+          ? `session create refused: ${scope} ${which} quota exceeded`
+          : `session create refused: ${scope} quota exceeded`,
         null,
       );
     }

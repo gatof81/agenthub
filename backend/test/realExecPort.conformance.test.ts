@@ -413,21 +413,36 @@ describe('session provisioning (B2-02: template → create → agentSeed → boo
     expect((err as Error).message).toContain('did not finish');
   });
 
-  it('maps a quota 429 on create to a provisioning error naming the cap (N2)', async () => {
+  it('maps a budget 429 on create to a provisioning error naming the cap (N2)', async () => {
     double.templateResponses.push({ body: { config: {} } });
+    // budget cap wire shape at 1a5af57 (routes/sessions.ts:273): {error, cap}
+    // with cap ∈ "cpu"|"mem". Self-owned create → scope "account".
     double.createResponses.push({
       status: 429,
-      body: { error: 'session budget exceeded', cap: 'maxSessions' },
+      body: { error: 'CPU budget exceeded', cap: 'cpu' },
     });
     const err = await fastPort()
       .createSession('tpl', {})
       .catch((e: unknown) => e);
     // 429 is a quota/provisioning failure, not a generic transport error:
-    // it surfaces as SeamProvisioningError with the cap named (self-owned
-    // here → "account", vs "owner" for on-behalf; see the create-on-behalf
-    // suite). More descriptive than the pre-N2 bare SeamHttpError.
+    // SeamProvisioningError with the cap named. More descriptive than the
+    // pre-N2 bare SeamHttpError.
     expect(err).toBeInstanceOf(SeamProvisioningError);
-    expect((err as Error).message).toMatch(/account maxSessions quota exceeded/);
+    expect((err as Error).message).toMatch(/account cpu quota exceeded/);
+  });
+
+  it('maps a session-count 429 on create naming the count cap (N2)', async () => {
+    double.templateResponses.push({ body: { config: {} } });
+    // session-count wire shape at 1a5af57 (routes/sessions.ts:451): {error, quota:<n>}
+    double.createResponses.push({
+      status: 429,
+      body: { error: 'Active session limit (50) reached', quota: 50 },
+    });
+    const err = await fastPort()
+      .createSession('tpl', {})
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SeamProvisioningError);
+    expect((err as Error).message).toMatch(/account session-count quota exceeded/);
   });
 
   it('propagates an unknown template as SeamHttpError 404', async () => {

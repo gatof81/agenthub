@@ -88,8 +88,9 @@ at shared-terminal `main @ 6291397` (`backend/src/routes/exec.ts`).
 
 ### Session provisioning (B2-02, UC-01)
 
-Surface consumed beyond the exec API (session routes verified at the same
-`main @ 6291397`):
+Surface consumed beyond the exec API (session routes; each claim carries its
+own verification pin — the base was `main @ 6291397`, later additions cite
+`c35b6da`, `c2db7f7`, `1a5af57` as noted inline):
 
 | Endpoint | Use |
 | --- | --- |
