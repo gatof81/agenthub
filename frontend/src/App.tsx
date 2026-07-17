@@ -13,6 +13,7 @@ import {
   type Conversation,
   type Project,
   type SessionListing,
+  type Specialist,
   type WorkspaceChoice,
   type WorkspaceTemplate,
 } from './lib/api.js';
@@ -92,6 +93,8 @@ export function App(): React.JSX.Element {
   const [archivedOpen, setArchivedOpen] = useState(false);
   // session discovery (N1, FR-48): null until the first fetch resolves
   const [sessionListing, setSessionListing] = useState<SessionListing | null>(null);
+  // specialists (N3, ADR-008): reusable professional identities
+  const [specialists, setSpecialists] = useState<Specialist[]>([]);
 
   const refreshProjects = useCallback(async () => {
     const { projects } = await api.listProjects();
@@ -111,6 +114,10 @@ export function App(): React.JSX.Element {
       .listSessions()
       .then(setSessionListing)
       .catch(() => setSessionListing(null));
+    void api
+      .listSpecialists()
+      .then((r) => setSpecialists(r.specialists))
+      .catch(() => setSpecialists([]));
   }, [authed, refreshProjects]);
 
   // poll provisioning projects until they settle (UC-01; SSE needs a conversation)
@@ -327,6 +334,7 @@ export function App(): React.JSX.Element {
       <Sidebar
         onOpenArchived={() => setArchivedOpen(true)}
         sessionListing={sessionListing}
+        specialists={specialists}
         projects={projects}
         conversations={conversations}
         selectedProject={selectedProject}

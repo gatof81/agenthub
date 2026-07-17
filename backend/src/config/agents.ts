@@ -25,6 +25,9 @@ interface RawAgent {
   allowedTools?: unknown;
   runtime?: unknown;
   defaultCaps?: { maxTurns?: unknown; budgetUsd?: unknown; timeoutMs?: unknown };
+  /** Specialist identity fields (N3, ADR-008) — both optional */
+  role?: unknown;
+  capabilities?: unknown;
 }
 
 function validateAgent(raw: RawAgent, index: number): Agent {
@@ -70,6 +73,22 @@ function validateAgent(raw: RawAgent, index: number): Agent {
       `${where}: defaultCaps.{maxTurns,budgetUsd,timeoutMs} must all be positive (FR-17 hard limits from day 1)`,
     );
   }
+  // Specialist identity fields (N3, ADR-008), both optional. `role` is a
+  // display/label string; `capabilities` are free-form tags the router (N4)
+  // will select on. Validated when present so a typo (e.g. a scalar where a
+  // list belongs) fails at load, not silently at routing time.
+  if (raw.role !== undefined && (typeof raw.role !== 'string' || raw.role.trim() === '')) {
+    throw new AgentConfigError(`${where}: role, when set, must be a non-empty string`);
+  }
+  if (
+    raw.capabilities !== undefined &&
+    (!Array.isArray(raw.capabilities) ||
+      raw.capabilities.some((c) => typeof c !== 'string' || c.trim() === ''))
+  ) {
+    throw new AgentConfigError(
+      `${where}: capabilities, when set, must be a list of non-empty strings`,
+    );
+  }
   return {
     id: raw.id,
     name: raw.name,
@@ -77,6 +96,8 @@ function validateAgent(raw: RawAgent, index: number): Agent {
     allowedTools: raw.allowedTools as string[],
     runtime: 'claude-cli',
     defaultCaps: { maxTurns, budgetUsd, timeoutMs },
+    ...(raw.role !== undefined ? { role: raw.role } : {}),
+    ...(raw.capabilities !== undefined ? { capabilities: raw.capabilities as string[] } : {}),
   };
 }
 

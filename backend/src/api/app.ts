@@ -156,6 +156,21 @@ export function buildApp(deps: ApiDeps): express.Express {
     });
   });
 
+  // — specialists (N3, ADR-008): the same identities surfaced as reusable
+  // professional roles, with `role` + `capabilities`. Read-only in N3;
+  // personal sessions and direct conversations arrive in N3b.
+  app.get('/api/specialists', (_req, res) => {
+    res.json({
+      specialists: [...agents.values()].map((a) => ({
+        id: a.id,
+        name: a.name,
+        role: a.role ?? null,
+        capabilities: a.capabilities ?? [],
+        allowedTools: a.allowedTools,
+      })),
+    });
+  });
+
   // The client cannot invent a template id: the workspace is the project's
   // and has no default (ADR-006, FR-45), so it needs the list to choose from.
   app.get('/api/workspace-templates', (_req, res) => {

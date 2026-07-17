@@ -19,6 +19,41 @@ describe('agent config (FR-02)', () => {
     expect(dev.defaultCaps.maxTurns).toBeGreaterThan(0);
   });
 
+  it('parses the specialist role + capabilities (N3, ADR-008)', () => {
+    const agents = parseAgentsYaml(EXAMPLE);
+    expect(agents.get('dev')!.role).toBe('Software Developer');
+    expect(agents.get('dev')!.capabilities).toContain('implementation');
+    expect(agents.get('qa')!.role).toBe('QA Specialist');
+    // QA reads and runs, never writes implementation (ADR-009/010)
+    expect(agents.get('qa')!.allowedTools).toEqual(['Read', 'Grep', 'Glob', 'Bash']);
+  });
+
+  it('role + capabilities are optional — a bare agent still loads', () => {
+    const bare = `
+agents:
+  - id: plain
+    name: Plain
+    instructions: x
+    allowedTools: [Read]
+    runtime: claude-cli
+    defaultCaps: { maxTurns: 1, budgetUsd: 1, timeoutMs: 1000 }
+`;
+    const plain = parseAgentsYaml(bare).get('plain')!;
+    expect(plain.role).toBeUndefined();
+    expect(plain.capabilities).toBeUndefined();
+  });
+
+  it('rejects a malformed role / capabilities (typo caught at load, not routing)', () => {
+    expect(() => parseAgentsYaml(EXAMPLE.replace('role: Software Developer', 'role: ""'))).toThrow(
+      /role/,
+    );
+    expect(() =>
+      parseAgentsYaml(
+        EXAMPLE.replace('capabilities: [implementation, refactoring, debugging, tests]', 'capabilities: nope'),
+      ),
+    ).toThrow(/capabilities/);
+  });
+
   it('rejects an empty allowlist — I-7 starts at the config layer', () => {
     const bad = EXAMPLE.replace('allowedTools: [Read, Grep, Glob, Write, Edit, Bash]', 'allowedTools: []');
     expect(() => parseAgentsYaml(bad)).toThrow(AgentConfigError);
@@ -55,7 +90,7 @@ agents:
       AgentConfigError,
     );
     const doc = parseAgentsYaml(EXAMPLE);
-    expect(doc.size).toBe(1);
+    expect(doc.size).toBe(2); // dev + qa specialists (N3)
     const dup = `${EXAMPLE}\n  - id: dev\n    name: Dup\n    instructions: x\n    allowedTools: [Read]\n    runtime: claude-cli\n    defaultCaps: { maxTurns: 1, budgetUsd: 1, timeoutMs: 1000 }\n`;
     expect(() => parseAgentsYaml(dup)).toThrow(/duplicate/);
   });

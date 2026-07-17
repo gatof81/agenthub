@@ -331,3 +331,20 @@ describe('POST /api/projects — bind an existing session (N2, FR-49)', () => {
     expect(res.body.detail).toMatch(/repo cannot be declared/);
   });
 });
+
+describe('GET /api/specialists (N3, ADR-008)', () => {
+  it('lists reusable identities with role + capabilities', async () => {
+    const { app } = makeApiHarness();
+    const res = await request(app).get('/api/specialists').set(AUTH);
+    expect(res.status).toBe(200);
+    const dev = (res.body.specialists as Array<Record<string, unknown>>).find((s) => s.id === 'dev');
+    // the harness DEV_AGENT declares no role/capabilities → null / [] defaults
+    expect(dev).toMatchObject({ id: 'dev', name: 'Developer', role: null, capabilities: [] });
+    expect(dev!.allowedTools).toBeInstanceOf(Array);
+  });
+
+  it('requires auth like every other /api route', async () => {
+    const { app } = makeApiHarness();
+    expect((await request(app).get('/api/specialists')).status).toBe(401);
+  });
+});
