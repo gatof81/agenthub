@@ -251,7 +251,7 @@ export function App(): React.JSX.Element {
       <div className="app archived-only">
         <ArchivedView
           onClose={() => setArchivedOpen(false)}
-          onRestored={() => void refreshProjects()}
+          onRestored={() => void refreshAfterRestore()}
         />
       </div>
     );
