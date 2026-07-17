@@ -13,6 +13,14 @@
  *   null (first turn, FR-24) and empty string.
  * - An absent allowlist means headless silent auto-denial (R-03) → an empty
  *   policy is rejected at this boundary too (I-7).
+ *
+ * B5-04: `--append-system-prompt` is verified against the pinned CLI, not
+ * assumed (ADR-006 left the mechanism unasserted) — a live headless turn was
+ * given a codeword it could not otherwise know and echoed it back
+ * (docs/spikes/S-04/RESULTS.md). The instruction rides argv, which shares the
+ * seam's 32 KiB command cap with the prompt; the real port validates that cap,
+ * so an over-long role fails at the boundary rather than mid-turn.
+ * `--append-system-prompt-file` exists on the same CLI if that day comes.
  */
 
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -76,6 +84,10 @@ export class ClaudeCliRuntimeAdapter implements RuntimeAdapter {
         '--max-turns',
         String(turn.caps.maxTurns),
         ...(turn.runtimeSessionId ? ['--resume', turn.runtimeSessionId] : []),
+        // Must stay AFTER `--max-turns`: `--allowedTools` is variadic and
+        // would swallow this flag as a tool name (the same S-01 trap that
+        // sends the prompt through stdin).
+        ...(turn.instructions ? ['--append-system-prompt', turn.instructions] : []),
       ],
       stdin: turn.prompt,
       env: turn.env,

@@ -24,12 +24,22 @@ const DEV_AGENT: Agent = {
   defaultCaps: { maxTurns: 10, budgetUsd: 1, timeoutMs: 60_000 },
 };
 
+/** A second role sharing DEV's project — the whole point of B5-04. */
+const QA_AGENT: Agent = {
+  id: 'qa',
+  name: 'QA',
+  instructions: 'You are the qa agent.',
+  allowedTools: ['Read', 'Grep', 'Glob', 'Bash'],
+  runtime: 'claude-cli',
+  defaultCaps: { maxTurns: 10, budgetUsd: 1, timeoutMs: 60_000 },
+};
+
 interface Harness {
   store: HubStore;
   port: FakeSubstrateExecPort;
   orch: Orchestrator;
   /** create a project and await provisioning (UC-01 fake = instant) */
-  readyProject: () => Promise<Project>;
+  readyProject: (instructions?: string) => Promise<Project>;
 }
 
 function makeHarness(store: HubStore, gate?: () => Promise<void>): Harness {
@@ -38,10 +48,18 @@ function makeHarness(store: HubStore, gate?: () => Promise<void>): Harness {
     store,
     adapter: new FakeRuntimeAdapter(port),
     execPort: port,
-    agents: new Map([[DEV_AGENT.id, DEV_AGENT]]),
+    agents: new Map([
+      [DEV_AGENT.id, DEV_AGENT],
+      [QA_AGENT.id, QA_AGENT],
+    ]),
   });
-  const readyProject = async (): Promise<Project> => {
-    const p = orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+  const readyProject = async (instructions?: string): Promise<Project> => {
+    const p = orch.createProject({
+      name: 'p',
+      defaultAgentId: 'dev',
+      sessionTemplateId: 'tpl',
+      ...(instructions ? { instructions } : {}),
+    });
     await orch.idle();
     return store.getProject(p.id)!;
   };
@@ -104,8 +122,10 @@ function suite(name: string, makeStore: () => HubStore): void {
       const project = await readyProject();
       expect(project.status).toBe('ready'); // fake session provisions instantly
       expect(project.sessionBinding.sessionId).toBe('fakesess_1');
-      // agentSeed carried agent instructions (FR-30)
-      expect(port.seededSessions[0]!.seed.claudeMd).toContain('dev agent');
+      // The agentSeed carries the PROJECT's instructions and NOT the default
+      // agent's (B5-04): the workspace is shared by every role in the project,
+      // so baking DEV's craft into it ran QA's conversations under DEV.
+      expect(port.seededSessions[0]!.seed.claudeMd).not.toContain('dev agent');
 
       const conv = orch.createConversation({ projectId: project.id });
       expect(conv.agentId).toBe('dev'); // defaults from the project
@@ -146,6 +166,64 @@ function suite(name: string, makeStore: () => HubStore): void {
       // unknown types preserved (FR-16: the fixture's rate_limit_event)
       const events = store.getEvents(run.id);
       expect(events.some((e) => e.type === 'unknown')).toBe(true);
+      store.close();
+    });
+
+    // — B5-04: the role travels per turn (ADR-006 consequence, FR-11) —
+
+    it('two roles in ONE project each run under their own instructions (B5-04)', async () => {
+      const { store, port, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject('Project: the Agent Hub repo.');
+
+      // Same project, same workspace — the two axes ADR-006 made real.
+      const devConv = orch.createConversation({ projectId: project.id }); // defaults to dev
+      const qaConv = orch.createConversation({ projectId: project.id, agentId: 'qa' });
+
+      for (const conv of [devConv, qaConv]) {
+        port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+        orch.send(conv.id, 'go');
+        await orch.idle(); // I-2 serializes per project anyway
+      }
+
+      const roleOf = (i: number): string => {
+        const { argv } = port.execRequests[i]!.req;
+        return argv[argv.indexOf('--append-system-prompt') + 1]!;
+      };
+      expect(roleOf(0)).toBe('You are the dev agent.');
+      expect(roleOf(1)).toBe('You are the qa agent.');
+
+      // Both turns ran in the SAME workspace: it is the project's, and only
+      // one was ever provisioned (ADR-006). If the roles had needed separate
+      // workspaces to get separate instructions, B5-04 would be pointless.
+      expect(port.seededSessions).toHaveLength(1);
+      expect(port.execRequests.map((e) => e.sessionId)).toEqual(['fakesess_1', 'fakesess_1']);
+
+      // The project's own instructions stay in the shared workspace — they
+      // belong to every role in it, which is exactly why they are not per-turn.
+      expect(port.seededSessions[0]!.seed.claudeMd).toBe('Project: the Agent Hub repo.');
+      store.close();
+    });
+
+    it('the run records the role it was queued with, not the one config says later (I-8)', async () => {
+      const { store, port, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject();
+      const conv = orch.createConversation({ projectId: project.id });
+
+      port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+      const { run } = orch.send(conv.id, 'go');
+      expect(store.getRun(run.id)!.instructionsSnapshot).toBe('You are the dev agent.');
+
+      // Editing the live role after the send must not reach the queued run:
+      // `agents.yaml` is re-read on restart and a queued run survives one, so
+      // dispatch reads the snapshot rather than the config.
+      DEV_AGENT.instructions = 'You are somebody else entirely.';
+      try {
+        await orch.idle();
+        const { argv } = port.execRequests[0]!.req;
+        expect(argv[argv.indexOf('--append-system-prompt') + 1]).toBe('You are the dev agent.');
+      } finally {
+        DEV_AGENT.instructions = 'You are the dev agent.';
+      }
       store.close();
     });
 

@@ -149,6 +149,17 @@ export interface Run {
   seamRequestId: string | null; // X-Request-Id join (OPS-04)
   capsSnapshot: Caps;
   policySnapshot: string[]; // non-empty (I-7)
+  /**
+   * The agent's craft as it read when this run was queued (B5-04, I-8).
+   * `null` ONLY for pre-B5-04 runs, where it was never recorded — never "the
+   * role declared none", which config load forbids.
+   *
+   * Deployment-private (SEC-10) but not a credential: it rides the authed run
+   * detail as one of that route's snapshots (08 §1), which is the audit surface
+   * the snapshot exists for. It must still never reach a log or a run event —
+   * the no-payload-logging rule already makes the first a compile error.
+   */
+  instructionsSnapshot: string | null;
   cliVersion: string | null; // write-once at init event (I-8)
   model: string | null;
   killOutcome: KillOutcome | null;

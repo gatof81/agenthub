@@ -23,6 +23,7 @@ const TURN: TurnRequest = {
   caps: { maxTurns: 30, budgetUsd: 2, timeoutMs: 600_000 },
   runtimeSessionId: null,
   env: { HUB_RUN_ID: 'run_test' },
+  instructions: 'You are DEV. Write the code.',
 };
 
 const collect = async (iter: AsyncIterable<AdapterItem>): Promise<AdapterItem[]> => {
@@ -52,6 +53,8 @@ describe('B2-03 — claude-cli command construction (ADR-003)', () => {
       'Bash',
       '--max-turns',
       '30',
+      '--append-system-prompt',
+      'You are DEV. Write the code.',
     ]);
     expect(req.stdin).toBe('do the thing');
     expect(req.env).toEqual({ HUB_RUN_ID: 'run_test' });
@@ -60,7 +63,33 @@ describe('B2-03 — claude-cli command construction (ADR-003)', () => {
 
   it('appends --resume on subsequent turns (FR-24)', () => {
     const req = adapter.buildExecRequest({ ...TURN, runtimeSessionId: 'sess-abc' });
-    expect(req.argv.slice(-2)).toEqual(['--resume', 'sess-abc']);
+    expect(req.argv).toContain('--resume');
+    expect(req.argv[req.argv.indexOf('--resume') + 1]).toBe('sess-abc');
+  });
+
+  // — B5-04: the role travels per turn —
+
+  it('carries the role instructions via --append-system-prompt (B5-04)', () => {
+    const req = adapter.buildExecRequest({ ...TURN, instructions: 'You are QA. Break it.' });
+    expect(req.argv[req.argv.indexOf('--append-system-prompt') + 1]).toBe('You are QA. Break it.');
+  });
+
+  it('omits --append-system-prompt for a pre-B5-04 run with no recorded role', () => {
+    // null is "never recorded" (migration 003), not "the role had none": such a
+    // run predates the snapshot and its workspace still carries the baked
+    // CLAUDE.md, so passing nothing is what reproduces its original behavior.
+    const req = adapter.buildExecRequest({ ...TURN, instructions: null });
+    expect(req.argv).not.toContain('--append-system-prompt');
+  });
+
+  it('keeps the role out of the variadic --allowedTools reach (S-01 trap)', () => {
+    // --allowedTools eats every following bare token, so --append-system-prompt
+    // landing inside its run would become a TOOL NAME and the role would
+    // silently vanish from the turn. --max-turns must separate them.
+    const req = adapter.buildExecRequest(TURN);
+    expect(req.argv.indexOf('--append-system-prompt')).toBeGreaterThan(
+      req.argv.indexOf('--max-turns'),
+    );
   });
 
   it('omits --resume for an empty-string id (the S-01 prompt-eating trap)', () => {

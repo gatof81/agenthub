@@ -17,6 +17,7 @@ import {
 
 const CAPS: Caps = { maxTurns: 10, budgetUsd: 1, timeoutMs: 60_000 };
 const POLICY = ['Read', 'Grep', 'Glob', 'Write', 'Edit', 'Bash'];
+const INSTRUCTIONS = 'You are DEV. Write the code.';
 
 function summaryFor(runId: string, outcome: RunSummary['outcome']): RunSummary {
   return {
@@ -47,6 +48,7 @@ function seedRun(store: HubStore) {
     content: 'hello',
     caps: CAPS,
     policy: POLICY,
+    instructions: INSTRUCTIONS,
   });
   return { project, conv, message, run };
 }
@@ -126,6 +128,13 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       expect(run.state).toBe('queued');
       expect(run.capsSnapshot).toEqual(CAPS);
       expect(run.policySnapshot).toEqual(POLICY);
+      // The role is snapshotted alongside caps and policy (B5-04, I-8), and
+      // must survive a READ-BACK: on SQLite this is the only cover for the
+      // instructions_snapshot → instructionsSnapshot column mapping, which a
+      // typo would null out with every other assertion still green (the same
+      // trap migration 002 sprang on workspace_template_id).
+      expect(run.instructionsSnapshot).toBe(INSTRUCTIONS);
+      expect(store.getRun(run.id)!.instructionsSnapshot).toBe(INSTRUCTIONS);
       expect(store.getRunByMessage(message.id)?.id).toBe(run.id);
       store.close();
     });
@@ -135,10 +144,22 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
       const c = store.createConversation({ projectId: p.id, title: 't', agentId: 'dev' });
       expect(() =>
-        store.sendMessage({ conversationId: c.id, content: 'x', caps: CAPS, policy: [] }),
+        store.sendMessage({
+          conversationId: c.id,
+          content: 'x',
+          caps: CAPS,
+          policy: [],
+          instructions: INSTRUCTIONS,
+        }),
       ).toThrow(ValidationError);
       expect(() =>
-        store.sendMessage({ conversationId: c.id, content: 'x', caps: CAPS, policy: [' '] }),
+        store.sendMessage({
+          conversationId: c.id,
+          content: 'x',
+          caps: CAPS,
+          policy: [' '],
+          instructions: INSTRUCTIONS,
+        }),
       ).toThrow(ValidationError);
       store.close();
     });
@@ -153,6 +174,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
           content: 'x',
           caps: { maxTurns: 0, budgetUsd: 1, timeoutMs: 1 },
           policy: POLICY,
+          instructions: INSTRUCTIONS,
         }),
       ).toThrow(ValidationError);
       store.close();
@@ -167,6 +189,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
         content: 'x'.repeat(300 * 1024),
         caps: CAPS,
         policy: POLICY,
+        instructions: INSTRUCTIONS,
       });
       expect(message.content.length).toBeLessThan(300 * 1024);
       expect(message.content).toContain('[truncated: original');
@@ -180,8 +203,10 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
       const c1 = store.createConversation({ projectId: p.id, title: 'a', agentId: 'dev' });
       const c2 = store.createConversation({ projectId: p.id, title: 'b', agentId: 'dev' });
-      const r1 = store.sendMessage({ conversationId: c1.id, content: '1', caps: CAPS, policy: POLICY }).run;
-      const r2 = store.sendMessage({ conversationId: c2.id, content: '2', caps: CAPS, policy: POLICY }).run;
+      const send = (conversationId: string, content: string) =>
+        store.sendMessage({ conversationId, content, caps: CAPS, policy: POLICY, instructions: INSTRUCTIONS }).run;
+      const r1 = send(c1.id, '1');
+      const r2 = send(c2.id, '2');
 
       const first = store.dispatchNextRun(p.id);
       expect(first?.id).toBe(r1.id);
@@ -449,6 +474,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
         content: 'again',
         caps: CAPS,
         policy: POLICY,
+        instructions: INSTRUCTIONS,
       }).run;
       store.ingestEvents(second.id, [ev('ev_b1', 1, 'output', { text: 'b' })]);
 
@@ -472,6 +498,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
           content: `m${i}`,
           caps: CAPS,
           policy: POLICY,
+          instructions: INSTRUCTIONS,
         });
         ids.push(message.id);
         store.finalizeRun({

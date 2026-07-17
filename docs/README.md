@@ -1,6 +1,6 @@
 # Agent Hub — documentation
 
-Specification workspace for Agent Hub. **The specification is complete and approved** (docs 01–18 approved by the owner on 2026-07-15; ADR-001..005 accepted; spikes S-01/S-03 executed; doc 18 is a non-normative vision companion). **All quality gates below have passed. Increment 1 is complete** (B1-01..B1-12, [17-phase1-backlog.md](./17-phase1-backlog.md)); Increment 2 (real substrate + real Claude, B2-01..05) is in progress.
+Specification workspace for Agent Hub. **The specification is complete and approved** (docs 01–18 approved by the owner on 2026-07-15; ADR-001..006 accepted; spikes S-01/S-03/S-04 executed; doc 18 is a non-normative vision companion). **All quality gates below have passed. Increments 1–5 are complete** ([17-phase1-backlog.md](./17-phase1-backlog.md)): the fake-runtime spine, real substrate + real Claude, hardening, restore, and repo-in-project — an agent is a role reusable across projects, a project is a workspace with a repository, and the two no longer borrow each other's workspace or instructions.
 
 All repo artifacts are in English. Substrate facts are verified against
 [shared-terminal](https://github.com/gatof81/shared-terminal) at commit `36be2f2` unless noted;
@@ -60,6 +60,7 @@ decision and is superseded):
 | [ADR-003](./adr/ADR-003-claude-cli-runner.md) | Claude CLI runner integration: per-turn command construction, event mapping, marker-based post-cancel sweep, budget strategy (S-01 lessons encoded) | **accepted** (2026-07-14) |
 | [ADR-004](./adr/ADR-004-ui-streaming-transport.md) | Hub↔frontend streaming: SSE with `Last-Event-ID` replay from the store | **accepted** (2026-07-14) |
 | [ADR-005](./adr/ADR-005-project-aggregate.md) | **Project as the organizing aggregate** — owner-directed pivot: one workspace/container per project, conversations share it; minimal Phase-1 shape with an explicit deferred list (R-17) | **accepted** (2026-07-14) |
+| [ADR-006](./adr/ADR-006-workspace-belongs-to-the-project.md) | **The workspace belongs to the project, not the agent** — an agent is a role reusable across projects; a project is a workspace with a repository. Adds `Project.repo` + the per-repo credential, and makes per-turn role instructions necessary (FR-45/46/47, SEC-11) | **accepted** (2026-07-16) — shipped in Increment 5; its one deferred consequence (the per-turn mechanism) closed by [S-04](./spikes/S-04/RESULTS.md) |
 
 Remaining candidate (deferred, non-blocking): Hub user/auth model (Q-07).
 
@@ -70,6 +71,7 @@ Remaining candidate (deferred, non-blocking): Hub user/auth model (Q-07).
 | S-01 | Headless runner probe on pinned CLI 2.1.207: freeze-without-permission-flags, per-turn `--resume` latency, mid-tool-call cancellation via process-group kill, cost/`session_id` result fields, `tool_use` event shape | **EXECUTED 2026-07-14** — all questions answered; see [spikes/S-01/RESULTS.md](./spikes/S-01/RESULTS.md). Headlines: no freeze but silent auto-denial; per-turn resume ≈ 0.6 s; unreaped zombies per cancelled run (1 in S-01's probe, 3 in upstream's broader count — Q-08, since resolved by `Init: true`); **Bash-tool children survive group kill** (runner post-cancel policy needed) |
 | S-02 | Claude state continuity across container recreate | **resolved upstream** — shared-terminal #371/#378, re-asserted by its CI smoke test |
 | S-03 | D1 turn-commit latency, value-size limits, quota math against a scratch database | **EXECUTED 2026-07-14** — gate fired: turn-commit p50 291 ms from the deployment host (ceiling was 150 ms) → ADR-002 reverted to SQLite + R2 backups. See [spikes/S-03/RESULTS.md](./spikes/S-03/RESULTS.md) |
+| S-04 | Does `--append-system-prompt` reach the model on pinned CLI 2.1.207, or is it parsed and dropped? (the mechanism ADR-006 refused to assert, blocking B5-04) | **EXECUTED 2026-07-17** — it reaches the model: a codeword injected only via the flag came back, and the control run without it did not know the word. B5-04 unblocked and shipped. See [spikes/S-04/RESULTS.md](./spikes/S-04/RESULTS.md); `spikes/S-04/probe.sh` is re-runnable on a CLI bump (R-02) |
 
 ## Work plan
 
@@ -93,13 +95,14 @@ numbers are noted per item as they land, since the two drift.
 15. Second direction review: collaboration model (18) + amendments — **merged (GitHub #22)**; owner approved docs 01–18 (gates passed, GitHub #23 records it).
 16. **Increment 1 — fake-runtime spine, complete**: backend B1-01..09 + B1-11 + BX-01 (GitHub #26), frontend B1-10 (GitHub #27), command palette B1-12 (GitHub #28).
 17. **Increment 2 — real substrate + real Claude, COMPLETE**: B2-01 real `SubstrateExecPort` + offline conformance suite (GitHub #29); B2-02 real session provisioning (GitHub #30); B2-03 real `claude-cli` adapter + B2-04 real-vs-fake contract test (GitHub #31); B2-05 composition-root wiring + token hygiene (GitHub #32) + agentSeed wire fix and **live end-to-end acceptance passed on the deployment host** (GitHub #33). Two-level sidebar + contrast pass on owner UX feedback (GitHub #34).
-18. **Increment 3 — hardening, in progress**: B3-01 cancellation (kill-outcome race fix + FR-21 post-cancel sweep, live-verified, GitHub #35); B3-02 boot-reconciliation hardening (provisioning heal, boot sweeps, idempotence, live-verified, GitHub #36); B3-03 SSE resilience (stall watchdog + proactive wake + heartbeat, first frontend tests, GitHub #37); B3-04 backup pipeline (snapshot sink port, VACUUM INTO → gzip → R2/S3, freshness gauge, restore drill, GitHub #38); B3-06 error taxonomy + timeouts + lagging budget (GitHub #41); B3-07 observability floor (structured logs + correlation ids + metrics, GitHub #42). UX follow-ups: back-arrow + archive projects/conversations + distinct icons (GitHub #40). **Increment 3 nearly done — only B3-05 (live restore drill against R2) remains, pending the bucket token.**
+18. **Increment 3 — hardening, in progress**: B3-01 cancellation (kill-outcome race fix + FR-21 post-cancel sweep, live-verified, GitHub #35); B3-02 boot-reconciliation hardening (provisioning heal, boot sweeps, idempotence, live-verified, GitHub #36); B3-03 SSE resilience (stall watchdog + proactive wake + heartbeat, first frontend tests, GitHub #37); B3-04 backup pipeline (snapshot sink port, VACUUM INTO → gzip → R2/S3, freshness gauge, restore drill, GitHub #38); B3-06 error taxonomy + timeouts + lagging budget (GitHub #41); B3-07 observability floor (structured logs + correlation ids + metrics, GitHub #42). UX follow-ups: back-arrow + archive projects/conversations + distinct icons (GitHub #40). B3-05 live restore drill green against the real R2 bucket (2026-07-16). **Increment 3 COMPLETE.**
+19. **Increment 4 — restore (owner-driven), COMPLETE**: B4-01/B4-02 `startSession` + the `archived → ready` transitions, with FR-44 pinned — a restore whose session is gone upstream returns `409 session_gone` and leaves the project archived, never a fresh workspace wearing the old name (GitHub #50); SSE cold-connect fix (GitHub #51); B4-03 archived view + restore + confirmations that state what actually happens (GitHub #54).
+20. **Increment 5 — repo in project (owner-driven), COMPLETE**: ADR-006 (GitHub #52) and its spec — FR-45/46/47 + SEC-11 (GitHub #53); B5-01/02/03 the workspace belongs to the project, `Project.repo` reaches the seam, and the per-repo PAT reaches the seam **and nowhere else** (GitHub #55) + icon padding (GitHub #56); B5-04 per-turn role instructions, unblocked by spike S-04 verifying `--append-system-prompt` against the pinned CLI rather than assuming it.
 
 ## Quality gates
 
 **All gates passed** — the owner approved the drafts (docs 01–18) on
-2026-07-15. Implementation is underway: Increment 1 complete, Increment 2
-in progress (doc 17).
+2026-07-15. Implementation is underway: Increments 1–5 complete (doc 17).
 
 | Gate | Artifact | State |
 | --- | --- | --- |
@@ -112,11 +115,30 @@ in progress (doc 17).
 | Critical flows defined | 05 | **passed** (owner, 2026-07-15) |
 | Test & migration strategy | 13 | **passed** (owner, 2026-07-15) |
 | Phase-1 backlog exists | 17 | **passed** (owner, 2026-07-15) |
-| ADR-001..005 resolved; later ADRs at least drafted | all five accepted | **passed** |
+| ADR-001..005 resolved; later ADRs at least drafted | all five accepted; ADR-006 accepted and shipped since | **passed** |
 | MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | **passed** (owner, 2026-07-15) |
 
 ## Changelog
 
+- **2026-07-17** — **B5-04 per-turn role instructions; Increment 5 done.**
+  The last item ADR-006 left open, and the one it refused to assert a mechanism
+  for. Spike [S-04](./spikes/S-04/RESULTS.md) settled it first: on the pinned
+  2.1.207, a codeword injected only through `--append-system-prompt` came back,
+  and the control run without the flag did not know it — the control is the
+  load-bearing half, since a pass alone proves only that the model can say a
+  word. Provisioning baked the **project's** instructions and the **default
+  agent's** into one `CLAUDE.md`, so the workspace carried one role and every
+  conversation in the project ran under it: QA inherited DEV's craft. Now the
+  project's stay in the shared workspace (every role in the project shares
+  them) and the agent's travel per turn. Snapshotted onto the run at send like
+  caps and policy (I-8, migration 003), not read from live config at dispatch —
+  a queued run survives a restart and a restart re-reads `agents.yaml`. The
+  snapshot removes a failure mode rather than adding one: dispatch no longer
+  touches live config, so a role deleted from the config cannot strand a run.
+  `instructions_snapshot` is NULL only for pre-B5-04 rows and means
+  *unrecorded*, never "no role" — agent configs are gitignored (SEC-10), so no
+  truthful backfill exists, which is also why the snapshot is the only possible
+  answer to "what did this run actually run under?".
 - **2026-07-15** — **B3-07 observability floor**: a structured JSON logger
   (`observability/logger.ts`) tags every line with `ts`/`level`/`event` and
   a per-request correlation id propagated through the async chain via

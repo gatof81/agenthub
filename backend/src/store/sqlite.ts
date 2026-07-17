@@ -91,6 +91,7 @@ interface RunRow {
   seam_request_id: string | null;
   caps_snapshot: string;
   policy_snapshot: string;
+  instructions_snapshot: string | null;
   cli_version: string | null;
   model: string | null;
   kill_outcome: Run['killOutcome'];
@@ -171,6 +172,7 @@ function toRun(r: RunRow): Run {
     seamRequestId: r.seam_request_id,
     capsSnapshot: JSON.parse(r.caps_snapshot),
     policySnapshot: JSON.parse(r.policy_snapshot),
+    instructionsSnapshot: r.instructions_snapshot,
     cliVersion: r.cli_version,
     model: r.model,
     killOutcome: r.kill_outcome,
@@ -408,8 +410,9 @@ export class SqliteHubStore implements HubStore {
         .run(messageId, input.conversationId, content, runId, now);
       this.db
         .prepare(
-          `INSERT INTO runs (id, conversation_id, message_id, state, caps_snapshot, policy_snapshot, created_at)
-           VALUES (?, ?, ?, 'queued', ?, ?, ?)`,
+          `INSERT INTO runs (id, conversation_id, message_id, state, caps_snapshot, policy_snapshot,
+                             instructions_snapshot, created_at)
+           VALUES (?, ?, ?, 'queued', ?, ?, ?, ?)`,
         )
         .run(
           runId,
@@ -417,6 +420,7 @@ export class SqliteHubStore implements HubStore {
           messageId,
           JSON.stringify(input.caps),
           JSON.stringify(input.policy),
+          input.instructions,
           now,
         );
     });

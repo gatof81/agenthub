@@ -30,6 +30,7 @@ export class FakeRuntimeAdapter implements RuntimeAdapter {
         '--max-turns',
         String(turn.caps.maxTurns),
         ...(turn.runtimeSessionId ? ['--resume', turn.runtimeSessionId] : []),
+        ...(turn.instructions ? ['--append-system-prompt', turn.instructions] : []),
       ],
       stdin: turn.prompt,
       env: turn.env,
