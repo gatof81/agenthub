@@ -412,11 +412,20 @@ export function buildApp(deps: ApiDeps): express.Express {
 
   // — conversations —
   app.post('/api/projects/:id/conversations', (req, res) => {
-    const { title, agentId } = (req.body ?? {}) as Record<string, unknown>;
+    const { title, agentId, mode } = (req.body ?? {}) as Record<string, unknown>;
+    // `automatic` routes each turn (N4a, ADR-008); default `direct` pins agentId.
+    // `preferred-specialist` is a declared ConversationMode but is not
+    // implemented yet — reject any unsupported value rather than silently
+    // downgrade it to `direct` (data loss at the seam; the mode ships in N4b).
+    if (mode !== undefined && mode !== 'automatic' && mode !== 'direct') {
+      res.status(422).json({ code: 'validation', detail: "mode must be 'automatic' or 'direct'" });
+      return;
+    }
     const conversation = orchestrator.createConversation({
       projectId: req.params.id,
       ...(typeof title === 'string' && title.trim() !== '' ? { title } : {}),
       ...(typeof agentId === 'string' ? { agentId } : {}),
+      ...(mode === 'automatic' || mode === 'direct' ? { mode } : {}),
     });
     res.status(201).json({ conversation }); // instant — no provisioning (ADR-005)
   });

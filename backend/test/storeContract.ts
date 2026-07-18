@@ -414,6 +414,50 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       store.close();
     });
 
+    // — execution-target decision (ADR-008, N4a, migration 007) —
+
+    it('a freshly seeded run has no execution-target decision (NULL, not a fabricated default)', () => {
+      const store = makeStore();
+      const { run } = seedRun(store);
+      expect(store.getRun(run.id)).toMatchObject({ targetSessionId: null, targetDecision: null });
+      store.close();
+    });
+
+    it('records and round-trips the selector decision on a run (automatic mode)', () => {
+      const store = makeStore();
+      const { run } = seedRun(store);
+      const decision = {
+        specialistId: 'dev',
+        selectedSessionId: 'sess_primary',
+        reason: 'work belongs to the project — runs in its primary session',
+        alternativesConsidered: ['specialist session sess_dev'],
+        workspaceStrategy: 'project-primary',
+      };
+      store.recordRunTarget(run.id, 'sess_primary', decision);
+      const persisted = store.getRun(run.id);
+      expect(persisted?.targetSessionId).toBe('sess_primary');
+      expect(persisted?.targetDecision).toEqual(decision);
+      // last-write-wins: the deterministic selector re-decides identically on a
+      // re-dispatch, so re-recording is harmless, not an error
+      store.recordRunTarget(run.id, 'sess_primary', decision);
+      expect(store.getRun(run.id)?.targetDecision).toEqual(decision);
+      store.close();
+    });
+
+    it('recording a target on a missing run is rejected', () => {
+      const store = makeStore();
+      expect(() =>
+        store.recordRunTarget('run_missing', 'sess', {
+          specialistId: 'dev',
+          selectedSessionId: 'sess',
+          reason: 'x',
+          alternativesConsidered: [],
+          workspaceStrategy: 'project-primary',
+        }),
+      ).toThrow();
+      store.close();
+    });
+
     // — events (I-4, 08 §2) —
 
     it('ingestion is idempotent by id: replaying a batch twice changes nothing (13 §4)', () => {

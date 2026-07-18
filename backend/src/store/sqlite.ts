@@ -14,6 +14,7 @@ import {
 } from '../domain/runStateMachine.js';
 import type {
   Conversation,
+  ExecutionTargetDecision,
   Message,
   Project,
   Run,
@@ -103,6 +104,8 @@ interface RunRow {
   sweep_result: string | null;
   error_code: Run['errorCode'];
   error_detail: string | null;
+  target_session_id: string | null;
+  target_decision: string | null;
   created_at: string;
   started_at: string | null;
   ended_at: string | null;
@@ -216,6 +219,8 @@ function toRun(r: RunRow): Run {
     sweepResult: r.sweep_result ? JSON.parse(r.sweep_result) : null,
     errorCode: r.error_code,
     errorDetail: r.error_detail,
+    targetSessionId: r.target_session_id,
+    targetDecision: r.target_decision ? JSON.parse(r.target_decision) : null,
     createdAt: r.created_at,
     startedAt: r.started_at,
     endedAt: r.ended_at,
@@ -648,6 +653,13 @@ export class SqliteHubStore implements HubStore {
     this.db
       .prepare(`UPDATE runs SET cli_version = ?, model = ? WHERE id = ? AND cli_version IS NULL`)
       .run(meta.cliVersion, meta.model, runId);
+  }
+
+  recordRunTarget(runId: string, targetSessionId: string, decision: ExecutionTargetDecision): void {
+    const res = this.db
+      .prepare(`UPDATE runs SET target_session_id = ?, target_decision = ? WHERE id = ?`)
+      .run(targetSessionId, JSON.stringify(decision), runId);
+    if (res.changes !== 1) throw new ValidationError(`no run ${runId} to record target on`);
   }
 
   getRun(id: string): Run | undefined {

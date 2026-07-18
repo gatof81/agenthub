@@ -61,7 +61,9 @@ Option 3.
   not the same thing: a specialist may execute in a project's primary
   session, in its own personal session, or in a task worktree. (Shape
   refined at implementation — see the N3b-1 amendment in Consequences.)
-- **ConversationMode**: `automatic` (default once increment N4 lands) ·
+- **ConversationMode**: `automatic` (default once increment N4b lands —
+  N4a wires automatic mode but keeps the default `direct` until routing reads
+  the message; see doc 19 §7) ·
   `preferred-specialist` · `direct`. I-6's immutability survives only in
   `direct` mode; in `automatic` mode no immutable agentId exists — each
   task/step records which specialist actually ran (the audit moves from the

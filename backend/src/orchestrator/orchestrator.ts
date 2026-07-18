@@ -22,11 +22,14 @@ import {
   type HubNotifier,
   type Logger,
   type Metrics,
+  type RouterPort,
   type RuntimeAdapter,
   type SessionInfo,
   type SubstrateExecPort,
   type TurnRequest,
 } from '../domain/ports.js';
+import { DeterministicRouter } from './router.js';
+import { NoExecutionTargetError, selectExecutionTarget } from './selector.js';
 import {
   assembleAssistantText,
   deriveRunSummary,
@@ -39,6 +42,8 @@ import type {
   RepoAuth,
   RepoSpec,
   Conversation,
+  ConversationMode,
+  ExecutionTargetDecision,
   KillOutcome,
   Message,
   Project,
@@ -76,6 +81,13 @@ export interface OrchestratorDeps {
   /** session lifecycle only (UC-01) — turns go through the adapter */
   execPort: SubstrateExecPort;
   agents: ReadonlyMap<string, Agent>;
+  /**
+   * Proposes which specialist handles a turn in automatic mode (ADR-008).
+   * Defaults to the deterministic router (N4a — echoes the conversation's own
+   * specialist, no model, fully offline); N4b injects a model-backed router into
+   * `real` mode behind this same port. Only automatic-mode conversations use it.
+   */
+  router?: RouterPort;
   clock?: Clock;
   /** extra env for every run (e.g. the OAuth token in Increment 2) */
   runEnv?: Record<string, string>;
@@ -136,6 +148,7 @@ export class Orchestrator {
   private readonly adapter: RuntimeAdapter;
   private readonly execPort: SubstrateExecPort;
   private readonly agents: ReadonlyMap<string, Agent>;
+  private readonly router: RouterPort;
   private readonly now: Clock;
   private readonly runEnv: Record<string, string>;
   private readonly tokenPrices: TokenPrices;
@@ -164,6 +177,7 @@ export class Orchestrator {
     this.adapter = deps.adapter;
     this.execPort = deps.execPort;
     this.agents = deps.agents;
+    this.router = deps.router ?? new DeterministicRouter();
     this.now = deps.clock ?? systemClock;
     this.runEnv = deps.runEnv ?? {};
     this.tokenPrices = deps.tokenPrices ?? DEFAULT_TOKEN_PRICES;
@@ -585,6 +599,12 @@ export class Orchestrator {
     projectId: string;
     title?: string;
     agentId?: string;
+    /**
+     * `direct` (default) pins `agentId`; `automatic` (N4a, ADR-008) routes each
+     * turn — the router proposes the specialist and the selector the session,
+     * both recorded on the run. `agentId` is still the routing prior/default.
+     */
+    mode?: ConversationMode;
   }): Conversation {
     const project = this.store.getProject(input.projectId);
     if (!project) throw new OrchestratorError('not_found', `project ${input.projectId}`);
@@ -594,6 +614,7 @@ export class Orchestrator {
       projectId: input.projectId,
       title: input.title ?? DEFAULT_CONVERSATION_TITLE,
       agentId,
+      mode: input.mode ?? 'direct',
     });
   }
 
@@ -861,6 +882,13 @@ export class Orchestrator {
       return null;
     };
 
+    // Automatic mode (N4a, ADR-008): the router proposes a specialist and the
+    // deterministic selector chooses the session, recorded on the run. Direct
+    // mode derives the session structurally, with no selector in the loop.
+    if (conversation.mode === 'automatic') {
+      return this.resolveAutomaticTarget(run, conversation, userMessageContent, fail);
+    }
+
     if (conversation.projectId !== null) {
       const sessionId = this.store.getProject(conversation.projectId)?.sessionBinding.sessionId ?? null;
       return sessionId ?? fail('project has no substrate session (FR-33)');
@@ -869,15 +897,86 @@ export class Orchestrator {
     // direct specialist conversation
     const binding = this.store.getSpecialistSession(conversation.agentId);
     if (!binding) return fail(`specialist ${conversation.agentId} has no session bound (N3b-1)`);
+    return this.ensureSpecialistSessionRunnable(binding, fail);
+  }
+
+  /**
+   * Automatic-mode session resolution (N4a, ADR-008 Option 3). The router only
+   * PROPOSES a specialist; the deterministic selector chooses the session from
+   * real bindings — never a model (01 §3, SEC-01). The decision persists on the
+   * run before the turn executes, so the inspector shows who ran, where and why.
+   * In N4a the router echoes the conversation's own specialist, so the choice is
+   * structural; the message-aware router that can pick a different specialist is
+   * N4b, behind the same port.
+   */
+  private async resolveAutomaticTarget(
+    run: Run,
+    conversation: Conversation,
+    userMessageContent: string,
+    fail: (detail: string) => null,
+  ): Promise<string | null> {
+    const proposal = await this.router.route({
+      message: userMessageContent,
+      specialists: [...this.agents.values()],
+      conversation: {
+        id: conversation.id,
+        projectId: conversation.projectId,
+        agentId: conversation.agentId,
+        mode: conversation.mode,
+      },
+    });
+
+    const projectPrimarySessionId =
+      conversation.projectId !== null
+        ? this.store.getProject(conversation.projectId)?.sessionBinding.sessionId ?? null
+        : null;
+    const specialistBinding = this.store.getSpecialistSession(proposal.specialistId);
+
+    let decision: ExecutionTargetDecision;
+    try {
+      decision = selectExecutionTarget({
+        proposal,
+        projectPrimarySessionId,
+        specialistSessionId: specialistBinding?.sessionId ?? null,
+      });
+    } catch (err) {
+      if (err instanceof NoExecutionTargetError) {
+        return fail(
+          `no execution target for specialist ${proposal.specialistId} (ADR-008): neither a project primary session nor a bound specialist session`,
+        );
+      }
+      throw err;
+    }
+
+    this.store.recordRunTarget(run.id, decision.selectedSessionId, decision);
+
+    // The selector chose the session; it must still be runnable. A project
+    // primary session was already gated `ready` at send; a specialist session
+    // may need starting on use — the same path a direct specialist run takes.
+    if (decision.workspaceStrategy === 'specialist-session') {
+      return this.ensureSpecialistSessionRunnable(specialistBinding!, fail);
+    }
+    return decision.selectedSessionId;
+  }
+
+  /**
+   * Ensure a specialist's bound session is running, starting it on use (N3b-2,
+   * owner decision — needs operate-tier start upstream, shared-terminal#429).
+   * Returns the session id, or `fail`s (returning null) if it is gone upstream
+   * (FR-44) or cannot be started. Shared by direct and automatic resolution.
+   */
+  private async ensureSpecialistSessionRunnable(
+    binding: SpecialistSessionBinding,
+    fail: (detail: string) => null,
+  ): Promise<string | null> {
     const info = await this.execPort.getSession(binding.sessionId);
     if (info === null) {
       this.store.setSpecialistSession({ ...binding, status: 'error', lastKnownState: null });
       return fail(`specialist session ${binding.sessionId} no longer exists upstream (FR-44)`);
     }
     if (info.status !== 'running') {
-      // start it on use (owner decision) — needs operate-tier start upstream
-      // (shared-terminal#429). Until that ships, an owner session 403s: report
-      // it honestly rather than silently. Auto-starts once #429 lands.
+      // Until #429 ships an owner session 403s on start: report it honestly
+      // rather than silently. Auto-starts once #429 lands.
       try {
         await this.execPort.startSession(binding.sessionId);
         this.store.setSpecialistSession({ ...binding, status: 'available', lastKnownState: 'running' });

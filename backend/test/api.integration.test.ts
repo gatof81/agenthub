@@ -72,7 +72,32 @@ describe('HTTP API (08 §1)', () => {
       .send({});
     expect(conv.status).toBe(201);
     expect(conv.body.conversation.agentId).toBe('dev');
+    expect(conv.body.conversation.mode).toBe('direct'); // default
     expect(detail.headers['x-request-id']).not.toBe(created.headers['x-request-id']);
+  });
+
+  it('accepts mode=automatic and rejects an unsupported mode rather than downgrading it (N4a)', async () => {
+    const { app, orch } = makeApiHarness();
+    const project = (
+      await request(app).post('/api/projects').set(AUTH).send({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' })
+    ).body.project;
+    await orch.idle();
+
+    const auto = await request(app)
+      .post(`/api/projects/${project.id}/conversations`)
+      .set(AUTH)
+      .send({ mode: 'automatic' });
+    expect(auto.status).toBe(201);
+    expect(auto.body.conversation.mode).toBe('automatic');
+
+    // `preferred-specialist` is a declared mode but unimplemented — a 422, never
+    // a silent 201 as `direct` (the boundary data-loss the reviewer flagged)
+    const rejected = await request(app)
+      .post(`/api/projects/${project.id}/conversations`)
+      .set(AUTH)
+      .send({ mode: 'preferred-specialist' });
+    expect(rejected.status).toBe(422);
+    expect(rejected.body.code).toBe('validation');
   });
 
   it('send → 202 {runId}; GET /api/runs/:id returns activity + usage + summary when terminal (UC-02)', async () => {

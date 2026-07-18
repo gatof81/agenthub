@@ -116,6 +116,38 @@ export function Inspector({ open, detail, onClose }: Props): React.JSX.Element |
         </section>
       )}
 
+      {run.targetDecision && (
+        <section className="routing">
+          <h4>Routing decision</h4>
+          <dl>
+            <dt>Specialist</dt>
+            <dd>{run.targetDecision.specialistId}</dd>
+            <dt>Session</dt>
+            <dd className="mono">
+              <code>{run.targetDecision.selectedSessionId}</code>
+            </dd>
+            <dt>Strategy</dt>
+            <dd>{run.targetDecision.workspaceStrategy}</dd>
+            <dt>Reason</dt>
+            <dd>{run.targetDecision.reason}</dd>
+          </dl>
+          {run.targetDecision.alternativesConsidered.length > 0 && (
+            <details>
+              <summary>
+                Alternatives considered ({run.targetDecision.alternativesConsidered.length})
+              </summary>
+              <ul className="mono">
+                {run.targetDecision.alternativesConsidered.map((a, i) => (
+                  <li key={i}>
+                    <code>{a}</code>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </section>
+      )}
+
       {run.errorDetail && (
         <section className="denials">
           <h4>Error</h4>

@@ -25,6 +25,7 @@ import type { RuntimeAdapter, SubstrateExecPort } from './domain/ports.js';
 import { JsonLogger } from './observability/logger.js';
 import { CountingMetrics } from './observability/metrics.js';
 import { Orchestrator } from './orchestrator/orchestrator.js';
+import { DeterministicRouter } from './orchestrator/router.js';
 import { ClaudeCliRuntimeAdapter } from './runtime/claudeCliAdapter.js';
 import { FakeRuntimeAdapter } from './runtime/fakeAdapter.js';
 import { SqliteHubStore } from './store/sqlite.js';
@@ -131,6 +132,9 @@ async function main(): Promise<void> {
     adapter,
     execPort,
     agents,
+    // N4a: deterministic router (no model) for both fake and real modes; N4b
+    // swaps a model-backed router into `real` behind the same port.
+    router: new DeterministicRouter(),
     notify: broadcaster,
     runEnv,
     tokenPrices: resolveTokenPrices(process.env), // budget estimate (B3-06)

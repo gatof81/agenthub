@@ -13,6 +13,7 @@ import {
 } from '../domain/runStateMachine.js';
 import type {
   Conversation,
+  ExecutionTargetDecision,
   Message,
   Project,
   Run,
@@ -264,6 +265,8 @@ export class MemoryHubStore implements HubStore {
       sweepResult: null,
       errorCode: null,
       errorDetail: null,
+      targetSessionId: null,
+      targetDecision: null,
       createdAt: now,
       startedAt: null,
       endedAt: null,
@@ -355,6 +358,12 @@ export class MemoryHubStore implements HubStore {
     }
     run.cliVersion = meta.cliVersion;
     run.model = meta.model;
+  }
+
+  recordRunTarget(runId: string, targetSessionId: string, decision: ExecutionTargetDecision): void {
+    const run = this.mustRunRef(runId);
+    run.targetSessionId = targetSessionId;
+    run.targetDecision = clone(decision);
   }
 
   getRun(id: string): Run | undefined {

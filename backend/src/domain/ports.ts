@@ -6,11 +6,14 @@
  */
 
 import type {
+  Agent,
   Caps,
+  Conversation,
   RepoAuth,
   RepoSpec,
   KillOutcome,
   ProjectStatus,
+  RouteProposal,
   RunErrorCode,
   RunEvent,
   RunEventType,
@@ -337,3 +340,24 @@ export interface Metrics {
 
 export const NOOP_LOGGER: Logger = { info: () => {}, warn: () => {}, error: () => {} };
 export const NOOP_METRICS: Metrics = { runTransition: () => {}, seamError: () => {} };
+
+// — RouterPort (ADR-008, automatic mode) —
+
+/** What the router sees to propose a specialist for a turn. */
+export interface RouteInput {
+  message: string;
+  /** the specialists available to route to (identity + capabilities) */
+  specialists: Agent[];
+  /** the conversation being routed — its pin/default is a prior for the router */
+  conversation: Pick<Conversation, 'id' | 'projectId' | 'agentId' | 'mode'>;
+}
+
+/**
+ * Proposes which specialist should handle a turn (ADR-008, Option 3).
+ * Deterministic in N4a (no model); a model call in N4b, behind this same port so
+ * the offline suite always runs the fake. It only PROPOSES — the deterministic
+ * selector chooses the session and the orchestrator validates and enforces.
+ */
+export interface RouterPort {
+  route(input: RouteInput): Promise<RouteProposal>;
+}
