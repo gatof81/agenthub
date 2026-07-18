@@ -1161,7 +1161,9 @@ export class Orchestrator {
         : {}),
       errorCode: maxTurns ? 'max_turns' : 'runtime_error',
       errorDetail: maxTurns
-        ? `reached the turn limit (${resultMeta?.numTurns ?? '?'} turns; cap ${current.capsSnapshot.maxTurns})`
+        ? `reached the turn limit (${resultMeta?.numTurns ?? '?'} turns; cap ${
+            current.capsSnapshot.maxTurns ?? '?'
+          })`
         : `exit ${String(exitMeta?.exitCode ?? 'unknown')}${
             stderr.length > 0 ? `: ${this.excerpts(stderr)[0]}` : ''
           }`,

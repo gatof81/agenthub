@@ -210,6 +210,7 @@ describe('max_turns classification (ADR-003, L3)', () => {
     expect(final.state).toBe('failed');
     expect(final.errorCode).toBe('max_turns'); // not the generic runtime_error
     expect(final.errorDetail).toContain('turn limit');
+    expect(final.errorDetail).toMatch(/cap \d+/); // a real number, never "cap undefined"
     // the work done before the limit is not thrown away
     const assistant = store.listMessages(conversation.id, {}).filter((m) => m.role === 'assistant');
     expect(assistant.at(-1)?.content).toContain('Working on it');
