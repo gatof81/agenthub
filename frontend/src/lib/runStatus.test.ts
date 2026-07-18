@@ -91,6 +91,15 @@ describe('describeRunOutcome', () => {
     });
   });
 
+  it('renders a bare "Failed" when there is no error code (never "Failed — Failed")', () => {
+    expect(describeRunOutcome({ state: 'failed' })).toEqual({
+      state: 'failed',
+      tone: 'error',
+      label: 'Failed',
+      hint: 'you can re-send',
+    });
+  });
+
   it('passes an unmapped error code through instead of swallowing it', () => {
     expect(describeRunOutcome({ state: 'failed', errorCode: 'some_new_code' })).toMatchObject({
       tone: 'error',

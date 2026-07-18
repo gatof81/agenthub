@@ -133,11 +133,13 @@ export function describeRunOutcome(
         hint: 'cost unknown',
       };
     case 'failed': {
-      const friendly = run.errorCode ? (ERROR_LABELS[run.errorCode] ?? run.errorCode) : 'Failed';
+      // errorCode is nullable (Run.errorCode): with no code, the label is a
+      // bare "Failed", never "Failed — Failed".
+      const friendly = run.errorCode ? (ERROR_LABELS[run.errorCode] ?? run.errorCode) : null;
       return {
         state: run.state,
         tone: 'error',
-        label: `Failed — ${friendly}`,
+        label: friendly ? `Failed — ${friendly}` : 'Failed',
         hint: run.errorDetail ?? 'you can re-send',
       };
     }
