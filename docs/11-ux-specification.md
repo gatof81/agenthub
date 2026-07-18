@@ -212,9 +212,27 @@ typed, not authored as Markdown.
   shown as text. Untrusted model output cannot inject DOM (no sanitizer is
   needed because no raw HTML is parsed).
 - **Code blocks:** monospace, own background, horizontal scroll (never wrapped),
-  with a copy-to-clipboard affordance. **Syntax highlighting is deferred** — not
-  worth a heavy highlighter dependency in Phase 1.
+  with a copy-to-clipboard affordance. Syntax highlighting followed in §11.
 - **Links** open in a new tab and never hand the opener to the target.
 - **Line semantics** are standard Markdown (a single newline is not a hard
   break); the agent separates blocks with blank lines. Revisit only if real
   output reads wrong.
+
+## 11. Reading experience (owner decision 2026-07-17)
+
+Refinements to how a conversation reads, extending §10.
+
+- **Syntax highlighting.** Fenced code blocks are highlighted by language
+  (supersedes §10's deferral); an unknown or absent language falls back to plain
+  text. Each block carries a small language label and a copy button in a header
+  bar.
+- **Adjustable text size.** The reader cycles the conversation text through three
+  sizes — small (the historical default), medium, large — from an "Aa" control
+  in the thread header (also a command-palette command); the choice persists.
+  The conversation text and the composer scale together (a bigger draft reads
+  with the bigger thread); the sidebar and header chrome do not.
+- **No zoom on focus (iPhone).** Tapping the composer never zooms the app: text
+  fields stay at 16px+ on touch, the threshold below which iOS auto-zooms.
+- **Readability.** Looser line spacing; wide tables scroll horizontally instead
+  of overflowing the bubble; long URLs and inline code wrap rather than push
+  the layout (fenced code blocks keep §10's horizontal scroll, never wrapping).

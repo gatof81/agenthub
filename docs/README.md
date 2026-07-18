@@ -130,6 +130,18 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-17** — **Conversation-view UX refinements (owner decisions, doc 11
+  §9/§10/§11).** Working the live Phase-1 UI, the owner asked for a series of
+  reading/interaction improvements, recorded as spec sub-sections so the code
+  citations resolve: **§9** — composer pinned to the bottom with a scrollable
+  thread (mobile + desktop), first conversation auto-selected on project open,
+  and conversations auto-titled from their first message with inline rename;
+  **§10** — assistant responses rendered as Markdown (GFM, safe by default),
+  user messages plain; **§11** — syntax-highlighted code blocks with a language
+  label + copy button, adjustable conversation text size ("Aa", persisted), no
+  iOS zoom on composer focus, and readability polish. Also: the Hub's own
+  generic sessions are hidden from the sessions list (ADR-007).
+
 - **2026-07-17** — **N2 complete: create-on-behalf half (doc 19 §7, FR-49).**
   Upstream #420 (admin-only `ownerUserId` on `POST /api/sessions`) shipped and
   was verified at `1a5af57`. A new deployment variable `SEAM_OWNER_USER_ID`

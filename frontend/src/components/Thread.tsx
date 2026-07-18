@@ -15,6 +15,7 @@ import {
   type RunState,
 } from '../lib/api.js';
 import { subscribeConversation, type SseEvent } from '../lib/sse.js';
+import type { TextSize } from '../lib/textSize.js';
 import { Inspector } from './Inspector.js';
 import { Markdown } from './Markdown.js';
 
@@ -42,6 +43,9 @@ interface Props {
   onBack: () => void;
   /** the title changed — backend auto-title after the first message, or a rename */
   onRenamed: (conversation: Conversation) => void;
+  /** reader-chosen text size (11 §11) and the cycler behind the header "Aa" */
+  textSize: TextSize;
+  onCycleTextSize: () => void;
   registerCommands: (commands: ThreadCommands | null) => void;
 }
 
@@ -52,6 +56,8 @@ export function Thread({
   projectStatus,
   onBack,
   onRenamed,
+  textSize,
+  onCycleTextSize,
   registerCommands,
 }: Props): React.JSX.Element {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -205,6 +211,15 @@ export function Thread({
               }}
             />
           )}
+          <button
+            className={`mini text-size text-size-${textSize}`}
+            onClick={onCycleTextSize}
+            title={`Text size: ${textSize.toUpperCase()} — tap to change`}
+            aria-label={`Text size ${textSize}, tap to change`}
+          >
+            <span className="text-size-a1">A</span>
+            <span className="text-size-a2">A</span>
+          </button>
           <button className="mini" onClick={() => setInspectorOpen((v) => !v)}>
             {inspectorOpen ? 'Hide activity' : 'Activity'}
           </button>

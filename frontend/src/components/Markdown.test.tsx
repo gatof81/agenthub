@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { Markdown, nodeToText } from './Markdown.js';
+import { Markdown, codeLanguage, nodeToText } from './Markdown.js';
 
 const html = (md: string): string => renderToStaticMarkup(createElement(Markdown, null, md));
 
@@ -31,6 +31,18 @@ describe('nodeToText (copy-button source extraction)', () => {
   });
 });
 
+describe('codeLanguage (code-block label)', () => {
+  it('reads the fenced language from the code element className', () => {
+    const code = createElement('code', { className: 'hljs language-python' }, 'x=1');
+    expect(codeLanguage(code)).toBe('python');
+  });
+
+  it('returns null when there is no language class', () => {
+    expect(codeLanguage(createElement('code', null, 'x=1'))).toBeNull();
+    expect(codeLanguage('plain')).toBeNull();
+  });
+});
+
 describe('Markdown rendering', () => {
   it('renders headings, lists, and emphasis', () => {
     const out = html('## Title\n\n- **bold** item\n- second');
@@ -39,12 +51,15 @@ describe('Markdown rendering', () => {
     expect(out).toContain('<li>');
   });
 
-  it('wraps fenced code in a code-block with a copy button', () => {
+  it('wraps fenced code in a labelled, highlighted, copyable code-block', () => {
     const out = html('```ts\nconst x = 1;\n```');
     expect(out).toContain('class="code-block"');
     expect(out).toContain('class="code-copy"');
-    expect(out).toContain('const x = 1;');
-    expect(out).toContain('<pre>');
+    expect(out).toContain('class="code-lang"');
+    expect(out).toMatch(/>ts</); // language label shows the fenced language
+    expect(out).toContain('hljs'); // syntax highlighting applied
+    // highlighting splits the code into token spans, so strip tags to recover it
+    expect(out.replace(/<[^>]+>/g, '')).toContain('const x = 1;');
   });
 
   it('opens links in a new tab without handing over the opener', () => {
