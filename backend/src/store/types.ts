@@ -194,6 +194,13 @@ export interface HubStore {
    */
   ingestEvents(runId: string, events: NewRunEvent[]): { inserted: number };
   getEvents(runId: string): RunEvent[];
+  /**
+   * Batch variant of getEvents: the events for many runs in one query, keyed by
+   * runId (a runId with no events is absent from the map). Avoids the N+1 when a
+   * conversation read segments every assistant turn (A) — one query instead of
+   * one per message.
+   */
+  getEventsByRunIds(runIds: string[]): Map<string, RunEvent[]>;
   /** Replayable rows of a conversation after a cursor position (SSE replay). */
   getReplayableEvents(conversationId: string, afterIndex?: number): ReplayableEvent[];
   getSseCursor(conversationId: string): number;

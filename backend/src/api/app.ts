@@ -474,9 +474,14 @@ export function buildApp(deps: ApiDeps): express.Express {
     // → tool step → text. Derived on read from the run's events (a projection,
     // like activity). Attached only when tools actually split the turn — a plain
     // text answer renders from `content` (one bubble), so the payload stays lean.
+    // Events for every turn on the page are fetched in ONE query (not per
+    // message) so segmenting a long page stays a single round-trip.
+    const eventsByRun = store.getEventsByRunIds(
+      rows.flatMap((m) => (m.role === 'assistant' && m.runId ? [m.runId] : [])),
+    );
     const messages = rows.map((m) => {
       if (m.role === 'assistant' && m.runId) {
-        const segments = deriveSegments(store.getEvents(m.runId));
+        const segments = deriveSegments(eventsByRun.get(m.runId) ?? []);
         if (segments.some((s) => s.kind !== 'text')) return { ...m, segments };
       }
       return m;
