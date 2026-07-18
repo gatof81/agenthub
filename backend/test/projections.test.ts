@@ -29,6 +29,28 @@ describe('activity projection (A2, FR-14/15)', () => {
     expect(activity.files).toEqual(['/w/a.ts']); // deduped
     expect(activity.denials).toEqual(['WebFetch']);
     expect(activity.items.map((i) => i.kind)).toEqual(['command', 'file', 'file', 'denial']);
+    // every item now names the tool that produced it (L4 inline steps)
+    expect(activity.items.map((i) => i.tool)).toEqual(['Bash', 'Write', 'Edit', 'WebFetch']);
+  });
+
+  it('surfaces every other tool as a generic step with its name and a best-effort hint', () => {
+    const events = [
+      ev(1, 'tool_use', { name: 'Grep', input: { pattern: 'TODO' } }),
+      ev(2, 'tool_use', { name: 'Read', input: { file_path: '/w/a.ts' } }), // still a file step
+      ev(3, 'tool_use', { name: 'WebFetch', input: { url: 'https://example/y' } }),
+      ev(4, 'tool_use', { name: 'TodoWrite', input: {} }), // no hintable field
+    ];
+    const activity = deriveActivity(events);
+    expect(activity.items.map((i) => ({ kind: i.kind, tool: i.tool, detail: i.detail }))).toEqual([
+      { kind: 'tool', tool: 'Grep', detail: 'TODO' },
+      { kind: 'file', tool: 'Read', detail: '/w/a.ts' },
+      { kind: 'tool', tool: 'WebFetch', detail: 'https://example/y' },
+      { kind: 'tool', tool: 'TodoWrite', detail: '' },
+    ]);
+    // generic tools stay out of the command/file/denial arrays (RunSummary is unchanged)
+    expect(activity.commands).toEqual([]);
+    expect(activity.files).toEqual(['/w/a.ts']);
+    expect(activity.denials).toEqual([]);
   });
 });
 

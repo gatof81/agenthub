@@ -28,12 +28,43 @@ export function isTerminalRun(state: RunState): boolean {
   return TERMINAL_RUN_STATES.includes(state);
 }
 
+/** One inline activity step (L4): a tool the agent used mid-turn. */
+export interface LiveStep {
+  kind: 'command' | 'file' | 'denial' | 'tool';
+  detail: string;
+  tool?: string;
+}
+
 export interface LiveRun {
   runId: string;
   state: RunState;
   deltaText: string;
+  /** tool activity streamed during the turn, in order — the steps that turn a
+   *  multi-step "Working…" blob into a visible sequence */
+  steps?: LiveStep[];
   killOutcome?: string;
   error?: string;
+}
+
+/**
+ * A one-line, human presentation of an inline step (L4). Kept pure and separate
+ * from the component so the "Bash: npm test" / "Blocked: WebFetch" formatting is
+ * unit-tested rather than buried in JSX.
+ */
+export function describeStep(step: LiveStep): { icon: string; label: string } {
+  switch (step.kind) {
+    case 'command':
+      return { icon: '▸', label: `${step.tool ?? 'Bash'}: ${step.detail}` };
+    case 'file':
+      return { icon: '✎', label: `${step.tool ?? 'Edit'}: ${step.detail}` };
+    case 'denial':
+      return { icon: '⛔', label: `Blocked: ${step.tool ?? step.detail}` };
+    case 'tool':
+      return {
+        icon: '•',
+        label: step.detail ? `${step.tool ?? 'Tool'}: ${step.detail}` : (step.tool ?? 'Tool'),
+      };
+  }
 }
 
 /** The authoritative fields the reconcile needs from a REST `GET /api/runs/:id`. */

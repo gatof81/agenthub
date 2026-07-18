@@ -89,7 +89,7 @@ verbatim.
 | --- | --- | --- |
 | `run.state` | `{runId, state, error?, killOutcome?, sweepResult?}` | every state-machine transition (05) |
 | `message.delta` | `{runId, messageId, text}` | assistant text chunks from `output` events |
-| `activity.item` | `{runId, kind: "command" \| "file" \| "denial", detail}` | derived from `tool_use` / `permission_denial` |
+| `activity.item` | `{runId, kind: "command" \| "file" \| "denial" \| "tool", detail, tool?}` | derived from `tool_use` / `permission_denial`; **every** tool surfaces — a shell command and a file edit keep their kinds, any other tool (Grep, WebFetch, an MCP tool) is a generic `tool` step carrying its name, so a client can render the turn's steps inline (11 §6) |
 | `run.usage` | `{runId, totalCostUsd?, numTurns?, source}` | terminal runs (FR-18; `source: "cancelled-unknown"` has null cost) |
 | `run.summary` | the persisted `RunSummary` object (FR-42) | terminal runs, after the terminal transition |
 | `project.state` | `{status}` | provisioning lifecycle (UC-01, FR-33) — emitted on every conversation stream of the project |
