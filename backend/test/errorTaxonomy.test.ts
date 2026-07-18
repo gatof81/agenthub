@@ -178,6 +178,35 @@ describe('seam error classification (08 §6)', () => {
     expect(final.state).toBe('failed');
     expect(final.errorCode).toBe('seam_unavailable');
   });
+
+  it('a mid-stream seam drop keeps the partial text (the catch path, before the post-loop assembly)', async () => {
+    const { store, orch, conversation } = await harness();
+    const orchAny = orch as unknown as { adapter: { runTurn: () => AsyncIterable<unknown> } };
+    // the seam streams some text, then its generator throws — the container
+    // fell over mid-turn after the user had already read something
+    orchAny.adapter.runTurn = (): AsyncIterable<unknown> => {
+      const items: unknown[] = [
+        { kind: 'started', execId: 'e1', pgid: 1, requestId: 'r1' },
+        { kind: 'event', type: 'output', payload: { blockType: 'text', text: 'partial before the drop' } },
+      ];
+      let i = 0;
+      return {
+        [Symbol.asyncIterator]: () => ({
+          next: () =>
+            i < items.length
+              ? Promise.resolve({ value: items[i++], done: false })
+              : Promise.reject(new Error('ECONNRESET')),
+        }),
+      };
+    };
+    const { run } = orch.send(conversation.id, 'review');
+    await orch.idle();
+    const final = store.getRun(run.id)!;
+    expect(final.state).toBe('failed');
+    expect(final.errorCode).toBe('seam_unavailable');
+    const assistant = store.listMessages(conversation.id, {}).filter((m) => m.role === 'assistant');
+    expect(assistant.at(-1)?.content).toContain('partial before the drop');
+  });
 });
 
 describe('max_turns classification (ADR-003, L3)', () => {

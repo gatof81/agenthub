@@ -1041,6 +1041,10 @@ export class Orchestrator {
           errorDetail: refused
             ? `seam ${status}: ${raw} — session lastKnownState=${lastKnownState} (FR-33)`
             : raw,
+          // a mid-stream seam drop (container fell over after yielding text) is
+          // still a run the user was reading — keep what streamed (this branch
+          // is before the post-loop partialText, so assemble here too)
+          assistantContent: assembleAssistantText(this.store.getEvents(run.id)) || null,
           userMessageContent: message.content,
           warnings: this.excerpts(stderr),
           runtimeSessionId,
