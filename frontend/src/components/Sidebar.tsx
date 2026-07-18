@@ -59,6 +59,53 @@ function StatusBadge({ project }: { project: Project }): React.JSX.Element | nul
   return <span className={`badge status-${project.status}`}>{project.status}</span>;
 }
 
+/** A workspace to create from or bind (ADR-006, FR-45/FR-49). */
+type WorkspaceOption = { key: string; label: string; choice: WorkspaceChoice };
+
+/** The workspace has no default (ADR-006): the first option is a starting
+ * selection, not a fallback, and `choice` is null only when there is nothing to
+ * pick (creation/bind stays disabled rather than sending a guess the API 422s). */
+function useWorkspaceChoice(options: WorkspaceOption[]): {
+  effectiveKey: string;
+  setKey: (key: string) => void;
+  choice: WorkspaceChoice | null;
+} {
+  const [key, setKey] = useState('');
+  const effectiveKey = key || (options[0]?.key ?? '');
+  const choice = options.find((o) => o.key === effectiveKey)?.choice ?? null;
+  return { effectiveKey, setKey, choice };
+}
+
+/** The template-or-session picker. One option needs no menu — a single-option
+ * select asks a question with one answer — so it renders nothing at ≤1 option. */
+function WorkspaceSelect({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  options: WorkspaceOption[];
+  value: string;
+  onChange: (key: string) => void;
+  ariaLabel: string;
+}): React.JSX.Element | null {
+  if (options.length <= 1) return null;
+  return (
+    <select
+      className="template-select"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={ariaLabel}
+    >
+      {options.map((o) => (
+        <option key={o.key} value={o.key}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function ProjectsHome(props: Props): React.JSX.Element {
   const [newProjectName, setNewProjectName] = useState('');
   // The workspace has no default (ADR-006): the first option is a starting
@@ -67,11 +114,10 @@ function ProjectsHome(props: Props): React.JSX.Element {
   // choice is template-or-session (FR-49): binding an existing owner
   // session creates nothing and is listed first — it is the corrected
   // model's primary path (ADR-007).
-  const [workspaceKey, setWorkspaceKey] = useState('');
   const bindableSessions = (props.sessionListing?.sessions ?? []).filter(
     (s) => s.projectId === null,
   );
-  const workspaceOptions: Array<{ key: string; label: string; choice: WorkspaceChoice }> = [
+  const workspaceOptions: WorkspaceOption[] = [
     ...bindableSessions.map((s) => ({
       key: `s:${s.sessionId}`,
       label: `Bind session: ${s.name}${s.ownerUsername !== null ? ` (${s.ownerUsername})` : ''}`,
@@ -83,8 +129,11 @@ function ProjectsHome(props: Props): React.JSX.Element {
       choice: { kind: 'template', id: t.id } as WorkspaceChoice,
     })),
   ];
-  const effectiveKey = workspaceKey || (workspaceOptions[0]?.key ?? '');
-  const effectiveChoice = workspaceOptions.find((o) => o.key === effectiveKey)?.choice ?? null;
+  const {
+    effectiveKey,
+    setKey: setWorkspaceKey,
+    choice: effectiveChoice,
+  } = useWorkspaceChoice(workspaceOptions);
   return (
     <nav className="sidebar">
       <h2>Projects</h2>
@@ -119,24 +168,14 @@ function ProjectsHome(props: Props): React.JSX.Element {
             }
           }}
         />
-        {/* The workspace is the project's and has no default (ADR-006, FR-45),
-            so it is chosen here: bind an existing session (FR-49) or create
-            from a template. One option needs no menu — a single-option select
-            would be asking a question with one answer. */}
-        {workspaceOptions.length > 1 && (
-          <select
-            className="template-select"
-            value={effectiveKey}
-            onChange={(e) => setWorkspaceKey(e.target.value)}
-            aria-label="Project workspace"
-          >
-            {workspaceOptions.map((o) => (
-              <option key={o.key} value={o.key}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        )}
+        {/* The workspace is the project's and has no default (ADR-006, FR-45):
+            bind an existing session (FR-49) or create from a template. */}
+        <WorkspaceSelect
+          options={workspaceOptions}
+          value={effectiveKey}
+          onChange={setWorkspaceKey}
+          ariaLabel="Project workspace"
+        />
         {workspaceOptions.length === 0 && (
           <p className="empty-hint">
             No workspace templates configured and no bindable sessions visible — a project cannot
@@ -223,31 +262,21 @@ function SpecialistBind({
   workspaceOptions,
   onBind,
 }: {
-  workspaceOptions: Array<{ key: string; label: string; choice: WorkspaceChoice }>;
+  workspaceOptions: WorkspaceOption[];
   onBind: (workspace: WorkspaceChoice) => void;
 }): React.JSX.Element {
-  const [key, setKey] = useState('');
-  const effectiveKey = key || (workspaceOptions[0]?.key ?? '');
-  const choice = workspaceOptions.find((o) => o.key === effectiveKey)?.choice ?? null;
+  const { effectiveKey, setKey, choice } = useWorkspaceChoice(workspaceOptions);
   if (workspaceOptions.length === 0) {
     return <span className="muted session-meta">no session or template to bind</span>;
   }
   return (
     <div className="specialist-bind">
-      {workspaceOptions.length > 1 && (
-        <select
-          className="template-select"
-          value={effectiveKey}
-          onChange={(e) => setKey(e.target.value)}
-          aria-label="Specialist session"
-        >
-          {workspaceOptions.map((o) => (
-            <option key={o.key} value={o.key}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      )}
+      <WorkspaceSelect
+        options={workspaceOptions}
+        value={effectiveKey}
+        onChange={setKey}
+        ariaLabel="Specialist session"
+      />
       <button
         className="mini"
         onClick={() => choice !== null && onBind(choice)}

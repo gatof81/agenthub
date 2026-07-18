@@ -31,6 +31,20 @@ import type { TextSize } from '../lib/textSize.js';
 import { Inspector } from './Inspector.js';
 import { Markdown } from './Markdown.js';
 
+/**
+ * The conversation SSE frames this handler consumes, as a discriminated union
+ * keyed on `event`, so each payload is read with a checked type instead of a
+ * per-branch `as` cast — one boundary assertion (`e as ConversationEvent`)
+ * replaces four. It models the fields this handler reads from each 08 §3 frame,
+ * not the full wire payload (e.g. `message.delta`'s `messageId` and
+ * `run.state`'s `sweepResult` are carried on the wire but unused here).
+ */
+type ConversationEvent =
+  | { event: 'run.state'; data: { runId: string; state: RunState; killOutcome?: string; error?: string } }
+  | { event: 'message.delta'; data: { runId: string; text: string } }
+  | { event: 'activity.item'; data: { runId: string } & LiveStep }
+  | { event: 'run.summary' | 'run.usage'; data: { runId: string } };
+
 /** Contextual actions the thread exposes to the command palette (11 §4, B1-12). */
 export interface ThreadCommands {
   focusComposer: () => void;
@@ -178,8 +192,9 @@ export function Thread({
   useEffect(() => {
     const onEvent = (e: SseEvent): void => {
       lastEventAtRef.current = Date.now();
-      if (e.event === 'run.state') {
-        const d = e.data as { runId: string; state: RunState; killOutcome?: string; error?: string };
+      const ev = e as ConversationEvent;
+      if (ev.event === 'run.state') {
+        const d = ev.data;
         setLiveRun((prev) => {
           // the tracked run's own transition
           if (prev && prev.runId === d.runId) {
@@ -213,18 +228,18 @@ export function Thread({
           // this very frame was the one a reconnecting client had missed.
           void refetch();
         }
-      } else if (e.event === 'message.delta') {
+      } else if (ev.event === 'message.delta') {
         // fold streamed text into the turn's bubbles (A)
-        const d = e.data as { runId: string; text: string };
+        const d = ev.data;
         setLiveRun((prev) =>
           prev && prev.runId === d.runId
             ? { ...prev, segments: appendDelta(prev.segments, d.text) }
             : { runId: d.runId, state: 'streaming', segments: appendDelta([], d.text), startedAt: Date.now() },
         );
-      } else if (e.event === 'activity.item') {
+      } else if (ev.event === 'activity.item') {
         // a tool step closes the current text bubble and becomes its own segment
         // (A) — a multi-step turn reads as text → tool → text, not one blob
-        const d = e.data as { runId: string } & LiveStep;
+        const d = ev.data;
         setLiveRun((prev) =>
           prev && prev.runId === d.runId
             ? {
@@ -237,8 +252,8 @@ export function Thread({
             : prev,
         );
         void api.getRun(d.runId).then(setRunDetail);
-      } else if (e.event === 'run.summary' || e.event === 'run.usage') {
-        const d = e.data as { runId: string };
+      } else if (ev.event === 'run.summary' || ev.event === 'run.usage') {
+        const d = ev.data;
         void api.getRun(d.runId).then(setRunDetail);
       }
     };
