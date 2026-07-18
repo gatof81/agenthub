@@ -396,7 +396,7 @@ export function App(): React.JSX.Element {
 
   return (
     <div
-      className={`app ${selectedConversation ? 'has-conversation' : ''}`}
+      className={`app ${selectedConversation ? 'has-conversation' : ''} ${selectedProject ? 'has-project' : ''}`}
       style={{ '--chat-font': TEXT_SIZES[textSize] } as React.CSSProperties}
     >
       <Sidebar

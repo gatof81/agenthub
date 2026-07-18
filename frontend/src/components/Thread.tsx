@@ -449,7 +449,16 @@ export function Thread({
           </button>
         </header>
 
-        <div className="messages" ref={messagesRef} onScroll={onMessagesScroll}>
+        {/* role="log" + polite live region: a screen reader announces new
+            messages and the run's state changes as they stream in (a11y) */}
+        <div
+          className="messages"
+          ref={messagesRef}
+          onScroll={onMessagesScroll}
+          role="log"
+          aria-live="polite"
+          aria-label="Conversation messages"
+        >
           {hasMore && (
             <button
               type="button"

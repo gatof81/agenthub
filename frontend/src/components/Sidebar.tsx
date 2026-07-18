@@ -20,6 +20,10 @@ import type {
 } from '../lib/api.js';
 import { ArchiveIcon, BackIcon } from './icons.js';
 
+/** Seam session states that have a styled badge; anything else falls back to a
+ * neutral `session-unknown` instead of an unstyled base badge. */
+const SESSION_BADGE = new Set(['running', 'stopped', 'failed', 'terminated']);
+
 interface Props {
   /** session discovery (N1, FR-48, ADR-007); null until loaded / on seam hiccup */
   sessionListing: SessionListing | null;
@@ -317,7 +321,9 @@ function SessionsSection({ listing }: { listing: SessionListing }): React.JSX.El
                 {s.projectName !== null ? ` · project: ${s.projectName}` : ''}
               </span>
             </div>
-            <span className={`badge session-${s.status}`}>{s.status}</span>
+            <span className={`badge session-${SESSION_BADGE.has(s.status) ? s.status : 'unknown'}`}>
+              {s.status}
+            </span>
           </li>
         ))}
         {sessions.length === 0 && <li className="empty-hint">No sessions visible.</li>}
