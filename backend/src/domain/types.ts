@@ -42,6 +42,7 @@ export type RunErrorCode =
   | 'exec_refused'
   | 'run_timeout'
   | 'budget_exceeded'
+  | 'max_turns'
   | 'cancelled'
   | 'runtime_error'
   | 'internal';

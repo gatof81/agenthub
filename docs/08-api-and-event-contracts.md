@@ -147,6 +147,7 @@ Machine-readable `code` on run errors and API error bodies:
 | `exec_refused` | seam 409/429 (container down, caps) | run `failed` (FR-33 context attached) |
 | `run_timeout` | wall-clock cap hit (FR-17) | run `failed` |
 | `budget_exceeded` | lagging budget estimate crossed (ADR-003) | run `failed` |
+| `max_turns` | ran out of turns before finishing — CLI `result.subtype: error_max_turns` (ADR-003) | run `failed`; a soft stop, so the partial text produced before the limit is kept as the message |
 | `cancelled` | user cancel (FR-20) | run `cancelled` (not an error code on the API) |
 | `runtime_error` | CLI exited non-zero without result / `error` event | run `failed`, stderr excerpt attached (capped) |
 | `session_gone` | restore target's substrate session no longer exists upstream — its workspace went with it (FR-44) | `409` on `PATCH /api/projects/:id {status:"ready"}`; the project **stays archived** |

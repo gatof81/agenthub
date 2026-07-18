@@ -75,6 +75,7 @@ export function reconcileLiveRun(current: LiveRun | null, run: AuthoritativeRun)
 const ERROR_LABELS: Record<string, string> = {
   budget_exceeded: 'Budget exceeded',
   run_timeout: 'Timed out',
+  max_turns: 'Reached the turn limit',
   exec_refused: 'Runtime refused the run',
   seam_unavailable: 'Runtime unavailable',
 };

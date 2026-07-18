@@ -55,7 +55,7 @@ claude -p --output-format stream-json --verbose
 | `assistant` / `user` turns | `output` | assistant text deltas feed the UI stream |
 | `tool_use` blocks | `tool_use` | activity projection source (FR-14) |
 | result `permission_denials[]` | one `permission_denial` per entry | first-class outcome → `completed_with_denials` (FR-15) |
-| `result` | terminal metadata + `UsageRecord` | cost/usage/num_turns; absent for killed runs → `source: cancelled-unknown` (FR-18) |
+| `result` | terminal metadata + `UsageRecord` | cost/usage/num_turns; absent for killed runs → `source: cancelled-unknown` (FR-18). Its `subtype` is kept: `error_max_turns` (verified on CLI 2.1.212) maps to error code `max_turns` rather than the generic `runtime_error`, so a run that merely ran out of turns is distinguishable from a crash |
 | anything else (`rate_limit_event`, seam `dropped`, future types) | `unknown` (verbatim, capped) | FR-16 |
 
 ### Budget cap (FR-17) — enforcement strategy

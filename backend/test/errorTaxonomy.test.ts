@@ -175,3 +175,43 @@ describe('seam error classification (08 §6)', () => {
     expect(final.errorCode).toBe('seam_unavailable');
   });
 });
+
+describe('max_turns classification (ADR-003, L3)', () => {
+  // The shape CLI 2.1.212 emits on --max-turns exhaustion: a real result event
+  // (is_error, subtype error_max_turns, null result) after some partial work —
+  // NOT a killed stream, so no sweep is involved.
+  const maxTurnsStream = [
+    JSON.stringify({
+      type: 'system',
+      subtype: 'init',
+      session_id: 'S',
+      model: 'claude-sonnet-5',
+      claude_code_version: '2.1.212',
+    }),
+    JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Working on it…' }] } }),
+    JSON.stringify({
+      type: 'result',
+      subtype: 'error_max_turns',
+      is_error: true,
+      result: null,
+      num_turns: 2,
+      session_id: 'S',
+      total_cost_usd: 0.02,
+      usage: {},
+    }),
+  ];
+
+  it('error_max_turns → failed/max_turns, and keeps the partial text as the message', async () => {
+    const { store, port, orch, conversation } = await harness();
+    port.enqueueFixture({ streamLines: maxTurnsStream });
+    const { run } = orch.send(conversation.id, 'do a lot in one turn');
+    await orch.idle();
+    const final = store.getRun(run.id)!;
+    expect(final.state).toBe('failed');
+    expect(final.errorCode).toBe('max_turns'); // not the generic runtime_error
+    expect(final.errorDetail).toContain('turn limit');
+    // the work done before the limit is not thrown away
+    const assistant = store.listMessages(conversation.id, {}).filter((m) => m.role === 'assistant');
+    expect(assistant.at(-1)?.content).toContain('Working on it');
+  });
+});

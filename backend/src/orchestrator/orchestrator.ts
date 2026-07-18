@@ -1142,6 +1142,12 @@ export class Orchestrator {
       return;
     }
 
+    // Running OUT OF TURNS is a soft stop, not a crash: the CLI reports it as
+    // `error_max_turns` (verified against 2.1.212). It used to collapse into a
+    // generic `runtime_error` with an "exit …" detail, indistinguishable from a
+    // real failure. Give it its own code and keep the partial text the agent
+    // produced before the limit — that work is usually the point of the turn.
+    const maxTurns = resultMeta?.subtype === 'error_max_turns';
     this.finalize(current, from, 'failed', {
       usageSource: resultMeta ? 'result-event' : 'error-partial',
       ...(resultMeta
@@ -1153,10 +1159,15 @@ export class Orchestrator {
             },
           }
         : {}),
-      errorCode: 'runtime_error',
-      errorDetail: `exit ${String(exitMeta?.exitCode ?? 'unknown')}${
-        stderr.length > 0 ? `: ${this.excerpts(stderr)[0]}` : ''
-      }`,
+      errorCode: maxTurns ? 'max_turns' : 'runtime_error',
+      errorDetail: maxTurns
+        ? `reached the turn limit (${resultMeta?.numTurns ?? '?'} turns; cap ${current.capsSnapshot.maxTurns})`
+        : `exit ${String(exitMeta?.exitCode ?? 'unknown')}${
+            stderr.length > 0 ? `: ${this.excerpts(stderr)[0]}` : ''
+          }`,
+      ...(maxTurns
+        ? { assistantContent: assembleAssistantText(this.store.getEvents(run.id)) || null }
+        : {}),
       userMessageContent: message.content,
       warnings: this.excerpts(stderr),
       runtimeSessionId,
