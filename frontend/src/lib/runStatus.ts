@@ -1,8 +1,10 @@
 /**
  * Run-status reconciliation (UX-03, NFR-07). The thread's "Working…" indicator
  * is driven by `liveRun`, an in-memory accumulation of live SSE frames. The
- * terminal `run.state` frame carries no id and is NOT replayable (broadcaster
- * only ids replayable events), so a socket drop around finalize — or simply
+ * terminal `run.state` frame carries no SSE replay id and is NOT replayable
+ * (the broadcaster only ids replayable events; the frame still identifies its
+ * run via `runId` in the payload — it just has no Last-Event-ID cursor), so a
+ * socket drop around finalize — or simply
  * having no subscriber connected at that instant — loses it, and the UI would
  * sit on "Working…" forever for a run that has finished.
  *
