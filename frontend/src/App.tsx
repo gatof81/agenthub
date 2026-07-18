@@ -10,6 +10,7 @@ import {
   clearToken,
   getToken,
   setToken,
+  setUnauthorizedHandler,
   type Conversation,
   type Project,
   type SessionListing,
@@ -71,6 +72,18 @@ export function App(): React.JSX.Element {
   // through to the gate. `probed` gates the first render so the form doesn't
   // flash before the probe resolves.
   const [probed, setProbed] = useState(getToken() !== null);
+  // A live 401 means the credential went stale mid-session (token revoked, or an
+  // Access JWT expired). Drop it and re-run auth: the probe below re-authorizes
+  // silently if Access is still valid, otherwise the token gate returns — no
+  // more permanent 401 with a dead UI and no way back.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      clearToken();
+      setAuthed(false);
+      setProbed(false);
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
   useEffect(() => {
     if (authed) return;
     let cancelled = false;

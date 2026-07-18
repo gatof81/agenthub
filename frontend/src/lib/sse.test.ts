@@ -6,8 +6,9 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { subscribeConversation } from './sse.js';
+import { notifyUnauthorized } from './api.js';
 
-vi.mock('./api.js', () => ({ getToken: () => 'test-token' }));
+vi.mock('./api.js', () => ({ getToken: () => 'test-token', notifyUnauthorized: vi.fn() }));
 
 /**
  * A body stream a test can feed bytes into or leave silent (a frozen socket).
@@ -118,6 +119,19 @@ describe('SSE client resilience (B3-03)', () => {
     expect(connections[0]!.signal.aborted).toBe(false);
     expect(connections).toHaveLength(1); // never reconnected
 
+    handle.close();
+  });
+
+  it('routes a 401 to the unauthorized handler instead of retrying silently', async () => {
+    vi.mocked(notifyUnauthorized).mockClear();
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 401 })) as unknown as typeof fetch;
+    const handle = subscribeConversation('c1', () => {}, () => {}, {
+      stallTimeoutMs: 30_000,
+      fetchImpl,
+      wakeTarget: null,
+    });
+    await flush();
+    expect(vi.mocked(notifyUnauthorized)).toHaveBeenCalled();
     handle.close();
   });
 
