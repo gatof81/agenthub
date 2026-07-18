@@ -1,6 +1,6 @@
 # 11 — UX Specification (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-17
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-18
 
 The model-relevant UX: device targets, information architecture, the surfaces
 each device needs, and how the client consumes the event stream. This is a
@@ -175,6 +175,14 @@ marks cost `unknown`. The chip links to the activity inspector for the full
 detail (error detail, denials, cost). A plain `completed` chip is minimal (an
 optional cost); while a run is active the live spinner owns the display and the
 chip is absent.
+
+**A partial answer is never discarded.** Whatever the agent streamed before a
+non-completed end — a `budget_exceeded` or `run_timeout` kill, a user `cancel`,
+a crash, a `max_turns` stop — is persisted as the assistant message and shown
+above the outcome chip, not cleared with the live view. Before this, a failed
+run saved no message, so the text the reader was mid-way through vanished and
+only the error remained. The message reads as a normal (if partial) answer with
+the outcome chip beneath it explaining how it ended.
 
 ## 7. Deferred (later phases)
 
