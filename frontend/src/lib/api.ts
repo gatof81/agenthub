@@ -87,6 +87,19 @@ export type RunState =
   | 'interrupted'
   | 'failed';
 
+/**
+ * The execution-target selector's decision, recorded on a run in automatic mode
+ * (ADR-008, N4a). `null` for a direct run, whose session is derived from the
+ * conversation with no selector in the loop.
+ */
+export interface ExecutionTargetDecision {
+  specialistId: string;
+  selectedSessionId: string;
+  reason: string;
+  alternativesConsidered: string[];
+  workspaceStrategy: string;
+}
+
 export interface Run {
   id: string;
   conversationId: string;
@@ -95,6 +108,10 @@ export interface Run {
   killOutcome: string | null;
   errorCode: string | null;
   errorDetail: string | null;
+  /** the session the selector chose (automatic mode); null for a direct run */
+  targetSessionId: string | null;
+  /** who ran, where, and why (automatic mode); null for a direct run */
+  targetDecision: ExecutionTargetDecision | null;
   /** ISO time the run began streaming — seeds the elapsed clock when a
    *  conversation is opened mid-run (F) */
   startedAt: string | null;

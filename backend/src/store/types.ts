@@ -11,6 +11,7 @@ import type {
   Conversation,
   ConversationMode,
   ConversationStatus,
+  ExecutionTargetDecision,
   KillOutcome,
   Message,
   Project,
@@ -179,6 +180,14 @@ export interface HubStore {
   finalizeRun(input: FinalizeRunInput): Run;
   /** Write-once (I-8): rejects overwrite of an already-recorded value. */
   setRunInitMeta(runId: string, meta: { cliVersion: string; model: string }): void;
+  /**
+   * Record the execution-target selector's decision on a run (ADR-008,
+   * automatic mode, N4a; migration 007). Called once at dispatch, before the
+   * turn executes, so the run inspector shows who ran, where, and why —
+   * durably, not only in flight. Direct runs never call this (their session is
+   * derived, not selected), so `targetSessionId`/`targetDecision` stay null.
+   */
+  recordRunTarget(runId: string, targetSessionId: string, decision: ExecutionTargetDecision): void;
   getRun(id: string): Run | undefined;
   getRunByMessage(messageId: string): Run | undefined;
   /** Reconciler + queue rebuild (09 §2 partial index). */

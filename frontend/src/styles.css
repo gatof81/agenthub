@@ -573,7 +573,7 @@ button.retry:hover { background: var(--raised); border-color: var(--accent); }
 .inspector ul.mono { list-style: none; padding: 0; margin: 0 0 10px; }
 .inspector code { font-size: 12px; word-break: break-all; }
 .inspector .denials { color: var(--warn); }
-.summary { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+.summary, .routing { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
 
 .muted { color: var(--muted); }
 .error { color: var(--danger); }

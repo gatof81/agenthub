@@ -266,14 +266,18 @@ export interface Run {
   errorCode: RunErrorCode | null;
   errorDetail: string | null;
   /**
-   * The session this run executes in when chosen by the execution-target
-   * selector (automatic mode, N4a). Absent for a direct run, which derives its
-   * session from the conversation (project primary or the pinned specialist's).
-   * (Optional until migration 007 + the store wiring make it a persisted column.)
+   * The session the execution-target selector chose for this run (automatic
+   * mode, N4a; migration 007). `null` for a direct run, which derives its
+   * session structurally from the conversation (project primary, or the pinned
+   * specialist's) with no selector in the loop.
    */
-  targetSessionId?: string | null;
-  /** The recorded selector decision (automatic mode); absent for a direct run. */
-  targetDecision?: ExecutionTargetDecision | null;
+  targetSessionId: string | null;
+  /**
+   * The recorded selector decision (automatic mode; migration 007) — the audit
+   * surface for "who ran, where, and why" where no immutable conversation
+   * agentId exists. `null` for a direct run.
+   */
+  targetDecision: ExecutionTargetDecision | null;
   createdAt: string;
   startedAt: string | null;
   endedAt: string | null;

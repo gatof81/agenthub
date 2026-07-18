@@ -412,11 +412,14 @@ export function buildApp(deps: ApiDeps): express.Express {
 
   // — conversations —
   app.post('/api/projects/:id/conversations', (req, res) => {
-    const { title, agentId } = (req.body ?? {}) as Record<string, unknown>;
+    const { title, agentId, mode } = (req.body ?? {}) as Record<string, unknown>;
+    // `automatic` routes each turn (N4a, ADR-008); default `direct` pins agentId.
+    const validMode = mode === 'automatic' || mode === 'direct' ? mode : undefined;
     const conversation = orchestrator.createConversation({
       projectId: req.params.id,
       ...(typeof title === 'string' && title.trim() !== '' ? { title } : {}),
       ...(typeof agentId === 'string' ? { agentId } : {}),
+      ...(validMode ? { mode: validMode } : {}),
     });
     res.status(201).json({ conversation }); // instant — no provisioning (ADR-005)
   });
