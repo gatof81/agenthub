@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import {
   describeRunOutcome,
   describeStep,
+  formatElapsed,
   isTerminalRun,
   reconcileLiveRun,
   TERMINAL_RUN_STATES,
@@ -168,5 +169,20 @@ describe('describeStep', () => {
       icon: '•',
       label: 'TodoWrite',
     });
+  });
+});
+
+describe('formatElapsed', () => {
+  it('formats sub-minute, minutes, and hours; pads seconds/minutes', () => {
+    expect(formatElapsed(0)).toBe('0:00');
+    expect(formatElapsed(42_000)).toBe('0:42');
+    expect(formatElapsed(65_000)).toBe('1:05');
+    expect(formatElapsed(185_000)).toBe('3:05');
+    expect(formatElapsed(3_600_000)).toBe('1:00:00');
+    expect(formatElapsed(3_723_000)).toBe('1:02:03');
+  });
+
+  it('clamps a negative (clock skew) to zero', () => {
+    expect(formatElapsed(-5_000)).toBe('0:00');
   });
 });

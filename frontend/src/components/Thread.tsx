@@ -18,6 +18,7 @@ import { subscribeConversation, type SseEvent } from '../lib/sse.js';
 import {
   describeRunOutcome,
   describeStep,
+  formatElapsed,
   isTerminalRun,
   reconcileLiveRun,
   type LiveRun,
@@ -31,7 +32,8 @@ import { Markdown } from './Markdown.js';
 /** Contextual actions the thread exposes to the command palette (11 §4, B1-12). */
 export interface ThreadCommands {
   focusComposer: () => void;
-  /** null while unavailable (empty draft, run active, or project not ready). */
+  /** null while unavailable (empty draft or project not ready); a non-empty
+   *  draft sent during an active run queues behind it. */
   sendDraft: (() => void) | null;
   /** null unless a run is active. */
   cancelRun: (() => void) | null;
@@ -71,7 +73,18 @@ export function Thread({
   const [draft, setDraft] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  // Runs sent while another is active queue behind it (the backend serializes
+  // per workspace); their user message shows a "queued" pill until they start.
+  const [queuedRunIds, setQueuedRunIds] = useState<Set<string>>(() => new Set());
+  // A 1 s tick that re-renders the elapsed clock while a run is active.
+  const [clock, setClock] = useState<number>(() => Date.now());
+  // Whether the reader is pinned to the bottom — auto-scroll only follows new
+  // content when they are, so scrolling up to re-read is never yanked back.
+  const [atBottom, setAtBottom] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const atBottomRef = useRef(true);
+  atBottomRef.current = atBottom;
   const composerRef = useRef<HTMLTextAreaElement>(null);
   // Read through refs so refetch stays stable (keyed on conversation.id) and
   // the SSE subscription is not torn down every time the title updates.
@@ -124,11 +137,33 @@ export function Thread({
       lastEventAtRef.current = Date.now();
       if (e.event === 'run.state') {
         const d = e.data as { runId: string; state: RunState; killOutcome?: string; error?: string };
-        setLiveRun((prev) =>
-          prev?.runId === d.runId
-            ? { ...prev, state: d.state, killOutcome: d.killOutcome, error: d.error }
-            : { runId: d.runId, state: d.state, deltaText: '', killOutcome: d.killOutcome, error: d.error },
-        );
+        setLiveRun((prev) => {
+          // the tracked run's own transition
+          if (prev && prev.runId === d.runId) {
+            return { ...prev, state: d.state, killOutcome: d.killOutcome, error: d.error };
+          }
+          // a DIFFERENT run reporting while ours is still active → it is queued
+          // behind us; don't let it hijack the live view (the old overwrite bug)
+          if (prev && !isTerminalRun(prev.state)) return prev;
+          // the stage is free → this run takes it, starting its elapsed clock
+          return {
+            runId: d.runId,
+            state: d.state,
+            deltaText: '',
+            startedAt: Date.now(),
+            killOutcome: d.killOutcome,
+            error: d.error,
+          };
+        });
+        // a queued run stops being "queued" once it starts running or ends
+        if (d.state !== 'queued') {
+          setQueuedRunIds((q) => {
+            if (!q.has(d.runId)) return q;
+            const next = new Set(q);
+            next.delete(d.runId);
+            return next;
+          });
+        }
         if (isTerminalRun(d.state)) {
           // refetch pulls the finalized message and reconciles the indicator to
           // the store's terminal state (→ null); it also settles the case where
@@ -164,9 +199,23 @@ export function Thread({
     return () => handle.close();
   }, [conversation.id, refetch]);
 
+  // Auto-scroll follows new content ONLY when the reader is already at the
+  // bottom — reading earlier output (scrolled up) is never interrupted.
   useEffect(() => {
+    if (atBottomRef.current) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, liveRun?.deltaText, liveRun?.steps?.length]);
+
+  const onMessagesScroll = useCallback(() => {
+    const el = messagesRef.current;
+    if (!el) return;
+    // 80px slack so a nearly-bottom reader still counts as pinned
+    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+  }, []);
+
+  const jumpToLatest = useCallback(() => {
+    setAtBottom(true);
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, liveRun?.deltaText]);
+  }, []);
 
   const send = useCallback(async () => {
     const content = draft.trim();
@@ -186,7 +235,18 @@ export function Thread({
     try {
       const res = await api.sendMessage(conversation.id, content);
       lastEventAtRef.current = Date.now();
-      setLiveRun({ runId: res.runId, state: res.runState, deltaText: '' });
+      // tie the optimistic message to its run so a queued turn can show as such
+      setMessages((prev) =>
+        prev.map((m) => (m.id === optimistic.id ? { ...m, runId: res.runId } : m)),
+      );
+      const busy = liveRunRef.current !== null && !isTerminalRun(liveRunRef.current.state);
+      if (busy) {
+        // a run is already streaming — this one queues behind it (serialized per
+        // workspace); it takes the live stage via its own run.state when it starts
+        setQueuedRunIds((q) => new Set(q).add(res.runId));
+      } else {
+        setLiveRun({ runId: res.runId, state: res.runState, deltaText: '', startedAt: Date.now() });
+      }
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
       setDraft(content);
@@ -220,13 +280,24 @@ export function Thread({
     return () => clearInterval(timer);
   }, [active, liveRun?.runId, refetch]);
 
+  // Tick the elapsed clock once a second while a run is active (a long turn
+  // shows it is progressing, not hung).
+  useEffect(() => {
+    if (!active) return;
+    setClock(Date.now());
+    const t = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [active, liveRun?.runId]);
+
   // palette registration (B1-12): stable wrappers over refs so re-registration
   // happens only when availability flips, not on every keystroke
   const sendRef = useRef(send);
   sendRef.current = send;
   const cancelRef = useRef(cancel);
   cancelRef.current = cancel;
-  const canSend = draft.trim() !== '' && !active && projectStatus === 'ready';
+  // A non-empty draft can always be sent when the project is ready — if a run is
+  // active it queues behind it rather than being blocked.
+  const canSend = draft.trim() !== '' && projectStatus === 'ready';
   useEffect(() => {
     registerCommands({
       focusComposer: () => composerRef.current?.focus(),
@@ -284,17 +355,20 @@ export function Thread({
           </button>
         </header>
 
-        <div className="messages">
+        <div className="messages" ref={messagesRef} onScroll={onMessagesScroll}>
           {messages.map((m) => (
             <div key={m.id} className={`msg msg-${m.role}`}>
               {m.role === 'assistant' ? <Markdown>{m.content}</Markdown> : <pre>{m.content}</pre>}
+              {m.role === 'user' && m.runId && queuedRunIds.has(m.runId) && (
+                <span className="queued-pill">queued</span>
+              )}
             </div>
           ))}
           {liveRun && (
             <div className="msg msg-assistant msg-live">
               {liveRun.deltaText !== '' && <Markdown>{liveRun.deltaText}</Markdown>}
               {liveRun.steps && liveRun.steps.length > 0 && <RunSteps steps={liveRun.steps} />}
-              <RunStateBadge run={liveRun} />
+              <RunStateBadge run={liveRun} now={clock} />
             </div>
           )}
           {outcome && (
@@ -302,6 +376,12 @@ export function Thread({
           )}
           <div ref={bottomRef} />
         </div>
+
+        {!atBottom && (
+          <button className="jump-latest" onClick={jumpToLatest} aria-label="Jump to latest">
+            ↓ Latest
+          </button>
+        )}
 
         <footer className="composer">
           {sendError && <p className="error">{sendError} — message restored, try again.</p>}
@@ -316,19 +396,24 @@ export function Thread({
               }
             }}
             placeholder={
-              projectStatus === 'ready' ? 'Message the agent…' : `Project is ${projectStatus}…`
+              projectStatus !== 'ready'
+                ? `Project is ${projectStatus}…`
+                : active
+                  ? 'Queue a follow-up… (runs after the current one)'
+                  : 'Message the agent…'
             }
             disabled={projectStatus !== 'ready'}
           />
-          {active ? (
-            <button className="cancel" onClick={cancel}>
-              Cancel run
-            </button>
-          ) : (
+          <div className="composer-actions">
+            {active && (
+              <button className="cancel" onClick={cancel}>
+                Cancel run
+              </button>
+            )}
             <button onClick={() => void send()} disabled={draft.trim() === '' || projectStatus !== 'ready'}>
-              Send
+              {active ? 'Queue' : 'Send'}
             </button>
-          )}
+          </div>
         </footer>
       </main>
 
@@ -337,8 +422,9 @@ export function Thread({
   );
 }
 
-/** UX-03: every state visually distinct; UX-06: cancelled cost unknown. */
-function RunStateBadge({ run }: { run: LiveRun }): React.JSX.Element {
+/** UX-03: every state visually distinct; UX-06: cancelled cost unknown.
+ *  `now` is a 1 s tick so an active run shows a live elapsed clock. */
+function RunStateBadge({ run, now }: { run: LiveRun; now: number }): React.JSX.Element {
   const labels: Record<RunState, string> = {
     queued: 'Queued — waiting for the project workspace',
     starting: 'Starting…',
@@ -349,10 +435,13 @@ function RunStateBadge({ run }: { run: LiveRun }): React.JSX.Element {
     interrupted: 'Recovering…',
     failed: `Failed${run.error ? ` (${run.error})` : ''} — you can re-send`,
   };
+  const ticking = run.state === 'starting' || run.state === 'streaming';
+  const elapsed = ticking && run.startedAt ? formatElapsed(now - run.startedAt) : null;
   return (
     <span className={`badge state-${run.state}`}>
-      {(run.state === 'starting' || run.state === 'streaming') && <span className="spinner" />}
+      {ticking && <span className="spinner" />}
       {labels[run.state]}
+      {elapsed && <span className="elapsed">{elapsed}</span>}
     </span>
   );
 }

@@ -42,8 +42,24 @@ export interface LiveRun {
   /** tool activity streamed during the turn, in order — the steps that turn a
    *  multi-step "Working…" blob into a visible sequence */
   steps?: LiveStep[];
+  /** epoch ms when this run first took the stage — drives the elapsed clock */
+  startedAt?: number;
   killOutcome?: string;
   error?: string;
+}
+
+/**
+ * Elapsed wall-clock as `m:ss` (or `h:mm:ss` past an hour), for the "Working
+ * 0:42" clock on an active run — so a long turn shows it is progressing, not
+ * hung. Clamped at zero; a missing start reads as `0:00`.
+ */
+export function formatElapsed(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const s = total % 60;
+  const m = Math.floor(total / 60) % 60;
+  const h = Math.floor(total / 3600);
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
 /**
