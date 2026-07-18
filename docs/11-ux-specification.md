@@ -160,6 +160,15 @@ back as an empty workspace wearing the old project's name.
 - **Scrolling up to re-read is never interrupted.** Auto-scroll follows new
   content only while the reader is pinned to the bottom; once they scroll up it
   stops following and a "↓ Latest" affordance returns them.
+- **History is not truncated (E).** The read returns the newest page plus a
+  `hasMore` flag; when older messages exist a "load earlier" control pages them
+  in with `?before=<oldest id>`, so a long conversation is fully reachable
+  instead of silently cut at the page limit.
+- **Opening a conversation mid-run shows it immediately (F).** On open the
+  client reads the latest run; if it is still active it seeds the live turn from
+  the run's state, `startedAt`, and `segments` (its partial bubbles) — the
+  working indicator, elapsed clock and partial text appear at once instead of a
+  blank wait for the next SSE frame.
 - iPhone backgrounding drops the SSE connection routinely — reconnect-from-REST
   must be seamless, not an error state (a mobile-first correctness requirement,
   not an edge case).
