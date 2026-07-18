@@ -87,6 +87,10 @@ export function Thread({
   const [atBottom, setAtBottom] = useState(true);
   // Whether older messages exist before the loaded page (E).
   const [hasMore, setHasMore] = useState(false);
+  // Guards "load earlier" against a double-click that would prepend the same
+  // batch twice — the ref blocks synchronously, the state disables the button.
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const loadingEarlierRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
@@ -146,10 +150,17 @@ export function Thread({
   // prepend it. The reader is not at the bottom, so auto-scroll won't jump.
   const loadEarlier = useCallback(async () => {
     const oldest = messages[0];
-    if (!oldest) return;
-    const older = await api.getConversation(conversation.id, { before: oldest.id });
-    setMessages((prev) => [...older.messages, ...prev]);
-    setHasMore(older.hasMore);
+    if (!oldest || loadingEarlierRef.current) return;
+    loadingEarlierRef.current = true;
+    setLoadingEarlier(true);
+    try {
+      const older = await api.getConversation(conversation.id, { before: oldest.id });
+      setMessages((prev) => [...older.messages, ...prev]);
+      setHasMore(older.hasMore);
+    } finally {
+      loadingEarlierRef.current = false;
+      setLoadingEarlier(false);
+    }
   }, [conversation.id, messages]);
 
   const saveTitle = useCallback(async () => {
@@ -411,8 +422,13 @@ export function Thread({
 
         <div className="messages" ref={messagesRef} onScroll={onMessagesScroll}>
           {hasMore && (
-            <button type="button" className="load-earlier" onClick={loadEarlier}>
-              Load earlier messages
+            <button
+              type="button"
+              className="load-earlier"
+              onClick={loadEarlier}
+              disabled={loadingEarlier}
+            >
+              {loadingEarlier ? 'Loading…' : 'Load earlier messages'}
             </button>
           )}
           {messages.map((m) =>
