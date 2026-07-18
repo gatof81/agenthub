@@ -209,6 +209,35 @@ export interface SweepResult {
   survivors: string[];
 }
 
+/**
+ * The router's proposal for a turn (ADR-008, automatic mode): what kind of work
+ * it is, which capabilities it needs, which specialist should do it, and why.
+ * The router PROPOSES (a model call in N4b; deterministic in N4a); the selector
+ * and orchestrator dispose — a model never chooses the execution environment
+ * (01 §3, SEC-01).
+ */
+export interface RouteProposal {
+  workType: 'question' | 'task';
+  capabilities: string[];
+  specialistId: string;
+  reason: string;
+}
+
+/**
+ * The deterministic execution-target decision recorded on a run (ADR-008):
+ * which specialist ran, in which session, and why — plus what was considered.
+ * Surfaced in the run inspector, the audit surface for automatic mode (where no
+ * immutable conversation.agentId exists). Never a model output: the session is a
+ * resource/authority choice the backend makes from real metadata.
+ */
+export interface ExecutionTargetDecision {
+  specialistId: string;
+  selectedSessionId: string;
+  reason: string;
+  alternativesConsidered: string[];
+  workspaceStrategy: string;
+}
+
 export interface Run {
   id: string;
   conversationId: string;
@@ -236,6 +265,15 @@ export interface Run {
   sweepResult: SweepResult | null;
   errorCode: RunErrorCode | null;
   errorDetail: string | null;
+  /**
+   * The session this run executes in when chosen by the execution-target
+   * selector (automatic mode, N4a). Absent for a direct run, which derives its
+   * session from the conversation (project primary or the pinned specialist's).
+   * (Optional until migration 007 + the store wiring make it a persisted column.)
+   */
+  targetSessionId?: string | null;
+  /** The recorded selector decision (automatic mode); absent for a direct run. */
+  targetDecision?: ExecutionTargetDecision | null;
   createdAt: string;
   startedAt: string | null;
   endedAt: string | null;
