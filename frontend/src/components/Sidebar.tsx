@@ -200,7 +200,7 @@ function SpecialistsSection({
                   >
                     session: {s.session.status}
                   </span>
-                  <button className="row-action" onClick={() => onChat(s.id)}>
+                  <button className="mini" onClick={() => onChat(s.id)}>
                     Chat
                   </button>
                 </div>
@@ -249,7 +249,7 @@ function SpecialistBind({
         </select>
       )}
       <button
-        className="row-action"
+        className="mini"
         onClick={() => choice !== null && onBind(choice)}
         disabled={choice === null}
       >

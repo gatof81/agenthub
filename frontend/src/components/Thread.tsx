@@ -316,12 +316,17 @@ export function Thread({
             ‹
           </button>
           {editingTitle === null ? (
-            <h2
-              className="thread-title"
-              title="Rename conversation"
-              onClick={() => setEditingTitle(conversation.title)}
-            >
-              {conversation.title}
+            // Heading stays a heading (landmark); the rename trigger is a real
+            // button inside it so keyboard and AT users can rename too (a11y).
+            <h2 className="thread-title-h">
+              <button
+                type="button"
+                className="thread-title"
+                title="Rename conversation"
+                onClick={() => setEditingTitle(conversation.title)}
+              >
+                {conversation.title}
+              </button>
             </h2>
           ) : (
             <input
@@ -342,7 +347,7 @@ export function Thread({
             />
           )}
           <button
-            className={`mini text-size text-size-${textSize}`}
+            className="mini text-size"
             onClick={onCycleTextSize}
             title={`Text size: ${textSize.toUpperCase()} — tap to change`}
             aria-label={`Text size ${textSize}, tap to change`}
