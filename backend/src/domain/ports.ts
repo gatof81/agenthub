@@ -255,6 +255,8 @@ export type AdapterItem =
       permissionDenialCount: number;
       runtimeSessionId: string | null;
       isError: boolean;
+      /** CLI result discriminator ('success' | 'error_max_turns' | …); null if absent. */
+      subtype: string | null;
     }
   | { kind: 'stderr'; data: string }
   | { kind: 'exit'; exitCode: number | null; reason?: string };

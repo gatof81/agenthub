@@ -42,7 +42,26 @@ describe('stream-json mapping (ADR-003) against S-01 fixtures', () => {
     expect(result.numTurns).toBe(1);
     expect(result.permissionDenialCount).toBe(0);
     expect(result.isError).toBe(false);
+    expect(result.subtype).toBe('success'); // the discriminator, kept (L3)
     expect(result.runtimeSessionId).toBe('S01-SESSION-C');
+  });
+
+  it('captures the result subtype so max_turns is distinguishable from a crash', () => {
+    // The exact shape emitted by CLI 2.1.212 on --max-turns exhaustion: is_error
+    // with subtype error_max_turns and a null result (verified live).
+    const line = JSON.stringify({
+      type: 'result',
+      subtype: 'error_max_turns',
+      is_error: true,
+      result: null,
+      num_turns: 2,
+      session_id: 'S',
+      total_cost_usd: 0.02,
+    });
+    const result = mapStreamJsonLine(line).at(-1) as Extract<AdapterItem, { kind: 'result' }>;
+    expect(result.subtype).toBe('error_max_turns');
+    expect(result.isError).toBe(true);
+    expect(result.resultText).toBe(''); // null result → empty text, not "null"
   });
 
   it('p5-toolshape: tool_use blocks map to tool_use events with name+input (FR-14)', () => {

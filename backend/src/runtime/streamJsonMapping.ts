@@ -136,6 +136,13 @@ export function mapStreamJsonLine(line: string): AdapterItem[] {
         permissionDenialCount: denials.length,
         runtimeSessionId: parsed.session_id ?? null,
         isError: parsed.is_error === true,
+        // The result discriminator. Verified on CLI 2.1.212: 'success' (S-01
+        // baseline fixture) and 'error_max_turns' (live probe + inline fixture:
+        // is_error, null result). Other subtypes (e.g. 'error_during_execution')
+        // are unverified and — like any unknown subtype — fall through to the
+        // generic runtime_error path. Kept so a run that ran OUT OF TURNS is no
+        // longer indistinguishable from a crash; nothing is misclassified.
+        subtype: parsed.subtype ?? null,
       });
       return items;
     }
