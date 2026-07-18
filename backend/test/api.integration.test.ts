@@ -103,9 +103,20 @@ describe('HTTP API (08 §1)', () => {
     expect(run.body.usage.source).toBe('result-event');
     expect(run.body.summary.outcome).toBe('completed');
     expect(run.body.activity.commands.length + run.body.activity.files.length).toBeGreaterThan(0);
+    // getRun exposes the ordered segments so a client can seed a mid-run turn (F)
+    expect(run.body.segments.some((s: { kind: string }) => s.kind !== 'text')).toBe(true);
 
     const thread = await request(app).get(`/api/conversations/${conv.id}`).set(AUTH);
     expect(thread.body.messages.at(-1).role).toBe('assistant');
+    // the tool-using turn carries its bubbles (A)
+    expect(thread.body.messages.at(-1).segments.length).toBeGreaterThan(0);
+    // a small conversation has nothing older (E)
+    expect(thread.body.hasMore).toBe(false);
+
+    // paging to one message reports that older ones exist (E)
+    const paged = await request(app).get(`/api/conversations/${conv.id}?limit=1`).set(AUTH);
+    expect(paged.body.messages.length).toBe(1);
+    expect(paged.body.hasMore).toBe(true);
   });
 
   it('auto-titles a conversation from its first message; leaves later ones and renames alone', async () => {

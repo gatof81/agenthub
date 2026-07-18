@@ -469,6 +469,13 @@ button.retry {
 }
 button.retry:hover { background: var(--raised); border-color: var(--accent); }
 
+/* E: page older messages in from the top */
+.load-earlier {
+  display: block; margin: 0 auto 12px; background: var(--panel-2); color: var(--muted);
+  border: 1px solid var(--border); font-size: 12px; padding: 5px 14px; border-radius: 999px;
+}
+.load-earlier:hover { background: var(--raised); color: var(--text); border-color: var(--accent); }
+
 /* Inline tool steps (L4): the visible sequence of a multi-step turn. */
 .run-steps { list-style: none; margin: 4px 0 2px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .run-steps .step { display: flex; gap: 8px; align-items: baseline; font-size: 12px; color: var(--muted); min-width: 0; }

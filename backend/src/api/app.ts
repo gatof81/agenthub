@@ -465,11 +465,17 @@ export function buildApp(deps: ApiDeps): express.Express {
       return;
     }
     const before = typeof req.query['before'] === 'string' ? req.query['before'] : undefined;
-    const limit = Number(req.query['limit'] ?? 50);
-    const rows = store.listMessages(conversation.id, {
+    const rawLimit = Number(req.query['limit'] ?? 50);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : 50;
+    // Fetch one past the page so we can tell the client whether OLDER messages
+    // exist (E) without a second query — a conversation over the limit would
+    // otherwise silently truncate its history. Drop the extra oldest row.
+    const fetched = store.listMessages(conversation.id, {
       ...(before ? { before } : {}),
-      limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 200) : 50,
+      limit: limit + 1,
     });
+    const hasMore = fetched.length > limit;
+    const rows = hasMore ? fetched.slice(1) : fetched;
     // An assistant turn that used tools is rendered as ordered bubbles (A): text
     // → tool step → text. Derived on read from the run's events (a projection,
     // like activity). Attached only when tools actually split the turn — a plain
@@ -486,7 +492,9 @@ export function buildApp(deps: ApiDeps): express.Express {
       }
       return m;
     });
-    res.json({ conversation, messages });
+    // `hasMore` = older messages exist before this page (E). The client pages
+    // back with `?before=<oldest message id>`.
+    res.json({ conversation, messages, hasMore });
   });
 
   app.patch('/api/conversations/:id', (req, res) => {
@@ -543,6 +551,9 @@ export function buildApp(deps: ApiDeps): express.Express {
     res.json({
       run,
       activity: deriveActivity(events), // derived on read (06 §2, A2)
+      // ordered bubbles (A) — lets a client seed the partial turn when it opens a
+      // conversation mid-run (F), and matches how the finalized message renders
+      segments: deriveSegments(events),
       usage: store.getUsage(run.id) ?? null,
       summary: store.getSummary(run.id) ?? null,
     });

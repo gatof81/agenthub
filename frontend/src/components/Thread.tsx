@@ -85,6 +85,8 @@ export function Thread({
   // Whether the reader is pinned to the bottom — auto-scroll only follows new
   // content when they are, so scrolling up to re-read is never yanked back.
   const [atBottom, setAtBottom] = useState(true);
+  // Whether older messages exist before the loaded page (E).
+  const [hasMore, setHasMore] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
@@ -107,6 +109,7 @@ export function Thread({
   const refetch = useCallback(async () => {
     const detail = await api.getConversation(conversation.id);
     setMessages(detail.messages);
+    setHasMore(detail.hasMore);
     // The backend auto-titles a conversation from its first message; surface
     // that (and any out-of-band rename) once the run's refetch brings it back.
     if (detail.conversation.title !== titleRef.current) onRenamedRef.current(detail.conversation);
@@ -120,9 +123,34 @@ export function Thread({
     if (trackedRunId) {
       const runDetail = await api.getRun(trackedRunId);
       setRunDetail(runDetail);
-      setLiveRun((prev) => reconcileLiveRun(prev, runDetail.run));
+      setLiveRun((prev) => {
+        const reconciled = reconcileLiveRun(prev, runDetail.run);
+        // F: the conversation was opened mid-run — nothing live yet, but the
+        // latest run is still active. Seed it (state + partial bubbles + start
+        // time) so the working indicator, elapsed clock and partial text show
+        // immediately; live SSE then continues appending to it.
+        if (!prev && reconciled === null && !isTerminalRun(runDetail.run.state)) {
+          return {
+            runId: runDetail.run.id,
+            state: runDetail.run.state,
+            segments: runDetail.segments,
+            startedAt: runDetail.run.startedAt ? Date.parse(runDetail.run.startedAt) : Date.now(),
+          };
+        }
+        return reconciled;
+      });
     }
   }, [conversation.id]);
+
+  // Page older messages in (E): fetch the batch before the oldest loaded and
+  // prepend it. The reader is not at the bottom, so auto-scroll won't jump.
+  const loadEarlier = useCallback(async () => {
+    const oldest = messages[0];
+    if (!oldest) return;
+    const older = await api.getConversation(conversation.id, { before: oldest.id });
+    setMessages((prev) => [...older.messages, ...prev]);
+    setHasMore(older.hasMore);
+  }, [conversation.id, messages]);
 
   const saveTitle = useCallback(async () => {
     const next = (editingTitle ?? '').trim();
@@ -382,6 +410,11 @@ export function Thread({
         </header>
 
         <div className="messages" ref={messagesRef} onScroll={onMessagesScroll}>
+          {hasMore && (
+            <button type="button" className="load-earlier" onClick={loadEarlier}>
+              Load earlier messages
+            </button>
+          )}
           {messages.map((m) =>
             m.role === 'assistant' && m.segments ? (
               // a tool-using turn: ordered bubbles (text → tool → text), A

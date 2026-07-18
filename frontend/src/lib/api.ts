@@ -95,6 +95,9 @@ export interface Run {
   killOutcome: string | null;
   errorCode: string | null;
   errorDetail: string | null;
+  /** ISO time the run began streaming — seeds the elapsed clock when a
+   *  conversation is opened mid-run (F) */
+  startedAt: string | null;
 }
 
 export interface ActivityItem {
@@ -135,6 +138,8 @@ export interface RunSummary {
 export interface RunDetail {
   run: Run;
   activity: Activity;
+  /** ordered bubbles of the turn (A) — used to seed a mid-run turn on open (F) */
+  segments: TurnSegment[];
   usage: Usage | null;
   summary: RunSummary | null;
 }
@@ -268,8 +273,16 @@ export const api = {
       `/api/specialists/${specialistId}/conversations`,
       { title },
     ),
-  getConversation: (id: string) =>
-    call<{ conversation: Conversation; messages: Message[] }>('GET', `/api/conversations/${id}`),
+  getConversation: (id: string, opts?: { before?: string; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (opts?.before) q.set('before', opts.before);
+    if (opts?.limit) q.set('limit', String(opts.limit));
+    const qs = q.toString();
+    return call<{ conversation: Conversation; messages: Message[]; hasMore: boolean }>(
+      'GET',
+      `/api/conversations/${id}${qs ? `?${qs}` : ''}`,
+    );
+  },
   sendMessage: (conversationId: string, content: string) =>
     call<{ messageId: string; runId: string; runState: RunState }>(
       'POST',
