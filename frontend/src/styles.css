@@ -234,7 +234,22 @@ body {
   background: var(--panel);
 }
 .thread header h2 { flex: 1; font-size: 15px; margin: 0; }
-.thread-title { cursor: text; border-radius: 6px; padding: 2px 6px; margin: 0 -6px; }
+.thread-title-h { min-width: 0; }
+.thread-title {
+  max-width: 100%;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: text;
+  border-radius: 6px;
+  padding: 2px 6px;
+  margin: 0 -6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .thread-title:hover { background: var(--panel-2); }
 .thread-title-edit {
   flex: 1;
@@ -402,6 +417,15 @@ button:disabled { opacity: 0.45; cursor: default; }
 button.cancel { background: var(--danger); }
 button.mini { background: var(--panel-2); color: var(--text); padding: 3px 9px; font-size: 12px; border: 1px solid var(--border); }
 button.mini:hover { background: var(--raised); }
+/* Keyboard focus ring for controls that rely on the UA outline (inputs keep
+   their own accent border). Buttons/links had no visible focus state before. */
+a:focus-visible,
+button:focus-visible,
+[role='button']:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* B: send while a run is active (queue) + cancel; buttons sit at the field's foot */
 .composer-actions { display: flex; gap: 8px; align-items: flex-end; }
@@ -644,7 +668,15 @@ button.retry:hover { background: var(--raised); border-color: var(--accent); }
 }
 
 /* — session discovery (N1, FR-48) — */
-.session-row { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; cursor: default; }
+/* qualified so it beats `.nav-list .nav-main` (0,2,0), which would otherwise
+   center these rows and show a clickable cursor on a non-clickable container */
+.nav-list .nav-main.session-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  cursor: default;
+}
 .session-name { font-weight: 500; }
 .session-meta { font-size: 12px; }
 .session-running { background: rgba(94, 189, 125, 0.16); color: var(--ok, #5ebd7d); }
@@ -653,4 +685,3 @@ button.retry:hover { background: var(--raised); border-color: var(--accent); }
 
 /* — specialist bind control (N3b-1) — */
 .specialist-bind { display: flex; gap: 6px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
-.specialist-bind .row-action { font-size: 12px; padding: 2px 8px; }

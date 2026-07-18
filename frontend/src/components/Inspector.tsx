@@ -19,7 +19,7 @@ export function Inspector({ open, detail, onClose }: Props): React.JSX.Element |
       <aside className="inspector">
         <header>
           <h3>Activity</h3>
-          <button className="mini" onClick={onClose}>
+          <button className="mini" onClick={onClose} aria-label="Close activity">
             ×
           </button>
         </header>
@@ -32,7 +32,7 @@ export function Inspector({ open, detail, onClose }: Props): React.JSX.Element |
     <aside className="inspector">
       <header>
         <h3>Activity</h3>
-        <button className="mini" onClick={onClose}>
+        <button className="mini" onClick={onClose} aria-label="Close activity">
           ×
         </button>
       </header>
