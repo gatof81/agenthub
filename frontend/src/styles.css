@@ -644,6 +644,9 @@ button.retry:hover { background: var(--raised); border-color: var(--accent); }
   .sidebar { border-right: 0; }
   .palette-hint { display: none; } /* keyboard shortcut is a Mac affordance */
   .app.has-conversation .sidebar { display: none; }
+  /* projects home: the sidebar IS the surface — don't stack a redundant
+     "pick or create a project" placeholder under the list on a phone */
+  .app:not(.has-project) .empty-state { display: none; }
   .thread .back {
     display: block;
     background: none;
@@ -720,8 +723,8 @@ button.retry:hover { background: var(--raised); border-color: var(--accent); }
 }
 .session-name { font-weight: 500; }
 .session-meta { font-size: 12px; }
-.session-running { background: rgba(94, 189, 125, 0.16); color: var(--ok, #5ebd7d); }
-.session-stopped { background: rgba(160, 160, 160, 0.16); color: var(--muted); }
+.session-running { background: rgba(70, 197, 141, 0.16); color: var(--ok); } /* the one --ok green */
+.session-stopped, .session-unknown { background: rgba(160, 160, 160, 0.16); color: var(--muted); }
 .session-failed, .session-terminated { background: rgba(239, 106, 95, 0.16); color: var(--danger); }
 
 /* — specialist bind control (N3b-1) — */
