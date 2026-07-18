@@ -369,6 +369,7 @@ body {
 .text-size .text-size-a1 { font-size: 11px; }
 .text-size .text-size-a2 { font-size: 15px; }
 .composer {
+  position: relative; /* containing block for the error banner below */
   display: flex;
   gap: 8px;
   padding: 12px 14px;
@@ -402,7 +403,16 @@ body {
     font-size: max(16px, var(--chat-font, 16px));
   }
 }
-.composer .error { position: absolute; transform: translateY(-140%); color: var(--danger); }
+/* anchored to the composer and constrained to its width, so a long message
+   wraps above the input instead of running off-screen on a phone */
+.composer .error {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: calc(100% + 4px);
+  margin: 0;
+  color: var(--danger);
+}
 
 button {
   background: var(--accent-strong);

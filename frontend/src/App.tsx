@@ -144,6 +144,7 @@ export function App(): React.JSX.Element {
   const chatWithSpecialist = useCallback(async (specialistId: string) => {
     const { conversation } = await api.createSpecialistConversation(specialistId);
     setSelectedProject(null); // a specialist conversation has no project
+    setConversations([]); // drop the previous project's list (as backToProjects does)
     setSelectedConversation(conversation);
   }, []);
 
