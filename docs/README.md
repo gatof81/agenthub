@@ -198,7 +198,7 @@ numbers are noted per item as they land, since the two drift.
   human-approval; code-sharing strategy ladder). Doc 19 carries the
   diagnosis (only two load-bearing code contradictions: provision-always-
   creates, and the immutable `Conversation.agentId`), the forward-only
-  migration plan (004–007, no data loss, legacy sessions marked), and the
+  migration plan (004–008, no data loss, legacy sessions marked), and the
   N1–N6 increment backlog. Amendments: FR-01/19/30/40/45, new FR-48..53,
   SEC-06 rewritten, UC-01 bind-or-create, 06 glossary/invariants
   (I-2 per workspace, I-6 direct-mode-only, I-10 nullable-once-set),
