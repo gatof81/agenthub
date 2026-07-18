@@ -7,7 +7,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { join } from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
-import { deriveActivity, sseFromRunEvent } from '../domain/projections.js';
+import { deriveActivity, deriveSegments, sseFromRunEvent } from '../domain/projections.js';
 import type { Agent, RepoAuth } from '../domain/types.js';
 import type { WorkspaceTemplate } from '../config/workspaceTemplates.js';
 import { Orchestrator, OrchestratorError } from '../orchestrator/orchestrator.js';
@@ -466,13 +466,22 @@ export function buildApp(deps: ApiDeps): express.Express {
     }
     const before = typeof req.query['before'] === 'string' ? req.query['before'] : undefined;
     const limit = Number(req.query['limit'] ?? 50);
-    res.json({
-      conversation,
-      messages: store.listMessages(conversation.id, {
-        ...(before ? { before } : {}),
-        limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 200) : 50,
-      }),
+    const rows = store.listMessages(conversation.id, {
+      ...(before ? { before } : {}),
+      limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 200) : 50,
     });
+    // An assistant turn that used tools is rendered as ordered bubbles (A): text
+    // → tool step → text. Derived on read from the run's events (a projection,
+    // like activity). Attached only when tools actually split the turn — a plain
+    // text answer renders from `content` (one bubble), so the payload stays lean.
+    const messages = rows.map((m) => {
+      if (m.role === 'assistant' && m.runId) {
+        const segments = deriveSegments(store.getEvents(m.runId));
+        if (segments.some((s) => s.kind !== 'text')) return { ...m, segments };
+      }
+      return m;
+    });
+    res.json({ conversation, messages });
   });
 
   app.patch('/api/conversations/:id', (req, res) => {

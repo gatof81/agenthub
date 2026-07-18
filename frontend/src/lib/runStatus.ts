@@ -15,7 +15,7 @@
  * that previously ignored it — the live-run indicator.
  */
 
-import type { RunState } from './api.js';
+import type { RunState, TurnSegment } from './api.js';
 
 export const TERMINAL_RUN_STATES: RunState[] = [
   'completed',
@@ -38,14 +38,27 @@ export interface LiveStep {
 export interface LiveRun {
   runId: string;
   state: RunState;
-  deltaText: string;
-  /** tool activity streamed during the turn, in order — the steps that turn a
-   *  multi-step "Working…" blob into a visible sequence */
-  steps?: LiveStep[];
+  /** the turn so far as ordered bubbles — text runs interleaved with tool steps
+   *  (A) — built live from message.delta + activity.item, rendered identically
+   *  to a reloaded turn's `Message.segments`. */
+  segments: TurnSegment[];
   /** epoch ms when this run first took the stage — drives the elapsed clock */
   startedAt?: number;
   killOutcome?: string;
   error?: string;
+}
+
+/**
+ * Fold a streamed text delta into the turn's segments: extend the trailing text
+ * bubble, or open a new one when the last segment is a tool step (so a
+ * text → tool → text turn becomes three bubbles, not one).
+ */
+export function appendDelta(segments: TurnSegment[], text: string): TurnSegment[] {
+  const last = segments[segments.length - 1];
+  if (last && last.kind === 'text') {
+    return [...segments.slice(0, -1), { kind: 'text', text: last.text + text }];
+  }
+  return [...segments, { kind: 'text', text }];
 }
 
 /**

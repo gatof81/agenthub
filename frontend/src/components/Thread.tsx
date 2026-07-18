@@ -5,7 +5,7 @@
  * Mac, a tap-to-expand sheet on iPhone.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import {
   api,
   type Conversation,
@@ -13,9 +13,11 @@ import {
   type Project,
   type RunDetail,
   type RunState,
+  type TurnSegment,
 } from '../lib/api.js';
 import { subscribeConversation, type SseEvent } from '../lib/sse.js';
 import {
+  appendDelta,
   describeRunOutcome,
   describeStep,
   formatElapsed,
@@ -149,7 +151,7 @@ export function Thread({
           return {
             runId: d.runId,
             state: d.state,
-            deltaText: '',
+            segments: [],
             startedAt: Date.now(),
             killOutcome: d.killOutcome,
             error: d.error,
@@ -171,21 +173,25 @@ export function Thread({
           void refetch();
         }
       } else if (e.event === 'message.delta') {
+        // fold streamed text into the turn's bubbles (A)
         const d = e.data as { runId: string; text: string };
         setLiveRun((prev) =>
           prev && prev.runId === d.runId
-            ? { ...prev, deltaText: prev.deltaText + d.text }
-            : { runId: d.runId, state: 'streaming', deltaText: d.text },
+            ? { ...prev, segments: appendDelta(prev.segments, d.text) }
+            : { runId: d.runId, state: 'streaming', segments: appendDelta([], d.text), startedAt: Date.now() },
         );
       } else if (e.event === 'activity.item') {
-        // stream the tool step inline so a multi-step turn is a visible
-        // sequence, not one opaque "Working…" (L4)
+        // a tool step closes the current text bubble and becomes its own segment
+        // (A) — a multi-step turn reads as text → tool → text, not one blob
         const d = e.data as { runId: string } & LiveStep;
         setLiveRun((prev) =>
           prev && prev.runId === d.runId
             ? {
                 ...prev,
-                steps: [...(prev.steps ?? []), { kind: d.kind, detail: d.detail, tool: d.tool }],
+                segments: [
+                  ...prev.segments,
+                  { kind: d.kind, detail: d.detail, ...(d.tool ? { tool: d.tool } : {}) },
+                ],
               }
             : prev,
         );
@@ -203,7 +209,7 @@ export function Thread({
   // bottom — reading earlier output (scrolled up) is never interrupted.
   useEffect(() => {
     if (atBottomRef.current) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, liveRun?.deltaText, liveRun?.steps?.length]);
+  }, [messages, liveRun?.segments]);
 
   const onMessagesScroll = useCallback(() => {
     const el = messagesRef.current;
@@ -245,7 +251,7 @@ export function Thread({
         // workspace); it takes the live stage via its own run.state when it starts
         setQueuedRunIds((q) => new Set(q).add(res.runId));
       } else {
-        setLiveRun({ runId: res.runId, state: res.runState, deltaText: '', startedAt: Date.now() });
+        setLiveRun({ runId: res.runId, state: res.runState, segments: [], startedAt: Date.now() });
       }
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
@@ -356,20 +362,28 @@ export function Thread({
         </header>
 
         <div className="messages" ref={messagesRef} onScroll={onMessagesScroll}>
-          {messages.map((m) => (
-            <div key={m.id} className={`msg msg-${m.role}`}>
-              {m.role === 'assistant' ? <Markdown>{m.content}</Markdown> : <pre>{m.content}</pre>}
-              {m.role === 'user' && m.runId && queuedRunIds.has(m.runId) && (
-                <span className="queued-pill">queued</span>
-              )}
-            </div>
-          ))}
+          {messages.map((m) =>
+            m.role === 'assistant' && m.segments ? (
+              // a tool-using turn: ordered bubbles (text → tool → text), A
+              <Fragment key={m.id}>
+                <Segments segments={m.segments} />
+              </Fragment>
+            ) : (
+              <div key={m.id} className={`msg msg-${m.role}`}>
+                {m.role === 'assistant' ? <Markdown>{m.content}</Markdown> : <pre>{m.content}</pre>}
+                {m.role === 'user' && m.runId && queuedRunIds.has(m.runId) && (
+                  <span className="queued-pill">queued</span>
+                )}
+              </div>
+            ),
+          )}
           {liveRun && (
-            <div className="msg msg-assistant msg-live">
-              {liveRun.deltaText !== '' && <Markdown>{liveRun.deltaText}</Markdown>}
-              {liveRun.steps && liveRun.steps.length > 0 && <RunSteps steps={liveRun.steps} />}
-              <RunStateBadge run={liveRun} now={clock} />
-            </div>
+            <>
+              <Segments segments={liveRun.segments} live />
+              <div className="live-badge">
+                <RunStateBadge run={liveRun} now={clock} />
+              </div>
+            </>
           )}
           {outcome && (
             <RunOutcomeChip outcome={outcome} onOpenActivity={() => setInspectorOpen(true)} />
@@ -472,25 +486,47 @@ function RunOutcomeChip({
 }
 
 /**
- * Inline tool steps (L4): the tools the agent used this turn, streamed in order,
- * so a multi-step turn reads as a visible sequence instead of one opaque
- * "Working…". Denials show as blocked steps — the honest "it needed something"
- * signal (an interactive approval pause is the Task lifecycle's job, N6).
+ * A turn as ordered bubbles (A, 11 §6): each run of assistant text is its own
+ * Markdown bubble; the tool steps between them (L4 — Bash/Edit/Grep/… and
+ * blocked tools) render as a grouped step list. So a multi-step turn reads as a
+ * visible sequence — text → tool → text — instead of one growing blob. The same
+ * component renders the live turn and a reloaded turn's persisted segments, so
+ * they look identical. (An interactive approval pause is N6's job, not here.)
  */
-function RunSteps({ steps }: { steps: LiveStep[] }): React.JSX.Element {
-  return (
-    <ul className="run-steps">
-      {steps.map((s, i) => {
-        const { icon, label } = describeStep(s);
-        return (
-          <li key={i} className={`step step-${s.kind}`}>
-            <span className="step-icon" aria-hidden="true">
-              {icon}
-            </span>
-            <span className="step-label">{label}</span>
-          </li>
-        );
-      })}
-    </ul>
-  );
+function Segments({ segments, live }: { segments: TurnSegment[]; live?: boolean }): React.JSX.Element {
+  const out: React.JSX.Element[] = [];
+  for (let i = 0; i < segments.length; ) {
+    const seg = segments[i]!;
+    if (seg.kind === 'text') {
+      out.push(
+        <div key={i} className={`msg msg-assistant${live ? ' msg-live' : ''}`}>
+          <Markdown>{seg.text}</Markdown>
+        </div>,
+      );
+      i += 1;
+    } else {
+      const start = i;
+      const steps: Exclude<TurnSegment, { kind: 'text' }>[] = [];
+      while (i < segments.length && segments[i]!.kind !== 'text') {
+        steps.push(segments[i] as Exclude<TurnSegment, { kind: 'text' }>);
+        i += 1;
+      }
+      out.push(
+        <ul key={`s${start}`} className="run-steps">
+          {steps.map((s, j) => {
+            const { icon, label } = describeStep(s);
+            return (
+              <li key={j} className={`step step-${s.kind}`}>
+                <span className="step-icon" aria-hidden="true">
+                  {icon}
+                </span>
+                <span className="step-label">{label}</span>
+              </li>
+            );
+          })}
+        </ul>,
+      );
+    }
+  }
+  return <>{out}</>;
 }

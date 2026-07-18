@@ -153,7 +153,10 @@ per A2 and the anti-over-architecture rule, nothing is double-written.
 other tool (Grep, WebFetch, an MCP tool) is projected as a generic `tool` step
 carrying its name, so the ordered `items[]` is the full sequence of what the
 turn did — the shell-command and file arrays are just the two named subsets the
-RunSummary keeps.
+RunSummary keeps. The same ordered events also project to **turn segments** — a
+turn split into `text` runs interleaved with its tool steps (A) — so a turn
+renders as a sequence of bubbles (text → tool → text) rather than one blob; the
+assembled `content` stays the fallback.
 
 ### UsageRecord
 

@@ -117,6 +117,51 @@ export function deriveActivity(events: RunEvent[]): Activity {
   };
 }
 
+/**
+ * One bubble of a turn (A / 11 §6): either a run of assistant text or a single
+ * tool step. A turn is rendered as this ordered sequence instead of one growing
+ * blob — the CLI already "speaks" in several messages per turn, separated by its
+ * tool calls, and this recovers that shape. Derived on read from the same
+ * ordered run_events as the activity projection; nothing is double-written.
+ */
+export type TurnSegment =
+  | { kind: 'text'; text: string }
+  | { kind: 'command' | 'file' | 'denial' | 'tool'; detail: string; tool?: string };
+
+/**
+ * Split a run's events into ordered segments: consecutive assistant text
+ * accumulates into a text segment; a tool_use or denial flushes it and becomes
+ * its own step. Empty when the run produced neither text nor tools.
+ */
+export function deriveSegments(events: RunEvent[]): TurnSegment[] {
+  const segments: TurnSegment[] = [];
+  let text = '';
+  const flush = (): void => {
+    if (text.length > 0) {
+      segments.push({ kind: 'text', text });
+      text = '';
+    }
+  };
+  for (const ev of events) {
+    if (ev.type === 'output') {
+      const p = ev.payload as OutputPayload;
+      if (p?.blockType === 'text' && typeof p.text === 'string') text += p.text;
+    } else if (ev.type === 'tool_use' || ev.type === 'permission_denial') {
+      flush();
+      const item = deriveActivity([ev]).items[0];
+      if (item) {
+        segments.push({
+          kind: item.kind,
+          detail: item.detail,
+          ...(item.tool ? { tool: item.tool } : {}),
+        });
+      }
+    }
+  }
+  flush();
+  return segments;
+}
+
 const OBJECTIVE_MAX = 280;
 const WARNING_MAX = 500;
 const WARNINGS_CAP = 5;

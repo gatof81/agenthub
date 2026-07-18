@@ -187,6 +187,15 @@ detail (error detail, denials, cost). A plain `completed` chip is minimal (an
 optional cost); while a run is active the live spinner owns the display and the
 chip is absent.
 
+**A turn renders as ordered bubbles, not one growing blob (A).** The agent
+already "speaks" in several messages per turn, separated by its tool calls; the
+thread shows that shape — a run of text is its own bubble, the tool steps
+between runs render as a labelled step list, so a multi-step turn reads as
+`text → tool → text`. Built live by folding `message.delta` and `activity.item`
+into ordered segments, and rebuilt identically on reload from the assistant
+message's `segments` (08 §1) — a projection over the run's events, so live and
+history match. A turn with no tools stays a single bubble.
+
 **A partial answer is never discarded.** Whatever the agent streamed before a
 non-completed end — a `budget_exceeded` or `run_timeout` kill, a user `cancel`,
 a crash, a `max_turns` stop — is persisted as the assistant message and shown

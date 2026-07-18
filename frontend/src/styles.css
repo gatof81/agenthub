@@ -416,6 +416,9 @@ button.mini:hover { background: var(--raised); }
 /* B: live elapsed clock on an active run */
 .badge .elapsed { font-variant-numeric: tabular-nums; opacity: 0.85; }
 
+/* A: the live run's state badge, standalone after the turn's bubbles */
+.live-badge { margin: 2px 0 12px; }
+
 /* C: jump-to-latest, shown only when the reader has scrolled up */
 .thread { position: relative; }
 .jump-latest {
