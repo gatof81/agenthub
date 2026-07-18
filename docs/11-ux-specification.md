@@ -137,6 +137,15 @@ back as an empty workspace wearing the old project's name.
   `GET /api/runs/:id`, `GET /api/conversations/:id`, `GET /api/projects/:id`
   (08 §3). The store is the source of truth; a client that missed everything
   rebuilds from REST (NFR-07).
+- **The live-run indicator settles from the store, not the last frame:** the
+  "Working…" indicator is retired only when the run is terminal *in the store*.
+  Since `run.state` is not replayable (above), the client reconciles the
+  in-flight run against `GET /api/runs/:id` on every (re)connect, and an idle
+  watchdog does the same when a shown-active run's stream goes quiet — so a
+  terminal frame lost around finalize (a socket drop, or no subscriber
+  connected at that instant) can never strand the UI on "Working…" (NFR-07). A
+  turn that is genuinely still running reads back non-terminal and is left
+  untouched.
 - **Optimistic send:** the user message renders immediately; the run's `queued`
   or `starting` state arrives in the `202` and is confirmed by the first
   `run.state` event.
