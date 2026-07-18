@@ -15,17 +15,14 @@ import {
   type RunState,
 } from '../lib/api.js';
 import { subscribeConversation, type SseEvent } from '../lib/sse.js';
+import {
+  isTerminalRun,
+  reconcileLiveRun,
+  type LiveRun,
+} from '../lib/runStatus.js';
 import type { TextSize } from '../lib/textSize.js';
 import { Inspector } from './Inspector.js';
 import { Markdown } from './Markdown.js';
-
-interface LiveRun {
-  runId: string;
-  state: RunState;
-  deltaText: string;
-  killOutcome?: string;
-  error?: string;
-}
 
 /** Contextual actions the thread exposes to the command palette (11 §4, B1-12). */
 export interface ThreadCommands {
@@ -49,7 +46,10 @@ interface Props {
   registerCommands: (commands: ThreadCommands | null) => void;
 }
 
-const TERMINAL: RunState[] = ['completed', 'completed_with_denials', 'cancelled', 'failed'];
+// While a run is shown active but its stream has gone silent this long, the
+// watchdog re-reads the store — the belt for the un-replayable terminal frame.
+const WATCHDOG_IDLE_MS = 15_000;
+const WATCHDOG_TICK_MS = 5_000;
 
 export function Thread({
   conversation,
@@ -75,6 +75,13 @@ export function Thread({
   onRenamedRef.current = onRenamed;
   const titleRef = useRef(conversation.title);
   titleRef.current = conversation.title;
+  // The in-flight run, read through a ref so refetch (keyed on conversation.id)
+  // can reconcile it without re-subscribing on every delta.
+  const liveRunRef = useRef<LiveRun | null>(null);
+  liveRunRef.current = liveRun;
+  // When the tracked run last produced any SSE frame — the watchdog only polls
+  // once the stream has genuinely gone quiet.
+  const lastEventAtRef = useRef<number>(Date.now());
 
   const refetch = useCallback(async () => {
     const detail = await api.getConversation(conversation.id);
@@ -82,8 +89,18 @@ export function Thread({
     // The backend auto-titles a conversation from its first message; surface
     // that (and any out-of-band rename) once the run's refetch brings it back.
     if (detail.conversation.title !== titleRef.current) onRenamedRef.current(detail.conversation);
-    const lastRunId = detail.messages.findLast((m) => m.runId)?.runId;
-    if (lastRunId) setRunDetail(await api.getRun(lastRunId));
+    // Reconcile against the store (NFR-07). Prefer the in-flight run over the
+    // last message's run: a running turn has no persisted message yet, so
+    // findLast(runId) would point at the PREVIOUS run and never settle the
+    // live indicator. The terminal run.state frame is not replayable, so this
+    // REST read is the only thing that clears a "Working…" whose frame was
+    // missed (a socket drop around finalize, or no subscriber at that instant).
+    const trackedRunId = liveRunRef.current?.runId ?? detail.messages.findLast((m) => m.runId)?.runId;
+    if (trackedRunId) {
+      const runDetail = await api.getRun(trackedRunId);
+      setRunDetail(runDetail);
+      setLiveRun((prev) => reconcileLiveRun(prev, runDetail.run));
+    }
   }, [conversation.id]);
 
   const saveTitle = useCallback(async () => {
@@ -100,6 +117,7 @@ export function Thread({
 
   useEffect(() => {
     const onEvent = (e: SseEvent): void => {
+      lastEventAtRef.current = Date.now();
       if (e.event === 'run.state') {
         const d = e.data as { runId: string; state: RunState; killOutcome?: string; error?: string };
         setLiveRun((prev) =>
@@ -107,8 +125,11 @@ export function Thread({
             ? { ...prev, state: d.state, killOutcome: d.killOutcome, error: d.error }
             : { runId: d.runId, state: d.state, deltaText: '', killOutcome: d.killOutcome, error: d.error },
         );
-        if (TERMINAL.includes(d.state)) {
-          void refetch().then(() => setLiveRun(null));
+        if (isTerminalRun(d.state)) {
+          // refetch pulls the finalized message and reconciles the indicator to
+          // the store's terminal state (→ null); it also settles the case where
+          // this very frame was the one a reconnecting client had missed.
+          void refetch();
         }
       } else if (e.event === 'message.delta') {
         const d = e.data as { runId: string; text: string };
@@ -147,6 +168,7 @@ export function Thread({
     setMessages((prev) => [...prev, optimistic]);
     try {
       const res = await api.sendMessage(conversation.id, content);
+      lastEventAtRef.current = Date.now();
       setLiveRun({ runId: res.runId, state: res.runState, deltaText: '' });
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
@@ -159,7 +181,20 @@ export function Thread({
     if (liveRun) void api.cancelRun(liveRun.runId).catch(() => {});
   }, [liveRun]);
 
-  const active = liveRun !== null && !TERMINAL.includes(liveRun.state);
+  const active = liveRun !== null && !isTerminalRun(liveRun.state);
+
+  // Run-level watchdog (belt to the SSE stall watchdog, which only catches a
+  // dead socket). If a run is shown active but its stream has gone quiet past
+  // WATCHDOG_IDLE_MS — the terminal frame lost on a still-open socket, or a run
+  // genuinely stuck server-side — re-read the store and settle. A still-running
+  // quiet turn (a long Bash step) reads back non-terminal and stays untouched.
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(() => {
+      if (Date.now() - lastEventAtRef.current >= WATCHDOG_IDLE_MS) void refetch();
+    }, WATCHDOG_TICK_MS);
+    return () => clearInterval(timer);
+  }, [active, liveRun?.runId, refetch]);
 
   // palette registration (B1-12): stable wrappers over refs so re-registration
   // happens only when availability flips, not on every keystroke
