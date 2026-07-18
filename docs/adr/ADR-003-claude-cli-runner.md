@@ -92,7 +92,12 @@ conversation's `runtimeSessionId`.
 - The adapter encodes CLI-version-specific behavior (flag semantics, event
   shapes) against **pinned 2.1.207 fixtures**; a CLI bump upstream requires a
   fixture refresh (S-01 package stays runnable) and a contract-test pass
-  before the Hub accepts the new version (R-02).
+  before the Hub accepts the new version (R-02). The S-01 corpus stays pinned
+  at 2.1.207 between refreshes; an event shape the corpus never exercised (S-01
+  ran only successful turns) may be verified by a **targeted live probe** on
+  the current CLI version — as `error_max_turns` was on 2.1.212 — provided the
+  probed shape is encoded as an inline test fixture. The next full R-02 refresh
+  re-runs S-01 against the current version and folds these in.
 - The `HUB_RUN_ID` marker becomes part of the runner's contract with itself;
   doc 08 specifies it, doc 13 tests the sweep against a deliberately escaping
   child.
