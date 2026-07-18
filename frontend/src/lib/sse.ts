@@ -18,7 +18,7 @@
  *   recovery happens immediately instead of waiting out the watchdog.
  */
 
-import { getToken } from './api.js';
+import { getToken, notifyUnauthorized } from './api.js';
 
 export interface SseEvent {
   id?: number;
@@ -101,7 +101,12 @@ export function subscribeConversation(
           },
           signal: controller.signal,
         });
-        if (!res.ok || !res.body) throw new Error(`sse ${res.status}`);
+        if (!res.ok || !res.body) {
+          // a credential can expire mid-stream with no REST in flight; route the
+          // 401 to the same recovery `call()` uses instead of retrying forever
+          if (res.status === 401) notifyUnauthorized();
+          throw new Error(`sse ${res.status}`);
+        }
         retryMs = 500;
         onRecover(); // state/summary events are not replayed — REST recovery (08 §3)
         const reader = res.body.getReader();

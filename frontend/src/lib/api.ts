@@ -209,6 +209,25 @@ export class ApiError extends Error {
   }
 }
 
+let onUnauthorized: (() => void) | null = null;
+
+/**
+ * Fires whenever any request comes back 401 — lets the app drop a stale or
+ * expired credential (revoked pasted token, or an expired Cloudflare Access JWT,
+ * ADR-011) and re-run the auth flow, instead of silently 401ing forever with no
+ * path back to the gate.
+ */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler;
+}
+
+/** Fire the registered unauthorized handler. Called on any 401, from `call()`
+ * (REST) and from the SSE client (a credential can expire mid-stream with no
+ * REST in flight), so both paths route to the same recovery. */
+export function notifyUnauthorized(): void {
+  onUnauthorized?.();
+}
+
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
     method,
@@ -220,6 +239,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   });
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
+    if (res.status === 401) notifyUnauthorized();
     throw new ApiError(res.status, String(json['code'] ?? 'error'), json['detail'] as string);
   }
   return json as T;
