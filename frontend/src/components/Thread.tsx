@@ -30,6 +30,7 @@ import {
 import type { TextSize } from '../lib/textSize.js';
 import { Inspector } from './Inspector.js';
 import { Markdown } from './Markdown.js';
+import { SendIcon, StopIcon } from './icons.js';
 
 /**
  * The conversation SSE frames this handler consumes, as a discriminated union
@@ -110,6 +111,14 @@ export function Thread({
   const atBottomRef = useRef(true);
   atBottomRef.current = atBottom;
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  // The composer grows with its content up to a cap (11 §12) — a multi-line
+  // draft is comfortable without a fixed tall box stealing the thread.
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [draft]);
   // Read through refs so refetch stays stable (keyed on conversation.id) and
   // the SSE subscription is not torn down every time the title updates.
   const onRenamedRef = useRef(onRenamed);
@@ -504,34 +513,48 @@ export function Thread({
               {sendError.text} — {sendError.restored ? 'message restored, try again.' : 'click Retry again.'}
             </p>
           )}
-          <textarea
-            ref={composerRef}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                void send();
+          <div className="composer-field">
+            <textarea
+              ref={composerRef}
+              rows={1}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void send();
+                }
+              }}
+              placeholder={
+                projectStatus !== 'ready'
+                  ? `Project is ${projectStatus}…`
+                  : active
+                    ? 'Queue a follow-up… (runs after the current one)'
+                    : 'Message the agent…'
               }
-            }}
-            placeholder={
-              projectStatus !== 'ready'
-                ? `Project is ${projectStatus}…`
-                : active
-                  ? 'Queue a follow-up… (runs after the current one)'
-                  : 'Message the agent…'
-            }
-            disabled={projectStatus !== 'ready'}
-          />
-          <div className="composer-actions">
-            {active && (
-              <button className="cancel" onClick={cancel}>
-                Cancel run
+              disabled={projectStatus !== 'ready'}
+            />
+            <div className="composer-actions">
+              {active && (
+                <button
+                  className="icon-btn stop"
+                  onClick={cancel}
+                  title="Cancel run"
+                  aria-label="Cancel run"
+                >
+                  <StopIcon />
+                </button>
+              )}
+              <button
+                className="icon-btn send"
+                onClick={() => void send()}
+                disabled={draft.trim() === '' || projectStatus !== 'ready'}
+                title={active ? 'Queue message' : 'Send message'}
+                aria-label={active ? 'Queue message' : 'Send message'}
+              >
+                <SendIcon />
               </button>
-            )}
-            <button onClick={() => void send()} disabled={draft.trim() === '' || projectStatus !== 'ready'}>
-              {active ? 'Queue' : 'Send'}
-            </button>
+            </div>
           </div>
         </footer>
       </main>

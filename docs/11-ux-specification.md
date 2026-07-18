@@ -300,3 +300,21 @@ Refinements to how a conversation reads, extending §10.
 - **Readability.** Looser line spacing; wide tables scroll horizontally instead
   of overflowing the bubble; long URLs and inline code wrap rather than push
   the layout (fenced code blocks keep §10's horizontal scroll, never wrapping).
+
+## 12. Composer (owner decision 2026-07-18)
+
+The message composer is a single rounded field that fills the width, with its
+controls as **compact icon buttons inside the field** — so on a phone they never
+shrink the input the way stacked text buttons did.
+
+- **Send** is a circular icon button at the end of the field. It reads "send"
+  idle and "queue" while a run is active (a follow-up queues behind the current
+  turn, §6); disabled until the draft is non-empty and the project is ready.
+- **Cancel** (UX-04) is a small icon button that appears only while a run is
+  active, beside send — both actions available at once without competing for
+  width.
+- The field **auto-grows** with the draft up to a cap, then scrolls; a
+  multi-line message is comfortable without a tall box permanently stealing the
+  thread.
+- Behavior is unchanged from §6 (optimistic send, queue-while-active, cancel);
+  this is the control's presentation only.
