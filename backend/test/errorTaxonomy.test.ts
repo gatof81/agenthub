@@ -96,6 +96,10 @@ describe('lagging budget (ADR-003, R-06, budget_exceeded)', () => {
     const final = store.getRun(run.id)!;
     expect(final.state).toBe('failed');
     expect(final.errorCode).toBe('budget_exceeded');
+    // the partial answer streamed before the cap tripped is preserved, not lost
+    // with the live view (the reported "message vanishes, only the error stays")
+    const assistant = store.listMessages(conversation.id, {}).filter((m) => m.role === 'assistant');
+    expect(assistant.at(-1)?.content).toContain('ready');
   });
 
   it('does not trip when usage stays under the cap → normal completion', async () => {
@@ -214,5 +218,45 @@ describe('max_turns classification (ADR-003, L3)', () => {
     // the work done before the limit is not thrown away
     const assistant = store.listMessages(conversation.id, {}).filter((m) => m.role === 'assistant');
     expect(assistant.at(-1)?.content).toContain('Working on it');
+  });
+});
+
+describe('partial answer preservation on any non-completed end', () => {
+  // A generic crash after the agent had already streamed useful text: the text
+  // must be kept as the message, not discarded so only the error remains.
+  const crashAfterText = [
+    JSON.stringify({
+      type: 'system',
+      subtype: 'init',
+      session_id: 'S',
+      model: 'claude-sonnet-5',
+      claude_code_version: '2.1.212',
+    }),
+    JSON.stringify({
+      type: 'assistant',
+      message: { content: [{ type: 'text', text: 'Here is my partial review before it broke.' }] },
+    }),
+    JSON.stringify({
+      type: 'result',
+      subtype: 'error_during_execution',
+      is_error: true,
+      result: null,
+      num_turns: 1,
+      session_id: 'S',
+      total_cost_usd: 0.01,
+      usage: {},
+    }),
+  ];
+
+  it('a generic runtime error keeps the partial text (not only max_turns)', async () => {
+    const { store, port, orch, conversation } = await harness();
+    port.enqueueFixture({ streamLines: crashAfterText });
+    const { run } = orch.send(conversation.id, 'review this');
+    await orch.idle();
+    const final = store.getRun(run.id)!;
+    expect(final.state).toBe('failed');
+    expect(final.errorCode).toBe('runtime_error');
+    const assistant = store.listMessages(conversation.id, {}).filter((m) => m.role === 'assistant');
+    expect(assistant.at(-1)?.content).toContain('partial review');
   });
 });

@@ -1055,6 +1055,16 @@ export class Orchestrator {
     const from = current.state;
     if (from !== 'streaming' && from !== 'starting') return; // already resolved elsewhere
 
+    // Whatever the agent streamed before a NON-completed end — a budget/timeout
+    // kill, a user cancel, a crash, a max-turns stop — is real work the user was
+    // reading. Persist it as the assistant message so it survives the terminal
+    // transition instead of vanishing with the live view (the live text is
+    // cleared once the run settles, and a failed run used to save nothing, so
+    // the partial answer was lost and only the error remained). Empty → no
+    // message. The completed path keeps its own assembly (it also falls back to
+    // the CLI's result text); this is for every other terminal outcome.
+    const partialText = assembleAssistantText(this.store.getEvents(run.id)) || null;
+
     // a Hub timeout or budget trip also kills (exit reason 'killed'), so
     // these must be classified BEFORE the user-cancel branch (B3-06)
     const timedOut = this.timedOut.has(run.id) || exitMeta?.reason === 'timeout';
@@ -1082,6 +1092,7 @@ export class Orchestrator {
         errorDetail: timedOut
           ? `wall-clock cap of ${run.capsSnapshot.timeoutMs} ms hit (FR-17)`
           : `budget cap of $${run.capsSnapshot.budgetUsd} crossed by the lagging estimate (ADR-003)`,
+        assistantContent: partialText,
         ...(killOutcome ? { killOutcome } : {}),
         ...(swept.result ? { sweepResult: swept.result } : {}),
         userMessageContent: message.content,
@@ -1101,6 +1112,7 @@ export class Orchestrator {
       // killed runs emit no result event → usage unknown (FR-18, S-01)
       this.finalize(current, from, 'cancelled', {
         usageSource: 'cancelled-unknown',
+        assistantContent: partialText,
         ...(killOutcome ? { killOutcome } : {}),
         ...(swept.result ? { sweepResult: swept.result } : {}),
         userMessageContent: message.content,
@@ -1167,9 +1179,7 @@ export class Orchestrator {
         : `exit ${String(exitMeta?.exitCode ?? 'unknown')}${
             stderr.length > 0 ? `: ${this.excerpts(stderr)[0]}` : ''
           }`,
-      ...(maxTurns
-        ? { assistantContent: assembleAssistantText(this.store.getEvents(run.id)) || null }
-        : {}),
+      assistantContent: partialText,
       userMessageContent: message.content,
       warnings: this.excerpts(stderr),
       runtimeSessionId,

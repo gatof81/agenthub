@@ -176,6 +176,14 @@ detail (error detail, denials, cost). A plain `completed` chip is minimal (an
 optional cost); while a run is active the live spinner owns the display and the
 chip is absent.
 
+**A partial answer is never discarded.** Whatever the agent streamed before a
+non-completed end — a `budget_exceeded` or `run_timeout` kill, a user `cancel`,
+a crash, a `max_turns` stop — is persisted as the assistant message and shown
+above the outcome chip, not cleared with the live view. Before this, a failed
+run saved no message, so the text the reader was mid-way through vanished and
+only the error remained. The message reads as a normal (if partial) answer with
+the outcome chip beneath it explaining how it ended.
+
 ## 7. Deferred (later phases)
 
 Native iOS app · rich multi-agent visualization (the team pipeline of Phase 4)
