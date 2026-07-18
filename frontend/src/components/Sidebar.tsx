@@ -214,7 +214,7 @@ function SpecialistsSection({
   onChat,
 }: {
   specialists: Specialist[];
-  workspaceOptions: Array<{ key: string; label: string; choice: WorkspaceChoice }>;
+  workspaceOptions: WorkspaceOption[];
   onBind: (specialistId: string, workspace: WorkspaceChoice) => void;
   onChat: (specialistId: string) => void;
 }): React.JSX.Element {
