@@ -17,6 +17,13 @@ import {
   type WorkspaceChoice,
   type WorkspaceTemplate,
 } from './lib/api.js';
+import {
+  loadTextSize,
+  nextTextSize,
+  saveTextSize,
+  TEXT_SIZES,
+  type TextSize,
+} from './lib/textSize.js';
 import { Sidebar } from './components/Sidebar.js';
 import { Thread, type ThreadCommands } from './components/Thread.js';
 import { CommandPalette, type PaletteCommand } from './components/CommandPalette.js';
@@ -95,6 +102,10 @@ export function App(): React.JSX.Element {
   const [sessionListing, setSessionListing] = useState<SessionListing | null>(null);
   // specialists (N3, ADR-008): reusable professional identities
   const [specialists, setSpecialists] = useState<Specialist[]>([]);
+  // reader-chosen conversation text size (11 §11), persisted across sessions
+  const [textSize, setTextSize] = useState<TextSize>(loadTextSize);
+  useEffect(() => saveTextSize(textSize), [textSize]);
+  const cycleTextSize = useCallback(() => setTextSize((s) => nextTextSize(s)), []);
 
   const refreshProjects = useCallback(async () => {
     const { projects } = await api.listProjects();
@@ -331,6 +342,11 @@ export function App(): React.JSX.Element {
         run: () => setSelectedConversation(c),
       });
     }
+    cmds.push({
+      id: 'text-size',
+      label: `Text size: ${textSize.toUpperCase()} — cycle`,
+      run: cycleTextSize,
+    });
     return cmds;
   }, [
     threadCommands,
@@ -345,6 +361,8 @@ export function App(): React.JSX.Element {
     backToProjects,
     archiveProject,
     archiveConversation,
+    textSize,
+    cycleTextSize,
   ]);
 
   // wait for the Access probe before deciding gate-vs-app (avoids a flash)
@@ -363,7 +381,10 @@ export function App(): React.JSX.Element {
   }
 
   return (
-    <div className={`app ${selectedConversation ? 'has-conversation' : ''}`}>
+    <div
+      className={`app ${selectedConversation ? 'has-conversation' : ''}`}
+      style={{ '--chat-font': TEXT_SIZES[textSize] } as React.CSSProperties}
+    >
       <Sidebar
         onOpenArchived={() => setArchivedOpen(true)}
         sessionListing={sessionListing}
@@ -390,6 +411,8 @@ export function App(): React.JSX.Element {
           projectStatus={selectedProject?.status ?? 'ready'}
           onBack={() => setSelectedConversation(null)}
           onRenamed={applyConversationRename}
+          textSize={textSize}
+          onCycleTextSize={cycleTextSize}
           registerCommands={setThreadCommands}
         />
       ) : (
