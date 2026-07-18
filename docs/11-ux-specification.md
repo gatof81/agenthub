@@ -149,6 +149,17 @@ back as an empty workspace wearing the old project's name.
 - **Optimistic send:** the user message renders immediately; the run's `queued`
   or `starting` state arrives in the `202` and is confirmed by the first
   `run.state` event.
+- **Sending during an active run queues, it does not block or interrupt.** Runs
+  serialize per workspace (the backend already enforces this), so a follow-up
+  sent while one is streaming is enqueued behind it — its user message shows a
+  `queued` pill until the run takes the stage. The live indicator stays on the
+  running turn (an earlier bug let a queued send hijack the display); the queued
+  run takes over only when it actually starts. This is the near-term shape of
+  async conversation — the same seam a future agent-initiated (no user input)
+  reply would arrive through.
+- **Scrolling up to re-read is never interrupted.** Auto-scroll follows new
+  content only while the reader is pinned to the bottom; once they scroll up it
+  stops following and a "↓ Latest" affordance returns them.
 - iPhone backgrounding drops the SSE connection routinely — reconnect-from-REST
   must be seamless, not an error state (a mobile-first correctness requirement,
   not an edge case).
@@ -158,7 +169,7 @@ back as an empty workspace wearing the old project's name.
 | Run state | Presentation |
 | --- | --- |
 | `queued` | pending indicator; cancelable |
-| `starting` / `streaming` | live spinner + streaming text, with the turn's tool steps streamed **inline** in order (Bash/Edit/Grep/… and blocked tools) so a multi-step turn is a visible sequence, not one opaque "Working…"; cancel visible |
+| `starting` / `streaming` | live spinner + a running **elapsed clock** (`Working 0:42`) so a long turn reads as progressing, not hung, with the turn's tool steps streamed **inline** in order (Bash/Edit/Grep/… and blocked tools) so a multi-step turn is a visible sequence, not one opaque "Working…"; cancel visible, and a follow-up can be queued |
 | `completed` | normal answer |
 | `completed_with_denials` | answer marked partial; denials listed in activity (FR-15) |
 | `cancelled` | cancelled marker + what was killed/swept (FR-20/21); cost `unknown` (UX-06) |
