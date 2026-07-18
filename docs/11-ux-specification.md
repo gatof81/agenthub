@@ -204,6 +204,13 @@ run saved no message, so the text the reader was mid-way through vanished and
 only the error remained. The message reads as a normal (if partial) answer with
 the outcome chip beneath it explaining how it ended.
 
+**A cut turn offers a one-click Retry (D).** Beside a non-`ok` outcome chip
+(failed, cancelled, completed-with-denials) sits a **Retry** button that
+re-sends the last user message — no retyping. Because the runtime resumes the
+session, the agent continues with the context of its partial attempt rather than
+starting cold; and with the queue (B) a Retry fired while something else runs
+simply waits its turn.
+
 ## 7. Deferred (later phases)
 
 Native iOS app · rich multi-agent visualization (the team pipeline of Phase 4)
