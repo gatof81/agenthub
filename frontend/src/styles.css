@@ -421,6 +421,21 @@ button.mini:hover { background: var(--raised); }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Persistent terminal outcome chip (11 §6): the durable trace of how the last
+   run ended, clickable to open activity. Reuses the state-* palette. */
+.run-outcome {
+  align-self: flex-start;
+  margin-top: 2px;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-decoration: none; /* override state-cancelled's line-through on a chip */
+  gap: 8px;
+}
+.run-outcome:hover { filter: brightness(1.15); }
+.run-outcome-hint { color: var(--muted); }
+
 /* — command palette (11 §4, B1-12) — */
 .palette-overlay {
   position: fixed;

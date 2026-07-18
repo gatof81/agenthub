@@ -64,3 +64,86 @@ export function reconcileLiveRun(current: LiveRun | null, run: AuthoritativeRun)
   if (run.state === current.state) return current;
   return { ...current, state: run.state };
 }
+
+/**
+ * Human labels for the error taxonomy (08 §6). A `failed` run carries its cause
+ * as an `errorCode` — `budget_exceeded`, `run_timeout` are not run states, they
+ * are codes on `failed` (orchestrator) — which the UI otherwise shows as the
+ * raw slug. An unmapped code falls through to itself so a new backend code is
+ * never swallowed, just unstyled.
+ */
+const ERROR_LABELS: Record<string, string> = {
+  budget_exceeded: 'Budget exceeded',
+  run_timeout: 'Timed out',
+  exec_refused: 'Runtime refused the run',
+  seam_unavailable: 'Runtime unavailable',
+};
+
+export interface RunOutcome {
+  /** drives the `state-*` colour class, reused from the live badge palette */
+  state: RunState;
+  tone: 'ok' | 'warn' | 'error';
+  label: string;
+  /** secondary, muted: the error detail, the re-send affordance, a cost */
+  hint?: string;
+}
+
+/**
+ * The persistent terminal chip (UX-03, 11 §6). Today a terminal `run.state`
+ * flashes in the live badge and then vanishes when the live run is retired, so
+ * a `failed (budget_exceeded)` or a `cancelled` leaves the thread with no
+ * durable trace of how the turn ended — the code survives only in the
+ * closed-by-default inspector. This derives, from the authoritative run (+ its
+ * summary for cost/denials), a labelled outcome the thread pins under the turn.
+ *
+ * Returns `null` for a non-terminal run: while a run is active the live badge
+ * owns the display, and this must not compete with it.
+ */
+export function describeRunOutcome(
+  run: {
+    state: RunState;
+    errorCode?: string | null;
+    errorDetail?: string | null;
+    killOutcome?: string | null;
+  },
+  summary?: { denialCount: number; costUsd: number | null } | null,
+): RunOutcome | null {
+  switch (run.state) {
+    case 'completed':
+      return {
+        state: run.state,
+        tone: 'ok',
+        label: 'Completed',
+        ...(summary && summary.costUsd !== null ? { hint: `$${summary.costUsd.toFixed(4)}` } : {}),
+      };
+    case 'completed_with_denials': {
+      const n = summary?.denialCount ?? 0;
+      return {
+        state: run.state,
+        tone: 'warn',
+        label: n > 0 ? `Completed — ${n} tool call${n === 1 ? '' : 's'} blocked` : 'Completed with denials',
+        hint: 'see activity',
+      };
+    }
+    case 'cancelled':
+      return {
+        state: run.state,
+        tone: 'warn',
+        label: `Cancelled${run.killOutcome ? ` (${run.killOutcome})` : ''}`,
+        hint: 'cost unknown',
+      };
+    case 'failed': {
+      // errorCode is nullable (Run.errorCode): with no code, the label is a
+      // bare "Failed", never "Failed — Failed".
+      const friendly = run.errorCode ? (ERROR_LABELS[run.errorCode] ?? run.errorCode) : null;
+      return {
+        state: run.state,
+        tone: 'error',
+        label: friendly ? `Failed — ${friendly}` : 'Failed',
+        hint: run.errorDetail ?? 'you can re-send',
+      };
+    }
+    default:
+      return null;
+  }
+}

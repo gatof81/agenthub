@@ -165,6 +165,17 @@ back as an empty workspace wearing the old project's name.
 | `interrupted` | transient — resolves via reconcile (UC-06); shown as recovering |
 | `failed` | error surfaced with its taxonomy code (08 §6), re-send offered |
 
+A terminal run leaves a **persistent outcome chip** pinned under the turn — not
+a badge that flashes and vanishes when the live run is retired. It reads the
+authoritative run and renders a human label: the error taxonomy code becomes
+prose (`budget_exceeded` → "Budget exceeded", `run_timeout` → "Timed out"; an
+unmapped code falls through to itself, never swallowed), `completed_with_denials`
+names how many tool calls were blocked, `cancelled` names what was killed and
+marks cost `unknown`. The chip links to the activity inspector for the full
+detail (error detail, denials, cost). A plain `completed` chip is minimal (an
+optional cost); while a run is active the live spinner owns the display and the
+chip is absent.
+
 ## 7. Deferred (later phases)
 
 Native iOS app · rich multi-agent visualization (the team pipeline of Phase 4)

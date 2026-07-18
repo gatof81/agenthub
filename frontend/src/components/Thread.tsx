@@ -16,9 +16,11 @@ import {
 } from '../lib/api.js';
 import { subscribeConversation, type SseEvent } from '../lib/sse.js';
 import {
+  describeRunOutcome,
   isTerminalRun,
   reconcileLiveRun,
   type LiveRun,
+  type RunOutcome,
 } from '../lib/runStatus.js';
 import type { TextSize } from '../lib/textSize.js';
 import { Inspector } from './Inspector.js';
@@ -183,6 +185,13 @@ export function Thread({
 
   const active = liveRun !== null && !isTerminalRun(liveRun.state);
 
+  // The persistent terminal chip (11 §6): once a run settles, how it ended must
+  // not vanish with the live badge. Derived from the authoritative run so a
+  // failed/cancelled turn keeps a durable, labelled trace under the thread —
+  // null while active, so it never competes with the live badge.
+  const outcome: RunOutcome | null =
+    !active && runDetail ? describeRunOutcome(runDetail.run, runDetail.summary) : null;
+
   // Run-level watchdog (belt to the SSE stall watchdog, which only catches a
   // dead socket). If a run is shown active but its stream has gone quiet past
   // WATCHDOG_IDLE_MS — the terminal frame lost on a still-open socket, or a run
@@ -272,6 +281,9 @@ export function Thread({
               <RunStateBadge run={liveRun} />
             </div>
           )}
+          {outcome && (
+            <RunOutcomeChip outcome={outcome} onOpenActivity={() => setInspectorOpen(true)} />
+          )}
           <div ref={bottomRef} />
         </div>
 
@@ -326,5 +338,30 @@ function RunStateBadge({ run }: { run: LiveRun }): React.JSX.Element {
       {(run.state === 'starting' || run.state === 'streaming') && <span className="spinner" />}
       {labels[run.state]}
     </span>
+  );
+}
+
+/**
+ * The persistent terminal chip (11 §6): how the last run ended, pinned under
+ * the thread until the next turn — the durable trace the transient live badge
+ * never left. Clicking opens the activity inspector for the full detail.
+ */
+function RunOutcomeChip({
+  outcome,
+  onOpenActivity,
+}: {
+  outcome: RunOutcome;
+  onOpenActivity: () => void;
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      className={`run-outcome badge state-${outcome.state}`}
+      onClick={onOpenActivity}
+      title="Open activity"
+    >
+      <span className="run-outcome-label">{outcome.label}</span>
+      {outcome.hint && <span className="run-outcome-hint">{outcome.hint}</span>}
+    </button>
   );
 }
