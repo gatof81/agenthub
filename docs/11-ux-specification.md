@@ -158,7 +158,7 @@ back as an empty workspace wearing the old project's name.
 | Run state | Presentation |
 | --- | --- |
 | `queued` | pending indicator; cancelable |
-| `starting` / `streaming` | live spinner + streaming text; cancel visible |
+| `starting` / `streaming` | live spinner + streaming text, with the turn's tool steps streamed **inline** in order (Bash/Edit/Grep/… and blocked tools) so a multi-step turn is a visible sequence, not one opaque "Working…"; cancel visible |
 | `completed` | normal answer |
 | `completed_with_denials` | answer marked partial; denials listed in activity (FR-15) |
 | `cancelled` | cancelled marker + what was killed/swept (FR-20/21); cost `unknown` (UX-06) |

@@ -149,7 +149,11 @@ until deliberately rebound.
 **Activity is a projection, not an entity**: commands and files touched are
 derived on read from `tool_use` events (`input.command`, `input.file_path`) —
 per A2 and the anti-over-architecture rule, nothing is double-written.
-`permission_denial` events are first-class in the projection (FR-15).
+`permission_denial` events are first-class in the projection (FR-15). Every
+other tool (Grep, WebFetch, an MCP tool) is projected as a generic `tool` step
+carrying its name, so the ordered `items[]` is the full sequence of what the
+turn did — the shell-command and file arrays are just the two named subsets the
+RunSummary keeps.
 
 ### UsageRecord
 

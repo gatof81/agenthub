@@ -89,10 +89,19 @@ export interface Run {
   errorDetail: string | null;
 }
 
+export interface ActivityItem {
+  kind: 'command' | 'file' | 'denial' | 'tool';
+  detail: string;
+  tool?: string;
+  seq: number;
+}
+
 export interface Activity {
   commands: string[];
   files: string[];
   denials: string[];
+  /** every tool step in order (L4) — includes generic tools not in the arrays above */
+  items: ActivityItem[];
 }
 
 export interface Usage {

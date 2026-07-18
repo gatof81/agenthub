@@ -17,9 +17,11 @@ import {
 import { subscribeConversation, type SseEvent } from '../lib/sse.js';
 import {
   describeRunOutcome,
+  describeStep,
   isTerminalRun,
   reconcileLiveRun,
   type LiveRun,
+  type LiveStep,
   type RunOutcome,
 } from '../lib/runStatus.js';
 import type { TextSize } from '../lib/textSize.js';
@@ -140,7 +142,20 @@ export function Thread({
             ? { ...prev, deltaText: prev.deltaText + d.text }
             : { runId: d.runId, state: 'streaming', deltaText: d.text },
         );
-      } else if (e.event === 'run.summary' || e.event === 'run.usage' || e.event === 'activity.item') {
+      } else if (e.event === 'activity.item') {
+        // stream the tool step inline so a multi-step turn is a visible
+        // sequence, not one opaque "Working…" (L4)
+        const d = e.data as { runId: string } & LiveStep;
+        setLiveRun((prev) =>
+          prev && prev.runId === d.runId
+            ? {
+                ...prev,
+                steps: [...(prev.steps ?? []), { kind: d.kind, detail: d.detail, tool: d.tool }],
+              }
+            : prev,
+        );
+        void api.getRun(d.runId).then(setRunDetail);
+      } else if (e.event === 'run.summary' || e.event === 'run.usage') {
         const d = e.data as { runId: string };
         void api.getRun(d.runId).then(setRunDetail);
       }
@@ -278,6 +293,7 @@ export function Thread({
           {liveRun && (
             <div className="msg msg-assistant msg-live">
               {liveRun.deltaText !== '' && <Markdown>{liveRun.deltaText}</Markdown>}
+              {liveRun.steps && liveRun.steps.length > 0 && <RunSteps steps={liveRun.steps} />}
               <RunStateBadge run={liveRun} />
             </div>
           )}
@@ -363,5 +379,29 @@ function RunOutcomeChip({
       <span className="run-outcome-label">{outcome.label}</span>
       {outcome.hint && <span className="run-outcome-hint">{outcome.hint}</span>}
     </button>
+  );
+}
+
+/**
+ * Inline tool steps (L4): the tools the agent used this turn, streamed in order,
+ * so a multi-step turn reads as a visible sequence instead of one opaque
+ * "Working…". Denials show as blocked steps — the honest "it needed something"
+ * signal (an interactive approval pause is the Task lifecycle's job, N6).
+ */
+function RunSteps({ steps }: { steps: LiveStep[] }): React.JSX.Element {
+  return (
+    <ul className="run-steps">
+      {steps.map((s, i) => {
+        const { icon, label } = describeStep(s);
+        return (
+          <li key={i} className={`step step-${s.kind}`}>
+            <span className="step-icon" aria-hidden="true">
+              {icon}
+            </span>
+            <span className="step-label">{label}</span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

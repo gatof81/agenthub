@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   describeRunOutcome,
+  describeStep,
   isTerminalRun,
   reconcileLiveRun,
   TERMINAL_RUN_STATES,
@@ -138,6 +139,34 @@ describe('describeRunOutcome', () => {
       state: 'completed',
       tone: 'ok',
       label: 'Completed',
+    });
+  });
+});
+
+describe('describeStep', () => {
+  it('labels a command, a file edit, a generic tool, and a denial by their tool', () => {
+    expect(describeStep({ kind: 'command', detail: 'npm test', tool: 'Bash' })).toEqual({
+      icon: '▸',
+      label: 'Bash: npm test',
+    });
+    expect(describeStep({ kind: 'file', detail: 'src/a.ts', tool: 'Edit' })).toEqual({
+      icon: '✎',
+      label: 'Edit: src/a.ts',
+    });
+    expect(describeStep({ kind: 'tool', detail: 'TODO', tool: 'Grep' })).toEqual({
+      icon: '•',
+      label: 'Grep: TODO',
+    });
+    expect(describeStep({ kind: 'denial', detail: 'WebFetch', tool: 'WebFetch' })).toEqual({
+      icon: '⛔',
+      label: 'Blocked: WebFetch',
+    });
+  });
+
+  it('a generic tool with no hint shows just its name', () => {
+    expect(describeStep({ kind: 'tool', detail: '', tool: 'TodoWrite' })).toEqual({
+      icon: '•',
+      label: 'TodoWrite',
     });
   });
 });

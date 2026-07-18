@@ -14,8 +14,11 @@ import type {
 } from './types.js';
 
 export interface ActivityItem {
-  kind: 'command' | 'file' | 'denial';
+  kind: 'command' | 'file' | 'denial' | 'tool';
   detail: string;
+  /** the tool that produced this step (e.g. 'Bash', 'Edit', 'Grep'); for a
+   *  denial it is the blocked tool. Absent only on legacy rows. */
+  tool?: string;
   seq: number;
 }
 
@@ -50,7 +53,7 @@ export function deriveConversationTitle(content: string): string {
 
 interface ToolUsePayload {
   name?: string;
-  input?: { command?: string; file_path?: string };
+  input?: Record<string, unknown>;
 }
 
 interface DenialPayload {
@@ -59,22 +62,51 @@ interface DenialPayload {
   tool_input?: unknown;
 }
 
-/** Commands and files touched derive from tool_use events (A2, FR-14). */
+const HINT_MAX = 80;
+
+/**
+ * A short, best-effort descriptor for a tool that is neither a shell command
+ * nor a file edit — Grep, Glob, WebFetch, Task, an MCP tool. Reads the first
+ * present of a handful of common input fields (a pattern, a url, a query…) so a
+ * step reads as "Grep: TODO" rather than a bare "Grep". Returns '' when nothing
+ * legible is present; the tool name alone still carries the step.
+ */
+function toolHint(input: Record<string, unknown> | undefined): string {
+  for (const key of ['pattern', 'query', 'url', 'description', 'path', 'prompt']) {
+    const v = input?.[key];
+    if (typeof v === 'string' && v.length > 0) {
+      return v.length > HINT_MAX ? `${v.slice(0, HINT_MAX)}…` : v;
+    }
+  }
+  return '';
+}
+
+/**
+ * Activity derives from tool_use events (A2, FR-14). Every tool surfaces: a
+ * shell command and a file edit keep their dedicated kinds (they feed the
+ * RunSummary's commandsRun/filesTouched), and every OTHER tool becomes a
+ * generic `tool` step carrying its name — so a turn that ran Grep/Glob/WebFetch
+ * is no longer invisible between the text and the command list.
+ */
 export function deriveActivity(events: RunEvent[]): Activity {
   const items: ActivityItem[] = [];
   for (const ev of events) {
     if (ev.type === 'tool_use') {
       const p = ev.payload as ToolUsePayload;
-      const command = p?.input?.command;
-      const filePath = p?.input?.file_path;
+      const name = typeof p?.name === 'string' && p.name.length > 0 ? p.name : 'tool';
+      const command = p?.input?.['command'];
+      const filePath = p?.input?.['file_path'];
       if (typeof command === 'string' && command.length > 0) {
-        items.push({ kind: 'command', detail: command, seq: ev.seq });
+        items.push({ kind: 'command', detail: command, tool: name, seq: ev.seq });
       } else if (typeof filePath === 'string' && filePath.length > 0) {
-        items.push({ kind: 'file', detail: filePath, seq: ev.seq });
+        items.push({ kind: 'file', detail: filePath, tool: name, seq: ev.seq });
+      } else {
+        items.push({ kind: 'tool', detail: toolHint(p?.input), tool: name, seq: ev.seq });
       }
     } else if (ev.type === 'permission_denial') {
       const p = ev.payload as DenialPayload;
-      items.push({ kind: 'denial', detail: p?.tool_name ?? 'unknown-tool', seq: ev.seq });
+      const name = p?.tool_name ?? 'unknown-tool';
+      items.push({ kind: 'denial', detail: name, tool: name, seq: ev.seq });
     }
   }
   return {
@@ -136,7 +168,12 @@ export type SseWireEvent =
   | { event: 'message.delta'; data: { runId: string; messageId: string; text: string } }
   | {
       event: 'activity.item';
-      data: { runId: string; kind: 'command' | 'file' | 'denial'; detail: string };
+      data: {
+        runId: string;
+        kind: 'command' | 'file' | 'denial' | 'tool';
+        detail: string;
+        tool?: string;
+      };
     };
 
 export function sseFromRunEvent(messageId: string, ev: RunEvent): SseWireEvent[] {
@@ -150,7 +187,7 @@ export function sseFromRunEvent(messageId: string, ev: RunEvent): SseWireEvent[]
   const items = deriveActivity([ev]).items;
   return items.map((i) => ({
     event: 'activity.item' as const,
-    data: { runId: ev.runId, kind: i.kind, detail: i.detail },
+    data: { runId: ev.runId, kind: i.kind, detail: i.detail, ...(i.tool ? { tool: i.tool } : {}) },
   }));
 }
 
