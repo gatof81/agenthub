@@ -130,6 +130,15 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-18** — **Modern composer (owner decision, doc 11 §12).** The message
+  composer became a rounded full-width field with compact icon controls inside
+  it (send morphs to queue while a run is active; cancel appears only then), and
+  auto-grows with the draft — so on a phone the controls no longer shrink the
+  input. Presentation only; send/queue/cancel behavior is unchanged (§6). Also
+  from the frontend code review: a11y + visual fixes (#79), 401 credential
+  recovery for REST and SSE (#82), workspace-picker dedup + typed SSE frames
+  (#83), and state-teardown/composer-error/type-alias cleanups (#84).
+
 - **2026-07-17** — **Conversation-view UX refinements (owner decisions, doc 11
   §9/§10/§11).** Working the live Phase-1 UI, the owner asked for a series of
   reading/interaction improvements, recorded as spec sub-sections so the code

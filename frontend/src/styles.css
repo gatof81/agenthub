@@ -378,18 +378,52 @@ body {
   border-top: 1px solid var(--border);
   background: var(--panel);
 }
+/* the composer is a rounded field that fills the width; its controls are
+   compact icons inside it, so they never shrink the input (11 §12) */
+.composer-field {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 5px 5px 5px 14px;
+}
+.composer-field:focus-within { border-color: var(--accent); }
 .composer textarea {
   flex: 1;
   resize: none;
-  min-height: 44px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
+  min-width: 0;
+  min-height: 24px;
+  max-height: 160px;
+  overflow-y: auto;
+  background: transparent;
+  border: 0;
   color: var(--text);
-  border-radius: 8px;
-  padding: 9px 11px;
+  padding: 7px 0;
+  line-height: 1.4;
   font-size: var(--chat-font, 14px);
 }
-.composer textarea:focus { outline: none; border-color: var(--accent); }
+.composer textarea:focus { outline: none; }
+.composer-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  flex: none;
+  cursor: pointer;
+}
+.icon-btn.send { background: var(--accent-strong); color: #fff; }
+.icon-btn.send:disabled { background: var(--border); color: var(--muted); cursor: default; }
+.icon-btn.stop { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+.icon-btn.stop:hover { color: var(--danger); border-color: var(--danger); }
 /* iOS auto-zooms a focused field whose font is < 16px. Keep every text field at
    16px+ on touch so tapping the composer never zooms the app (11 §11). The
    class-level selectors (`.composer textarea` at 0,1,1; `.thread-title-edit` at
@@ -424,7 +458,6 @@ button {
   font: inherit;
 }
 button:disabled { opacity: 0.45; cursor: default; }
-button.cancel { background: var(--danger); }
 button.mini { background: var(--panel-2); color: var(--text); padding: 3px 9px; font-size: 12px; border: 1px solid var(--border); }
 button.mini:hover { background: var(--raised); }
 /* Keyboard focus ring for controls that rely on the UA outline (inputs keep
@@ -437,8 +470,6 @@ summary:focus-visible {
   outline-offset: 2px;
 }
 
-/* B: send while a run is active (queue) + cancel; buttons sit at the field's foot */
-.composer-actions { display: flex; gap: 8px; align-items: flex-end; }
 
 /* B: a queued follow-up's user message, until its run starts */
 .queued-pill {
