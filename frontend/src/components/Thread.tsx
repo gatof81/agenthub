@@ -73,7 +73,9 @@ export function Thread({
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [draft, setDraft] = useState('');
-  const [sendError, setSendError] = useState<string | null>(null);
+  // `restored` is true only when the failing path put the draft back (send), so
+  // the banner never claims a restore that did not happen (retry restores nothing).
+  const [sendError, setSendError] = useState<{ text: string; restored: boolean } | null>(null);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   // Runs sent while another is active queue behind it (the backend serializes
   // per workspace); their user message shows a "queued" pill until they start.
@@ -254,7 +256,10 @@ export function Thread({
         }
       } catch (err) {
         setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-        setSendError(err instanceof Error ? err.message : 'send failed');
+        setSendError({
+          text: err instanceof Error ? err.message : 'send failed',
+          restored: onError !== undefined,
+        });
         onError?.();
       }
     },
@@ -425,7 +430,11 @@ export function Thread({
         )}
 
         <footer className="composer">
-          {sendError && <p className="error">{sendError} — message restored, try again.</p>}
+          {sendError && (
+            <p className="error">
+              {sendError.text} — {sendError.restored ? 'message restored, try again.' : 'click Retry again.'}
+            </p>
+          )}
           <textarea
             ref={composerRef}
             value={draft}
