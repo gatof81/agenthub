@@ -73,7 +73,9 @@ export function Thread({
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [draft, setDraft] = useState('');
-  const [sendError, setSendError] = useState<string | null>(null);
+  // `restored` is true only when the failing path put the draft back (send), so
+  // the banner never claims a restore that did not happen (retry restores nothing).
+  const [sendError, setSendError] = useState<{ text: string; restored: boolean } | null>(null);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   // Runs sent while another is active queue behind it (the backend serializes
   // per workspace); their user message shows a "queued" pill until they start.
@@ -223,42 +225,60 @@ export function Thread({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  const send = useCallback(async () => {
+  // Post a message and light up its run — shared by the composer (send) and the
+  // one-click retry of a cut turn (D). Optimistic render (11 §5), confirmed by
+  // the 202 + run.state; a busy workspace queues the new run (B).
+  const submit = useCallback(
+    async (content: string, onError?: () => void) => {
+      if (content === '') return;
+      setSendError(null);
+      const optimistic: Message = {
+        id: `optimistic_${Date.now()}`,
+        conversationId: conversation.id,
+        role: 'user',
+        content,
+        runId: null,
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, optimistic]);
+      try {
+        const res = await api.sendMessage(conversation.id, content);
+        lastEventAtRef.current = Date.now();
+        // tie the optimistic message to its run so a queued turn can show as such
+        setMessages((prev) =>
+          prev.map((m) => (m.id === optimistic.id ? { ...m, runId: res.runId } : m)),
+        );
+        const busy = liveRunRef.current !== null && !isTerminalRun(liveRunRef.current.state);
+        if (busy) {
+          setQueuedRunIds((q) => new Set(q).add(res.runId));
+        } else {
+          setLiveRun({ runId: res.runId, state: res.runState, segments: [], startedAt: Date.now() });
+        }
+      } catch (err) {
+        setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+        setSendError({
+          text: err instanceof Error ? err.message : 'send failed',
+          restored: onError !== undefined,
+        });
+        onError?.();
+      }
+    },
+    [conversation.id],
+  );
+
+  const send = useCallback(() => {
     const content = draft.trim();
     if (content === '') return;
     setDraft('');
-    setSendError(null);
-    // optimistic render (11 §5); confirmed by the 202 + run.state event
-    const optimistic: Message = {
-      id: `optimistic_${Date.now()}`,
-      conversationId: conversation.id,
-      role: 'user',
-      content,
-      runId: null,
-      createdAt: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, optimistic]);
-    try {
-      const res = await api.sendMessage(conversation.id, content);
-      lastEventAtRef.current = Date.now();
-      // tie the optimistic message to its run so a queued turn can show as such
-      setMessages((prev) =>
-        prev.map((m) => (m.id === optimistic.id ? { ...m, runId: res.runId } : m)),
-      );
-      const busy = liveRunRef.current !== null && !isTerminalRun(liveRunRef.current.state);
-      if (busy) {
-        // a run is already streaming — this one queues behind it (serialized per
-        // workspace); it takes the live stage via its own run.state when it starts
-        setQueuedRunIds((q) => new Set(q).add(res.runId));
-      } else {
-        setLiveRun({ runId: res.runId, state: res.runState, segments: [], startedAt: Date.now() });
-      }
-    } catch (err) {
-      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-      setDraft(content);
-      setSendError(err instanceof Error ? err.message : 'send failed');
-    }
-  }, [conversation.id, draft]);
+    void submit(content, () => setDraft(content)); // restore the draft if the send fails
+  }, [draft, submit]);
+
+  // Retry a cut turn (D): re-send the last user message. The runtime resumes the
+  // session, so the agent continues with the context of its partial attempt.
+  const retry = useCallback(() => {
+    const lastUser = messages.findLast((m) => m.role === 'user');
+    if (lastUser) void submit(lastUser.content);
+  }, [messages, submit]);
 
   const cancel = useCallback(() => {
     if (liveRun) void api.cancelRun(liveRun.runId).catch(() => {});
@@ -386,7 +406,19 @@ export function Thread({
             </>
           )}
           {outcome && (
-            <RunOutcomeChip outcome={outcome} onOpenActivity={() => setInspectorOpen(true)} />
+            <div className="run-outcome-row">
+              <RunOutcomeChip outcome={outcome} onOpenActivity={() => setInspectorOpen(true)} />
+              {outcome.tone !== 'ok' && (
+                <button
+                  type="button"
+                  className="retry"
+                  onClick={retry}
+                  title="Re-send the last message — the agent resumes with its partial work"
+                >
+                  ↻ Retry
+                </button>
+              )}
+            </div>
           )}
           <div ref={bottomRef} />
         </div>
@@ -398,7 +430,11 @@ export function Thread({
         )}
 
         <footer className="composer">
-          {sendError && <p className="error">{sendError} — message restored, try again.</p>}
+          {sendError && (
+            <p className="error">
+              {sendError.text} — {sendError.restored ? 'message restored, try again.' : 'click Retry again.'}
+            </p>
+          )}
           <textarea
             ref={composerRef}
             value={draft}
