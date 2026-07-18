@@ -451,6 +451,26 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       store.close();
     });
 
+    it('getEventsByRunIds batches events per run in seq order; unknown runs are absent', () => {
+      const store = makeStore();
+      const a = seedRun(store);
+      const b = seedRun(store);
+      store.ingestEvents(a.run.id, [
+        ev('a2', 2, 'output', { text: 'a-two' }),
+        ev('a1', 1, 'output', { text: 'a-one' }),
+      ]);
+      store.ingestEvents(b.run.id, [ev('b1', 1, 'tool_use', { name: 'Bash', input: { command: 'ls' } })]);
+      const byRun = store.getEventsByRunIds([a.run.id, b.run.id, 'run_absent']);
+      expect(byRun.get(a.run.id)!.map((e) => e.seq)).toEqual([1, 2]);
+      expect(byRun.get(a.run.id)!.map((e) => e.payload)).toEqual([{ text: 'a-one' }, { text: 'a-two' }]);
+      expect(byRun.get(b.run.id)!.map((e) => e.seq)).toEqual([1]);
+      expect(byRun.has('run_absent')).toBe(false);
+      // the batch is exactly what per-run getEvents would return
+      expect(byRun.get(a.run.id)).toEqual(store.getEvents(a.run.id));
+      expect(store.getEventsByRunIds([]).size).toBe(0);
+      store.close();
+    });
+
     it('oversized payloads are truncated at ingestion with the 08 §2 marker', () => {
       const store = makeStore();
       const { run } = seedRun(store);

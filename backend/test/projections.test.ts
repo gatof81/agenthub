@@ -3,6 +3,7 @@ import {
   assembleAssistantText,
   deriveActivity,
   deriveRunSummary,
+  deriveSegments,
 } from '../src/domain/projections.js';
 import type { Run, RunEvent } from '../src/domain/types.js';
 
@@ -57,6 +58,30 @@ describe('activity projection (A2, FR-14/15)', () => {
 describe('assistant text assembly (06 §Message)', () => {
   it('concatenates only text blocks — thinking and tool results excluded', () => {
     expect(assembleAssistantText(EVENTS)).toBe('I will fix it.');
+  });
+});
+
+describe('turn segments (A: text → tool → text bubbles)', () => {
+  it('interleaves text runs and tool steps in order', () => {
+    expect(deriveSegments(EVENTS)).toEqual([
+      { kind: 'text', text: 'I will ' },
+      { kind: 'command', detail: 'npm test', tool: 'Bash' },
+      { kind: 'file', detail: '/w/a.ts', tool: 'Write' },
+      { kind: 'file', detail: '/w/a.ts', tool: 'Edit' },
+      { kind: 'denial', detail: 'WebFetch', tool: 'WebFetch' },
+      { kind: 'text', text: 'fix it.' },
+    ]);
+    // the concatenated text segments equal the single-blob assembly (consistent
+    // with `content`, which stays the fallback for a client that ignores segments)
+    const text = deriveSegments(EVENTS)
+      .filter((s): s is { kind: 'text'; text: string } => s.kind === 'text')
+      .map((s) => s.text)
+      .join('');
+    expect(text).toBe(assembleAssistantText(EVENTS));
+  });
+
+  it('is empty for a run that produced neither text nor tools', () => {
+    expect(deriveSegments([ev(1, 'started', {}), ev(2, 'exit', { exitCode: 0 })])).toEqual([]);
   });
 });
 

@@ -60,6 +60,11 @@ export interface Conversation {
   status: 'active' | 'archived';
 }
 
+/** One bubble of a turn (A): a run of assistant text, or a single tool step. */
+export type TurnSegment =
+  | { kind: 'text'; text: string }
+  | { kind: 'command' | 'file' | 'denial' | 'tool'; detail: string; tool?: string };
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -67,6 +72,9 @@ export interface Message {
   content: string;
   runId: string | null;
   createdAt: string;
+  /** present on an assistant turn that used tools — render as ordered bubbles
+   *  (text → tool step → text) instead of the single `content` blob (A) */
+  segments?: TurnSegment[];
 }
 
 export type RunState =

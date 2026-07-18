@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  appendDelta,
   describeRunOutcome,
   describeStep,
   formatElapsed,
@@ -15,11 +16,12 @@ import {
   TERMINAL_RUN_STATES,
   type LiveRun,
 } from './runStatus.js';
+import type { TurnSegment } from './api.js';
 
 const live = (over: Partial<LiveRun> = {}): LiveRun => ({
   runId: 'run_1',
   state: 'streaming',
-  deltaText: 'partial answer',
+  segments: [{ kind: 'text', text: 'partial answer' }],
   ...over,
 });
 
@@ -45,12 +47,16 @@ describe('reconcileLiveRun', () => {
     }
   });
 
-  it('syncs a stale non-terminal state (starting → streaming) without dropping accumulated text', () => {
-    const next = reconcileLiveRun(live({ state: 'starting', deltaText: 'so far' }), {
+  it('syncs a stale non-terminal state (starting → streaming) without dropping the bubbles so far', () => {
+    const next = reconcileLiveRun(live({ state: 'starting' }), {
       id: 'run_1',
       state: 'streaming',
     });
-    expect(next).toEqual({ runId: 'run_1', state: 'streaming', deltaText: 'so far' });
+    expect(next).toEqual({
+      runId: 'run_1',
+      state: 'streaming',
+      segments: [{ kind: 'text', text: 'partial answer' }],
+    });
   });
 
   it('leaves a genuinely still-running (quiet) turn untouched', () => {
@@ -62,7 +68,11 @@ describe('reconcileLiveRun', () => {
   it('keeps interrupted active (non-terminal) so the watchdog keeps polling to its real end', () => {
     const current = live({ state: 'streaming' });
     const next = reconcileLiveRun(current, { id: 'run_1', state: 'interrupted' });
-    expect(next).toEqual({ runId: 'run_1', state: 'interrupted', deltaText: 'partial answer' });
+    expect(next).toEqual({
+      runId: 'run_1',
+      state: 'interrupted',
+      segments: [{ kind: 'text', text: 'partial answer' }],
+    });
   });
 
   it('never clobbers a fresher live run when the store read is for a different run', () => {
@@ -184,5 +194,27 @@ describe('formatElapsed', () => {
 
   it('clamps a negative (clock skew) to zero', () => {
     expect(formatElapsed(-5_000)).toBe('0:00');
+  });
+});
+
+describe('appendDelta (A: building the turn as bubbles)', () => {
+  it('extends the trailing text bubble', () => {
+    expect(appendDelta([{ kind: 'text', text: 'Hel' }], 'lo')).toEqual([{ kind: 'text', text: 'Hello' }]);
+  });
+
+  it('opens a new text bubble after a tool step (text → tool → text)', () => {
+    const segs: TurnSegment[] = [
+      { kind: 'text', text: 'looking' },
+      { kind: 'command', detail: 'ls', tool: 'Bash' },
+    ];
+    expect(appendDelta(segs, 'done')).toEqual([
+      { kind: 'text', text: 'looking' },
+      { kind: 'command', detail: 'ls', tool: 'Bash' },
+      { kind: 'text', text: 'done' },
+    ]);
+  });
+
+  it('opens the first bubble on an empty turn', () => {
+    expect(appendDelta([], 'hi')).toEqual([{ kind: 'text', text: 'hi' }]);
   });
 });

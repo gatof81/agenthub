@@ -434,6 +434,20 @@ export class MemoryHubStore implements HubStore {
       .map(({ payloadJson: _p, ...ev }) => clone(ev));
   }
 
+  getEventsByRunIds(runIds: string[]): Map<string, RunEvent[]> {
+    const wanted = new Set(runIds);
+    const result = new Map<string, RunEvent[]>();
+    for (const e of this.events) {
+      if (!wanted.has(e.runId)) continue;
+      const { payloadJson: _p, ...ev } = e;
+      const list = result.get(e.runId);
+      if (list) list.push(clone(ev));
+      else result.set(e.runId, [clone(ev)]);
+    }
+    for (const list of result.values()) list.sort((a, b) => a.seq - b.seq);
+    return result;
+  }
+
   getReplayableEvents(conversationId: string, afterIndex = -1): ReplayableEvent[] {
     this.mustConversationRef(conversationId);
     const runOrder = new Map(this.runs.map((r, i) => [r.id, i]));

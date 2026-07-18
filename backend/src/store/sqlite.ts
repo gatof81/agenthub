@@ -743,6 +743,22 @@ export class SqliteHubStore implements HubStore {
     return rows.map(toEvent);
   }
 
+  getEventsByRunIds(runIds: string[]): Map<string, RunEvent[]> {
+    const result = new Map<string, RunEvent[]>();
+    if (runIds.length === 0) return result;
+    const placeholders = runIds.map(() => '?').join(',');
+    const rows = this.db
+      .prepare(`SELECT * FROM run_events WHERE run_id IN (${placeholders}) ORDER BY run_id, seq`)
+      .all(...runIds) as EventRow[];
+    for (const row of rows) {
+      const ev = toEvent(row);
+      const list = result.get(ev.runId);
+      if (list) list.push(ev);
+      else result.set(ev.runId, [ev]);
+    }
+    return result;
+  }
+
   getReplayableEvents(conversationId: string, afterIndex = -1): ReplayableEvent[] {
     this.mustConversation(conversationId);
     const placeholders = REPLAYABLE_EVENT_TYPES.map(() => '?').join(',');
