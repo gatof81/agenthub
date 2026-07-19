@@ -59,7 +59,7 @@ decision and is superseded):
 | --- | --- | --- |
 | [ADR-001](./adr/ADR-001-shared-terminal-exec-seam.md) | Integration seam with shared-terminal: exec-over-HTTP contract (transport, auth, framing, cancellation, reconnection, correlation, versioning — and the "ask for nothing new" option) | **accepted & implemented upstream** (#385) — [contracts/shared-terminal-exec-api.md](./contracts/shared-terminal-exec-api.md) tracks the canonical `EXEC_API.md` |
 | [ADR-002](./adr/ADR-002-hub-persistence.md) | Hub-owned persistence: **SQLite local + scheduled backups to R2** (the initial D1 directive was reverted when S-03 fired the pre-agreed latency gate); also records the deployment shape (co-located Node backend serving the SPA same-origin — frontend placement superseded 2026-07-17 from Cloudflare Pages, see ADR-002 Consequences; resolves Q-05) | **accepted** (2026-07-14) |
-| [ADR-003](./adr/ADR-003-claude-cli-runner.md) | Claude CLI runner integration: per-turn command construction, event mapping, marker-based post-cancel sweep, budget strategy (S-01 lessons encoded) | **accepted** (2026-07-14) |
+| [ADR-003](./adr/ADR-003-claude-cli-runner.md) | Claude CLI runner integration: per-turn command construction, event mapping, marker-based post-cancel sweep, budget strategy (S-01 lessons encoded); **amended 2026-07-19 — budget cap optional, off by default** | **accepted** (2026-07-14, amended 2026-07-19) |
 | [ADR-004](./adr/ADR-004-ui-streaming-transport.md) | Hub↔frontend streaming: SSE with `Last-Event-ID` replay from the store | **accepted** (2026-07-14) |
 | [ADR-005](./adr/ADR-005-project-aggregate.md) | **Project as the organizing aggregate** — owner-directed pivot: one workspace/container per project, conversations share it; minimal Phase-1 shape with an explicit deferred list (R-17) | **accepted** (2026-07-14) |
 | [ADR-006](./adr/ADR-006-workspace-belongs-to-the-project.md) | **The workspace belongs to the project, not the agent** — an agent is a role reusable across projects; a project is a workspace with a repository. Adds `Project.repo` + the per-repo credential, and makes per-turn role instructions necessary (FR-45/46/47, SEC-11) | **accepted** (2026-07-16) — shipped in Increment 5; its one deferred consequence (the per-turn mechanism) closed by [S-04](./spikes/S-04/RESULTS.md) |
@@ -130,6 +130,13 @@ numbers are noted per item as they land, since the two drift.
 | MVP-phase risk mitigations accepted | 16 (closed/accepted per doc) | **passed** (owner, 2026-07-15) |
 
 ## Changelog
+
+- **2026-07-19** — **Budget cap made optional (owner decision, ADR-003
+  amendment).** `Caps.budgetUsd` is now nullable and **off by default** — on a
+  Claude subscription a dollar figure is a lagging estimate that only trips
+  false alarms, not real billing. `--max-turns` + the wall-clock timeout remain
+  the always-on runaway bounds; the budget cap is opt-in per role. Amends FR-17,
+  R-06, and the B3-06 entry above.
 
 - **2026-07-19** — **Message footer: timestamps + copy (owner decision, doc 11
   §15).** Each message shows a relative time (absolute on hover); assistant
@@ -283,7 +290,9 @@ numbers are noted per item as they land, since the two drift.
   the stream-json mapping) and trips `budget_exceeded` on crossing
   `caps.budgetUsd` — prices configurable, conservative defaults (a
   runaway cap, not a billing figure; the estimate lags by up to one model
-  call, ADR-003). Seam 409/429 classifies as `exec_refused`, anything
+  call, ADR-003; **amended 2026-07-19 — `budgetUsd` is now optional, off by
+  default; the always-on bounds are `--max-turns` + wall-clock, see the entry
+  below**). Seam 409/429 classifies as `exec_refused`, anything
   unreachable as `seam_unavailable`. Timeout/budget kills resolve as
   `failed` (not `cancelled`) and run the FR-21 sweep for escaped children.
 

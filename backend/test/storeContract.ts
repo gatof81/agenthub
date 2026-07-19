@@ -214,6 +214,31 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       store.close();
     });
 
+    it('accepts a null budget (no cap, off by default, ADR-003); rejects a negative one', () => {
+      const store = makeStore();
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+      const c = store.createConversation({ projectId: p.id, title: 't', agentId: 'dev' });
+      const { run } = store.sendMessage({
+        conversationId: c.id,
+        content: 'x',
+        caps: { maxTurns: 10, budgetUsd: null, timeoutMs: 1000 },
+        policy: POLICY,
+        instructions: INSTRUCTIONS,
+      });
+      expect(run.capsSnapshot.budgetUsd).toBeNull(); // round-trips as "no cap"
+      // a provided budget must still be positive
+      expect(() =>
+        store.sendMessage({
+          conversationId: c.id,
+          content: 'x',
+          caps: { maxTurns: 10, budgetUsd: -1, timeoutMs: 1000 },
+          policy: POLICY,
+          instructions: INSTRUCTIONS,
+        }),
+      ).toThrow(ValidationError);
+      store.close();
+    });
+
     it('caps oversized message content with a truncation marker (09 §6)', () => {
       const store = makeStore();
       const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });

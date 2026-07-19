@@ -50,7 +50,13 @@ export type RunErrorCode =
 /** Per-run caps snapshot (FR-17); every run gets one (I-8: immutable after queued). */
 export interface Caps {
   maxTurns: number;
-  budgetUsd: number;
+  /**
+   * Optional dollar cap — an opt-in runaway guard, **off by default** (ADR-003,
+   * R-06). `null` = no cap: `maxTurns` + `timeoutMs` still bound a runaway run.
+   * The cap is a lagging estimate, not billing; on a subscription there is no
+   * per-token cost, so a dollar figure is moot and would only trip false alarms.
+   */
+  budgetUsd: number | null;
   timeoutMs: number;
 }
 

@@ -45,8 +45,10 @@ End-to-end flow, all of it in scope:
 
 ### Hard limits from day 1
 
-Every run carries: max turns, budget cap, wall-clock timeout. These are not
-Phase-3 features — they are Phase-1 safety rails (risk R-06).
+Every run carries max turns and a wall-clock timeout — Phase-1 safety rails, not
+Phase-3 features (risk R-06). A per-run dollar budget cap is also available but
+**optional, off by default** (ADR-003 amendment 2026-07-19 — moot on a
+subscription); max-turns + timeout are the always-on runaway bounds.
 
 ### Out of scope for the MVP
 

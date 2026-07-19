@@ -52,7 +52,7 @@ normative:**
 | `instructions` | the role's craft. Travels **per turn** via `--append-system-prompt`, as tools do, and is snapshotted onto the run at send like caps and policy (B5-04, I-8; mechanism verified against the pinned CLI in [S-04](./spikes/S-04/RESULTS.md)). It is NOT seeded into the workspace at provisioning: the workspace is the project's and several roles share it (ADR-006), so a baked `CLAUDE.md` ran every conversation under the provisioning agent's craft. Contrast `Project.instructions`, which stays in the workspace precisely because every role in the project shares it |
 | `allowedTools` | the curated allowlist — **mandatory, never empty-meaning-all** (FR-11, SEC-02) |
 | `runtime` | `claude-cli` (only value in P1); the discriminator for the `RuntimeAdapter` |
-| `defaultCaps` | `{maxTurns, budgetUsd, timeoutMs}` — every run gets a caps snapshot (FR-17) |
+| `defaultCaps` | `{maxTurns, timeoutMs, budgetUsd?: number \| null}` — every run gets a caps snapshot (FR-17). `budgetUsd` is optional (null = no dollar cap, off by default, ADR-003); `maxTurns` + `timeoutMs` are the always-on bounds |
 | `role?` | professional label, e.g. "Software Developer" (ADR-008, N3a); optional — pre-N3 configs omit it |
 | `capabilities?` | free-form tags the router (N4) selects on (ADR-008); optional list |
 

@@ -68,6 +68,13 @@ runner cancels the run (kill path) and marks it `failed` with a
 budget-exceeded error. Documented limitation: the estimate lags by up to one
 model call; the residual risk stays under R-06.
 
+**Amended 2026-07-19 — the budget cap is optional, off by default.**
+`Caps.budgetUsd` is nullable; a `null` cap (the default) never trips — the
+`--max-turns` + wall-clock bounds remain the always-on runaway guard. The cap
+is a lagging estimate, never billing; on a Claude **subscription** there is no
+per-token cost, so a dollar figure trips false alarms rather than enforcing a
+real limit. Set a positive `budgetUsd` to opt back in per role.
+
 ### Cancellation and the post-cancel sweep (FR-20/21)
 
 1. `POST …/kill {graceMs}`; record the `outcome` — **authoritative over the

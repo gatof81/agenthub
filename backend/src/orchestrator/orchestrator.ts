@@ -1095,9 +1095,12 @@ export class Orchestrator {
             break;
           case 'usage':
             // lagging budget estimate (ADR-003, R-06): accumulate per-message
-            // token cost; crossing the cap trips a kill → budget_exceeded
+            // token cost; crossing the cap trips a kill → budget_exceeded. The
+            // cap is opt-in — a null budgetUsd (the default) never trips; the
+            // maxTurns + wall-clock bounds still guard a runaway run.
             estimatedCostUsd += estimateCostUsd(item, this.tokenPrices);
             if (
+              run.capsSnapshot.budgetUsd !== null &&
               estimatedCostUsd > run.capsSnapshot.budgetUsd &&
               !this.budgetTripped.has(run.id)
             ) {

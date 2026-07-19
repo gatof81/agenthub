@@ -64,7 +64,7 @@ increment ships.
 | FR-14 | M | Activity (commands run, files touched) derives from `tool_use` events (`input.command`, `input.file_path`), never from filesystem diffs | A2, S-01 (v) |
 | FR-15 | M | **`permission_denials` is a first-class run outcome**: a run that "succeeds" with denials is shown as partially completed, with the denied tools and inputs visible | S-01 (i) — silent auto-denial |
 | FR-16 | M | Unknown stream event types (e.g. `rate_limit_event`) are persisted and passed through without breaking ingestion | S-01 (v) |
-| FR-17 | M | Every run enforces: max turns, budget cap, wall-clock timeout | 03 (hard limits), R-06 |
+| FR-17 | M | Every run enforces max turns and a wall-clock timeout; a per-run dollar budget cap is **optional, off by default** (ADR-003 amendment 2026-07-19 — moot on a subscription) | 03 (hard limits), R-06 |
 | FR-18 | M | A `UsageRecord` per run captures the result event's cost/usage fields; **cancelled runs record usage as `unknown`** (no result event exists) | A3, S-01 (iii/iv) |
 | FR-19 | M | Runs are serialized per **workspace** (substrate session). With ADR-005's 1:1:1 this realizes as one active run per project; once specialist sessions exist (ADR-008) the lock follows each workspace, exactly as 18 §2 reserved | R-11, Q-03, Q-11, ADR-008 |
 
