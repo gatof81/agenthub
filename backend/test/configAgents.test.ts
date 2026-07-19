@@ -17,6 +17,15 @@ describe('agent config (FR-02)', () => {
     expect(dev.runtime).toBe('claude-cli');
     expect(dev.allowedTools).toEqual(['Read', 'Grep', 'Glob', 'Write', 'Edit', 'Bash']); // 08 §5
     expect(dev.defaultCaps.maxTurns).toBeGreaterThan(0);
+    // the example omits budgetUsd → no dollar cap (ADR-003, off by default)
+    expect(dev.defaultCaps.budgetUsd).toBeNull();
+  });
+
+  it('accepts an explicit positive budgetUsd (opt-in cap); rejects a non-positive one', () => {
+    const withCap = EXAMPLE.replace('maxTurns: 30\n      timeoutMs', 'maxTurns: 30\n      budgetUsd: 2.5\n      timeoutMs');
+    expect(parseAgentsYaml(withCap).get('dev')!.defaultCaps.budgetUsd).toBe(2.5);
+    const negative = EXAMPLE.replace('maxTurns: 30\n      timeoutMs', 'maxTurns: 30\n      budgetUsd: -1\n      timeoutMs');
+    expect(() => parseAgentsYaml(negative)).toThrow(AgentConfigError);
   });
 
   it('parses the specialist role + capabilities (N3, ADR-008)', () => {

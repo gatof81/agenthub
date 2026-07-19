@@ -67,7 +67,11 @@ export function validateSendMessage(input: SendMessageInput): void {
     throw new ValidationError('message content must be a non-empty string');
   }
   const { maxTurns, budgetUsd, timeoutMs } = input.caps;
-  if (!(maxTurns > 0) || !(budgetUsd > 0) || !(timeoutMs > 0)) {
-    throw new ValidationError('caps must be positive (FR-17 hard limits from day 1)');
+  // maxTurns + timeoutMs are the always-on bounds; budgetUsd is optional (null =
+  // no cap, ADR-003) and only validated when set.
+  if (!(maxTurns > 0) || !(timeoutMs > 0) || (budgetUsd !== null && !(budgetUsd > 0))) {
+    throw new ValidationError(
+      'caps: maxTurns and timeoutMs must be positive; budgetUsd, if set, must be positive (FR-17)',
+    );
   }
 }

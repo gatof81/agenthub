@@ -66,11 +66,15 @@ function validateAgent(raw: RawAgent, index: number): Agent {
   }
   const caps = raw.defaultCaps ?? {};
   const maxTurns = Number(caps.maxTurns);
-  const budgetUsd = Number(caps.budgetUsd);
   const timeoutMs = Number(caps.timeoutMs);
-  if (!(maxTurns > 0) || !(budgetUsd > 0) || !(timeoutMs > 0)) {
+  // budgetUsd is OPTIONAL (ADR-003): absent/null = no dollar cap. maxTurns and
+  // timeoutMs are the always-on structural bounds; the budget cap is an opt-in
+  // runaway guard, off by default.
+  const budgetUsd =
+    caps.budgetUsd === undefined || caps.budgetUsd === null ? null : Number(caps.budgetUsd);
+  if (!(maxTurns > 0) || !(timeoutMs > 0) || (budgetUsd !== null && !(budgetUsd > 0))) {
     throw new AgentConfigError(
-      `${where}: defaultCaps.{maxTurns,budgetUsd,timeoutMs} must all be positive (FR-17 hard limits from day 1)`,
+      `${where}: defaultCaps.maxTurns and .timeoutMs must be positive; budgetUsd, if set, must be positive too (FR-17)`,
     );
   }
   // Specialist identity fields (N3, ADR-008), both optional. `role` is a

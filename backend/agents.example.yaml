@@ -42,8 +42,10 @@ agents:
     runtime: claude-cli
     defaultCaps:
       maxTurns: 30
-      budgetUsd: 2.0
       timeoutMs: 600000
+      # budgetUsd is optional (ADR-003) — a lagging-estimate runaway guard, off
+      # by default. Omit it (as here) for no dollar cap; maxTurns + timeoutMs
+      # still bound a runaway run. Set it to a positive number to opt in.
 
   - id: qa
     name: QA
@@ -58,5 +60,7 @@ agents:
     runtime: claude-cli
     defaultCaps:
       maxTurns: 30
-      budgetUsd: 2.0
       timeoutMs: 600000
+      # budgetUsd is optional (ADR-003) — a lagging-estimate runaway guard, off
+      # by default. Omit it (as here) for no dollar cap; maxTurns + timeoutMs
+      # still bound a runaway run. Set it to a positive number to opt in.

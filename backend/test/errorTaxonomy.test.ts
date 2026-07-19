@@ -110,6 +110,18 @@ describe('lagging budget (ADR-003, R-06, budget_exceeded)', () => {
     expect(store.getRun(run.id)!.state).toBe('completed');
     expect(store.getRun(run.id)!.errorCode).toBeNull();
   });
+
+  it('never trips with no cap (budgetUsd null, off by default, ADR-003)', async () => {
+    // the same fixture that trips a $0.001 cap runs clean with no cap — only
+    // maxTurns + timeout bound it now.
+    const noCap = { ...AGENT, defaultCaps: { ...AGENT.defaultCaps, budgetUsd: null } };
+    const { store, port, orch, conversation } = await harness({}, noCap);
+    port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+    const { run } = orch.send(conversation.id, 'spendy but uncapped');
+    await orch.idle();
+    expect(store.getRun(run.id)!.state).toBe('completed');
+    expect(store.getRun(run.id)!.errorCode).toBeNull();
+  });
 });
 
 describe('wall-clock timeout (FR-17/25, run_timeout)', () => {
