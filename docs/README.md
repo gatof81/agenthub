@@ -159,7 +159,9 @@ numbers are noted per item as they land, since the two drift.
   **Also**: reclaimed the dead space below the composer (`.app` had no
   `grid-template-rows`, so its row could size to content and leave a gap on a
   short conversation — now `minmax(0, 1fr)`) and tightened the composer footer;
-  provisioning projects show a spinner in their status badge.
+  provisioning projects show a spinner in their status badge; and archive now
+  confirms in an in-app dark-theme modal instead of the native `window.confirm`
+  (Escape or an outside click cancels; Cancel is the default focus).
 
 - **2026-07-18** — **User-facing error surface (owner decision, doc 11 §13).**
   Action failures (create/archive project or conversation, specialist bind/chat)
