@@ -146,7 +146,7 @@ Machine-readable `code` on run errors and API error bodies:
 | `seam_unavailable` | substrate unreachable / 5xx | run `failed`; retryable by re-send |
 | `exec_refused` | seam 409/429 (container down, caps) | run `failed` (FR-33 context attached) |
 | `run_timeout` | wall-clock cap hit (FR-17) | run `failed` |
-| `budget_exceeded` | lagging budget estimate crossed (ADR-003) | run `failed` |
+| `budget_exceeded` | lagging budget estimate crossed the cap (ADR-003) — only fires when `budgetUsd` is set (opt-in, off by default) | run `failed` |
 | `max_turns` | ran out of turns before finishing — CLI `result.subtype: error_max_turns` (ADR-003) | run `failed`; a soft stop, so the partial text produced before the limit is kept as the message |
 | `cancelled` | user cancel (FR-20) | run `cancelled` (not an error code on the API) |
 | `runtime_error` | CLI exited non-zero without result / `error` event | run `failed`, stderr excerpt attached (capped) |
