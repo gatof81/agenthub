@@ -25,9 +25,15 @@ import type {
   SessionBinding,
   SpecialistSessionBinding,
   SweepResult,
+  Task,
+  TaskState,
+  TaskStep,
   TerminalRunState,
   UsageRecord,
   UsageSource,
+  WorkProduct,
+  ImplementationReport,
+  QaReport,
 } from '../domain/types.js';
 
 export interface CreateProjectInput {
@@ -217,7 +223,43 @@ export interface HubStore {
   // — usage & summary —
   getUsage(runId: string): UsageRecord | undefined;
   getSummary(runId: string): RunSummary | undefined;
+
+  // — tasks: developer → QA → human-approval lifecycle (N5a, ADR-009/010) —
+  /** Create a task in `planning` — coordinated work born from a routed message. */
+  createTask(input: CreateTaskInput): Task;
+  getTask(id: string): Task | undefined;
+  listTasks(opts?: { projectId?: string }): Task[];
+  /**
+   * Guarded transition (I-13) against the task state machine: asserts legality
+   * and that the row is currently in `from` (StaleTaskStateError otherwise),
+   * one tx, stamps updatedAt. Terminal transitions are legal here (a task ends
+   * in `approved`/`rejected`/`failed`); there is no separate finalize.
+   */
+  transitionTask(taskId: string, from: TaskState, to: TaskState): Task;
+  /** Append a step; its `seq` is the next in the task's order. */
+  createTaskStep(input: { taskId: string; kind: TaskStep['kind']; specialistId: string }): TaskStep;
+  listTaskSteps(taskId: string): TaskStep[];
+  /** Record a work product (ImplementationReport/QaReport, 18 §4 envelope). */
+  addWorkProduct(input: NewWorkProduct): WorkProduct;
+  listWorkProducts(taskId: string): WorkProduct[];
 }
+
+export interface CreateTaskInput {
+  projectId: string;
+  sourceConversationId?: string | null;
+  sourceMessageId?: string | null;
+}
+
+/** A work product to record; the id/createdAt are assigned by the store. */
+export type NewWorkProduct = {
+  taskId: string;
+  taskStepId?: string | null;
+  producerSpecialistId: string;
+  runId?: string | null;
+} & (
+  | { kind: 'implementation_report'; body: ImplementationReport }
+  | { kind: 'qa_report'; body: QaReport }
+);
 
 /** Event types that participate in SSE Last-Event-ID replay (08 §3). */
 export const REPLAYABLE_EVENT_TYPES: readonly RunEventType[] = [

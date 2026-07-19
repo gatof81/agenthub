@@ -5,7 +5,7 @@
 
 import { randomUUID } from 'node:crypto';
 
-export type IdPrefix = 'proj' | 'conv' | 'msg' | 'run' | 'ev';
+export type IdPrefix = 'proj' | 'conv' | 'msg' | 'run' | 'ev' | 'task' | 'step' | 'wp';
 
 export type IdGen = (prefix: IdPrefix) => string;
 

@@ -12,6 +12,7 @@ import {
   isTerminal,
   StaleStateError,
 } from '../domain/runStateMachine.js';
+import { assertLegalTaskTransition, StaleTaskStateError } from '../domain/taskStateMachine.js';
 import type {
   Conversation,
   ExecutionTargetDecision,
@@ -23,7 +24,11 @@ import type {
   RunSummary,
   SessionBinding,
   SpecialistSessionBinding,
+  Task,
+  TaskState,
+  TaskStep,
   UsageRecord,
+  WorkProduct,
 } from '../domain/types.js';
 import { migrate } from './migrations.js';
 import { capMessageContent, serializePayloadCapped, validateSendMessage } from './shared.js';
@@ -33,9 +38,11 @@ import {
   ValidationError,
   type CreateConversationInput,
   type CreateProjectInput,
+  type CreateTaskInput,
   type FinalizeRunInput,
   type HubStore,
   type NewRunEvent,
+  type NewWorkProduct,
   type ReplayableEvent,
   type RunTransitionPatch,
   type SendMessageInput,
@@ -106,6 +113,7 @@ interface RunRow {
   error_detail: string | null;
   target_session_id: string | null;
   target_decision: string | null;
+  task_step_id: string | null;
   created_at: string;
   started_at: string | null;
   ended_at: string | null;
@@ -221,6 +229,7 @@ function toRun(r: RunRow): Run {
     errorDetail: r.error_detail,
     targetSessionId: r.target_session_id,
     targetDecision: r.target_decision ? JSON.parse(r.target_decision) : null,
+    taskStepId: r.task_step_id,
     createdAt: r.created_at,
     startedAt: r.started_at,
     endedAt: r.ended_at,
@@ -236,6 +245,70 @@ function toEvent(r: EventRow): RunEvent {
     payload: JSON.parse(r.payload),
     ts: r.ts,
   };
+}
+
+interface TaskRow {
+  id: string;
+  project_id: string;
+  source_conversation_id: string | null;
+  source_message_id: string | null;
+  state: TaskState;
+  created_at: string;
+  updated_at: string;
+}
+function toTask(r: TaskRow): Task {
+  return {
+    id: r.id,
+    projectId: r.project_id,
+    sourceConversationId: r.source_conversation_id,
+    sourceMessageId: r.source_message_id,
+    state: r.state,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+interface TaskStepRow {
+  id: string;
+  task_id: string;
+  seq: number;
+  kind: TaskStep['kind'];
+  specialist_id: string;
+  created_at: string;
+}
+function toTaskStep(r: TaskStepRow): TaskStep {
+  return {
+    id: r.id,
+    taskId: r.task_id,
+    seq: r.seq,
+    kind: r.kind,
+    specialistId: r.specialist_id,
+    createdAt: r.created_at,
+  };
+}
+
+interface WorkProductRow {
+  id: string;
+  task_id: string;
+  task_step_id: string | null;
+  kind: WorkProduct['kind'];
+  producer_specialist_id: string;
+  run_id: string | null;
+  body: string;
+  created_at: string;
+}
+function toWorkProduct(r: WorkProductRow): WorkProduct {
+  const envelope = {
+    id: r.id,
+    taskId: r.task_id,
+    taskStepId: r.task_step_id,
+    producerSpecialistId: r.producer_specialist_id,
+    runId: r.run_id,
+    createdAt: r.created_at,
+  };
+  // `kind` discriminates the body; the JSON shape is trusted (written by
+  // addWorkProduct from the typed NewWorkProduct).
+  return { ...envelope, kind: r.kind, body: JSON.parse(r.body) } as WorkProduct;
 }
 
 export class SqliteHubStore implements HubStore {
@@ -820,6 +893,98 @@ export class SqliteHubStore implements HubStore {
       | { summary: string }
       | undefined;
     return row ? (JSON.parse(row.summary) as RunSummary) : undefined;
+  }
+
+  // — tasks (N5a, ADR-009/010) —
+
+  createTask(input: CreateTaskInput): Task {
+    this.mustProject(input.projectId);
+    const now = this.now();
+    const id = this.id('task');
+    this.db
+      .prepare(
+        `INSERT INTO tasks (id, project_id, source_conversation_id, source_message_id, state, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'planning', ?, ?)`,
+      )
+      .run(id, input.projectId, input.sourceConversationId ?? null, input.sourceMessageId ?? null, now, now);
+    return this.getTask(id)!;
+  }
+
+  getTask(id: string): Task | undefined {
+    const r = this.db.prepare(`SELECT * FROM tasks WHERE id = ?`).get(id) as TaskRow | undefined;
+    return r ? toTask(r) : undefined;
+  }
+
+  listTasks(opts: { projectId?: string } = {}): Task[] {
+    const rows = opts.projectId
+      ? (this.db.prepare(`SELECT * FROM tasks WHERE project_id = ? ORDER BY rowid`).all(opts.projectId) as TaskRow[])
+      : (this.db.prepare(`SELECT * FROM tasks ORDER BY rowid`).all() as TaskRow[]);
+    return rows.map(toTask);
+  }
+
+  transitionTask(taskId: string, from: TaskState, to: TaskState): Task {
+    assertLegalTaskTransition(taskId, from, to);
+    const res = this.db
+      .prepare(`UPDATE tasks SET state = ?, updated_at = ? WHERE id = ? AND state = ?`)
+      .run(to, this.now(), taskId, from);
+    if (res.changes !== 1) throw new StaleTaskStateError(taskId, from);
+    return this.getTask(taskId)!;
+  }
+
+  createTaskStep(input: { taskId: string; kind: TaskStep['kind']; specialistId: string }): TaskStep {
+    if (!this.getTask(input.taskId)) throw new NotFoundError('task', input.taskId);
+    const now = this.now();
+    const id = this.id('step');
+    const tx = this.db.transaction((): string => {
+      const seq =
+        (this.db.prepare(`SELECT COALESCE(MAX(seq), -1) + 1 AS n FROM task_steps WHERE task_id = ?`).get(
+          input.taskId,
+        ) as { n: number }).n;
+      this.db
+        .prepare(
+          `INSERT INTO task_steps (id, task_id, seq, kind, specialist_id, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(id, input.taskId, seq, input.kind, input.specialistId, now);
+      return id;
+    });
+    tx();
+    return toTaskStep(this.db.prepare(`SELECT * FROM task_steps WHERE id = ?`).get(id) as TaskStepRow);
+  }
+
+  listTaskSteps(taskId: string): TaskStep[] {
+    const rows = this.db
+      .prepare(`SELECT * FROM task_steps WHERE task_id = ? ORDER BY seq`)
+      .all(taskId) as TaskStepRow[];
+    return rows.map(toTaskStep);
+  }
+
+  addWorkProduct(input: NewWorkProduct): WorkProduct {
+    if (!this.getTask(input.taskId)) throw new NotFoundError('task', input.taskId);
+    const now = this.now();
+    const id = this.id('wp');
+    this.db
+      .prepare(
+        `INSERT INTO work_products (id, task_id, task_step_id, kind, producer_specialist_id, run_id, body, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        input.taskId,
+        input.taskStepId ?? null,
+        input.kind,
+        input.producerSpecialistId,
+        input.runId ?? null,
+        JSON.stringify(input.body),
+        now,
+      );
+    return toWorkProduct(this.db.prepare(`SELECT * FROM work_products WHERE id = ?`).get(id) as WorkProductRow);
+  }
+
+  listWorkProducts(taskId: string): WorkProduct[] {
+    const rows = this.db
+      .prepare(`SELECT * FROM work_products WHERE task_id = ? ORDER BY rowid`)
+      .all(taskId) as WorkProductRow[];
+    return rows.map(toWorkProduct);
   }
 
   // — internals —

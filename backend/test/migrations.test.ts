@@ -19,6 +19,9 @@ const TABLES = [
   'sse_cursor',
   'run_summaries',
   'specialist_sessions',
+  'tasks',
+  'task_steps',
+  'work_products',
   'meta',
 ];
 
@@ -85,7 +88,7 @@ describe('migration runner (09 §4)', () => {
                 '2026-07-16T00:00:00.000Z');
     `);
 
-    expect(migrate(db, real)).toBe(7);
+    expect(migrate(db, real)).toBe(8);
 
     // The legacy run survives, and its role reads NULL: nothing truthful could
     // be backfilled (agents.yaml is gitignored, SEC-10), so 003 records the gap
@@ -118,7 +121,7 @@ describe('migration runner (09 §4)', () => {
       INSERT INTO messages (id, conversation_id, role, content, run_id, created_at)
         VALUES ('m1', 'c1', 'user', 'hi', null, 't');
     `);
-    expect(migrate(db, real)).toBe(7); // rebuilds conversations; FK restored + checked inside
+    expect(migrate(db, real)).toBe(8); // rebuilds conversations; FK restored + checked inside
     expect(db.pragma('foreign_keys', { simple: true })).toBe(1); // enforcement back on
     expect(db.pragma('foreign_key_check')).toEqual([]); // no orphans
 

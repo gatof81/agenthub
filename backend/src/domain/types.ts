@@ -284,6 +284,11 @@ export interface Run {
    * agentId exists. `null` for a direct run.
    */
   targetDecision: ExecutionTargetDecision | null;
+  /**
+   * The task step this run executes, when it is part of a Task's dev→QA flow
+   * (N5a, migration 008). `null` for an ordinary conversation run.
+   */
+  taskStepId: string | null;
   createdAt: string;
   startedAt: string | null;
   endedAt: string | null;
@@ -324,3 +329,84 @@ export interface RunSummary {
   durationMs: number | null;
   runtimeSessionId: string | null; // continuation handle
 }
+
+// — Tasks: the developer → QA → human-approval lifecycle (N5a, ADR-009/010) —
+
+/**
+ * One hardcoded flow (ADR-009), not a workflow engine. Terminal success is
+ * `approved` — never the implementer finishing, never QA passing alone. See
+ * `taskStateMachine.ts` for the legal transitions.
+ */
+export type TaskState =
+  | 'planning'
+  | 'implementing'
+  | 'qa_pending'
+  | 'qa_running'
+  | 'changes_requested_by_qa'
+  | 'awaiting_human_approval'
+  | 'changes_requested_by_user'
+  | 'approved'
+  | 'rejected'
+  | 'failed';
+
+export type TerminalTaskState = 'approved' | 'rejected' | 'failed';
+
+/** Coordinated work, parented to the Project (18 §8), born from a routed message. */
+export interface Task {
+  id: string;
+  projectId: string;
+  /** the conversation + message the router classified as a task (ADR-009) */
+  sourceConversationId: string | null;
+  sourceMessageId: string | null;
+  state: TaskState;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A step of a task, executed by a specialist (ADR-008); its runs link back via `runs.task_step_id`. */
+export interface TaskStep {
+  id: string;
+  taskId: string;
+  seq: number;
+  kind: 'implementation' | 'qa';
+  specialistId: string;
+  createdAt: string;
+}
+
+/** ADR-009 work product; QA→implementer loop is driven by `verdict`. */
+export interface ImplementationReport {
+  objective: string;
+  summary: string;
+  filesChanged: string[];
+  commandsRun: string[];
+  testsRun: string[];
+  knownRisks: string[];
+  commitOrPatch?: string | null;
+}
+
+export interface QaReport {
+  requirementsReviewed: string[];
+  testsRun: string[];
+  passed: string[];
+  failed: string[];
+  regressions: string[];
+  verdict: 'passed' | 'changes_required';
+}
+
+/**
+ * A Work Product (18 §4 family envelope: type + producer + provenance + typed
+ * body). `RunSummary` is the first member (ADR-009); these extend it with the
+ * task-level reports. The body is a discriminated union on `kind`.
+ */
+export type WorkProduct = {
+  id: string;
+  taskId: string;
+  taskStepId: string | null;
+  producerSpecialistId: string;
+  /** provenance: the run that produced it (18 §4) */
+  runId: string | null;
+  createdAt: string;
+} & (
+  | { kind: 'implementation_report'; body: ImplementationReport }
+  | { kind: 'qa_report'; body: QaReport }
+);
