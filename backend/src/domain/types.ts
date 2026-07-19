@@ -286,7 +286,7 @@ export interface Run {
   targetDecision: ExecutionTargetDecision | null;
   /**
    * The task step this run executes, when it is part of a Task's dev→QA flow
-   * (N5, migration 008). `null` for an ordinary conversation run.
+   * (N5a, migration 008). `null` for an ordinary conversation run.
    */
   taskStepId: string | null;
   createdAt: string;
@@ -330,7 +330,7 @@ export interface RunSummary {
   runtimeSessionId: string | null; // continuation handle
 }
 
-// — Tasks: the developer → QA → human-approval lifecycle (N5, ADR-009/010) —
+// — Tasks: the developer → QA → human-approval lifecycle (N5a, ADR-009/010) —
 
 /**
  * One hardcoded flow (ADR-009), not a workflow engine. Terminal success is

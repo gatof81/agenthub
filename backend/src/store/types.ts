@@ -224,7 +224,7 @@ export interface HubStore {
   getUsage(runId: string): UsageRecord | undefined;
   getSummary(runId: string): RunSummary | undefined;
 
-  // — tasks: developer → QA → human-approval lifecycle (N5, ADR-009/010) —
+  // — tasks: developer → QA → human-approval lifecycle (N5a, ADR-009/010) —
   /** Create a task in `planning` — coordinated work born from a routed message. */
   createTask(input: CreateTaskInput): Task;
   getTask(id: string): Task | undefined;

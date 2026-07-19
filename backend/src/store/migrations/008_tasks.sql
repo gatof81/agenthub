@@ -1,4 +1,4 @@
--- 008_tasks: the developer → QA → human-approval lifecycle (N5, ADR-009).
+-- 008_tasks: the developer → QA → human-approval lifecycle (N5a, ADR-009).
 --
 -- A Task is coordinated work parented to a Project (18 §8), born from a
 -- conversation message the router classified as a task (ADR-009). It carries a
@@ -11,7 +11,7 @@
 -- typed shape lives in the domain and evolves without a migration.
 --
 -- Split from the original 007 (which shipped the run target columns for N4a) —
--- see doc 19 §5. Forward-only, no backfill: there are no pre-N5 tasks.
+-- see doc 19 §5. Forward-only, no backfill: there are no pre-N5a tasks.
 --
 -- FK note: the migration runner toggles `PRAGMA foreign_keys` OFF around each
 -- migration and integrity-checks after (see migrations.ts, migration 006), so
@@ -55,5 +55,5 @@ CREATE TABLE work_products (
 );
 CREATE INDEX idx_work_products_task ON work_products(task_id);
 
--- a run may belong to a task step (N5); NULL for an ordinary conversation run
+-- a run may belong to a task step (N5a); NULL for an ordinary conversation run
 ALTER TABLE runs ADD COLUMN task_step_id TEXT;

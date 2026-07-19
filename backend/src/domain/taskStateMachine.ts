@@ -1,5 +1,5 @@
 /**
- * The Task state machine (ADR-009, N5) — the developer → QA → human-approval
+ * The Task state machine (ADR-009, N5a) — the developer → QA → human-approval
  * lifecycle, exactly one hardcoded flow (not a workflow engine, 18 §6). Like
  * the run machine, the store's guarded updates call into this table so illegal
  * transitions are unrepresentable rather than merely discouraged.

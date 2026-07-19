@@ -178,7 +178,7 @@ cost/turns (from `UsageRecord`, `unknown` where it is), duration, and the
 (01 §4) — the Phase-4 generic artifact system grows from this seed. Narrative
 model-authored fields are a later enrichment, not Phase 1.
 
-### Task, TaskStep, Work Products (N5, ADR-009/010)
+### Task, TaskStep, Work Products (N5a, ADR-009/010)
 
 Coordinated work, **one hardcoded flow** (ADR-009) — not a workflow engine
 (18 §6). Landed as the N5a data core; the supervisor that drives it is N5b.
@@ -219,7 +219,7 @@ Coordinated work, **one hardcoded flow** (ADR-009) — not a workflow engine
 | I-10 | `Conversation.projectId` never changes **once set**; it is nullable for direct specialist conversations (owner decision 2026-07-17, ADR-008 — migration 006, N3b-2) | ADR-005, ADR-008 |
 | I-11 | Every terminal run has exactly one `RunSummary`, written in the terminal transition's transaction | FR-42 |
 | I-12 | An active conversation never belongs to an archived project — archiving a project stops the session its conversations share (FR-40), so an active conversation there could not take a turn. Archiving a project archives its conversations with it; restoring a conversation requires its project to be restored first | FR-43 |
-| I-13 | Task state changes follow the ADR-009 machine only (`taskStateMachine.ts`), each transition one guarded transaction — the task analogue of I-3 for runs (N5) | ADR-009 |
+| I-13 | Task state changes follow the ADR-009 machine only (`taskStateMachine.ts`), each transition one guarded transaction — the task analogue of I-3 for runs (N5a) | ADR-009 |
 
 ## 4. Ports (domain boundaries)
 
