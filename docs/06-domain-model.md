@@ -95,7 +95,7 @@ permission overrides.
 | --- | --- |
 | `id`, `title`, `status` | status: `active \| archived` — provisioning belongs to the project |
 | `projectId` | the project, or **`null`** for a direct conversation with a specialist (N3b-2) — which runs in the specialist's personal session, not a project's. Immutable once set (I-10) |
-| `mode` | `direct \| preferred-specialist \| automatic` (N3b-2, ADR-008). `direct` is the only mode built — a pinned specialist (or a project's agent). `automatic`/`preferred-specialist` arrive with the N4 router |
+| `mode` | `direct \| automatic` are the built modes (ADR-008/012). `direct` pins a specialist (or a project's agent), no model call; `automatic` (default since N4b) routes each turn via the model router. `preferred-specialist` stays a declared-but-deferred value in the `ConversationMode` type — the API **rejects** it (`422`) until it is implemented |
 | `agentId` | the agent (project) or specialist (direct); immutable in `direct` mode (the built behavior). In `automatic` mode (N4) no immutable agentId exists and the acting specialist is recorded per run/step (ADR-008, FR-51) |
 | `runtimeSessionId` | the CLI's own session id used for `--resume`; updated from each result event (S-01: stable across resumes, but drift is captured, FR-24). Many CLI sessions coexist in one workspace — directly verified by S-01's published run (five distinct sessions in one container, one resumed by id while the others coexisted; see the [S-01 fixtures](./spikes/S-01/fixtures/run-20260714T142930Z/)) — which is what lets conversations share the project's container |
 

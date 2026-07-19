@@ -34,9 +34,9 @@ its PR state. The work plan below tracks per-PR/build progress separately.
 | [17-phase1-backlog.md](./17-phase1-backlog.md) | approved | 12 |
 | [18-agent-collaboration-model.md](./18-agent-collaboration-model.md) | approved — vision, non-normative (not gate-relevant) | 01, 03 |
 | [19-model-correction-plan.md](./19-model-correction-plan.md) | approved (owner, 2026-07-17) — diagnosis, migration plan, N1–N6 backlog | ADR-007..010 |
-| [adr/](./adr/README.md) | ADR-001..011 all accepted | see adr/README.md |
+| [adr/](./adr/README.md) | ADR-001..012 all accepted | see adr/README.md |
 
-**Specification complete and approved.** Suggested full read-through order: 01 → 02 → 03 → 18 → 15 → 16 → ADR-001..011 → spike results → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 17 → 19.
+**Specification complete and approved.** Suggested full read-through order: 01 → 02 → 03 → 18 → 15 → 16 → ADR-001..012 → spike results → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 17 → 19.
 
 ## Decisions requested now
 
@@ -68,6 +68,7 @@ decision and is superseded):
 | [ADR-009](./adr/ADR-009-task-lifecycle-dev-qa-approval.md) | **Task lifecycle** — dev → QA → human approval as one concrete flow; `ImplementationReport`/`QaReport` work products; terminal success = owner approval | **accepted** (owner, 2026-07-17) |
 | [ADR-010](./adr/ADR-010-code-sharing-strategies.md) | **Code-sharing strategy ladder** — specialist runs in the project session / task worktree by default; read-only, diff, artifact for analysis and review; repo authority stays with the project session | **accepted** (owner, 2026-07-17) |
 | [ADR-011](./adr/ADR-011-browser-auth-cloudflare-access.md) | **Browser auth via Cloudflare Access** — the backend verifies the signed `Cf-Access-Jwt-Assertion` (aud + iss + JWKS signature), never the forgeable email header; bearer token retained for localhost/programmatic. Resolves Q-07 for Phase-1 browser auth | **accepted** (owner, 2026-07-17) |
+| [ADR-012](./adr/ADR-012-router-model-call.md) | **Automatic-mode model router calls the Messages API directly** (N4b, Haiku 4.5, forced tool call) reusing `CLAUDE_CODE_OAUTH_TOKEN` — a narrow control-plane carve-out from ADR-001's "all model I/O via the seam"; deterministic fallback on failure; offline suite unaffected | **accepted** (owner, 2026-07-19) |
 
 Remaining candidate (deferred, non-blocking): a full Hub-owned user/tenant
 login (ADR-011 Option 4) — Q-07 is resolved for Phase-1 browser auth by
