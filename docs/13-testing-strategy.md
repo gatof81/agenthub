@@ -110,5 +110,11 @@ without it; a bug fix lands with the test that reproduces it first.
 Real Claude turns (nondeterministic, costs tokens — S-01 package only) · real
 shared-terminal sessions (owner smoke only) · real R2/Cloudflare (fake object
 store in tests) · performance/load beyond the NFR budgets (measured, not
-CI-gated) · frontend visual regression (Phase-1 UI is thin; revisit if it
+CI-gated) · frontend **visual** regression (Phase-1 UI is thin; revisit if it
 grows).
+
+Frontend behavior, though, IS covered: co-located Vitest tests, including a
+component-test harness (React Testing Library + jsdom, opt-in per file via
+`// @vitest-environment jsdom`) alongside the pure lib tests — so interaction
+behavior (rename, selection, the composer, toasts) can be driven, not just
+type-checked.
