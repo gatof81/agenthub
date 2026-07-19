@@ -130,6 +130,12 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-18** — **User-facing error surface (owner decision, doc 11 §13).**
+  Action failures (create/archive project or conversation, specialist bind/chat)
+  that used to `.catch(() => {})` silently now raise a dismissible, screen-reader-
+  announced toast. Deliberate inline messages (send-error banner, FR-44 restore
+  notice, quiet discovery degradation) are unchanged.
+
 - **2026-07-18** — **Modern composer (owner decision, doc 11 §12).** The message
   composer became a rounded full-width field with compact icon controls inside
   it (send morphs to queue while a run is active; cancel appears only then), and

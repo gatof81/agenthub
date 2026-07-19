@@ -318,3 +318,17 @@ shrink the input the way stacked text buttons did.
   thread.
 - Behavior is unchanged from §6 (optimistic send, queue-while-active, cancel);
   this is the control's presentation only.
+
+## 13. Error surface (owner decision 2026-07-18)
+
+A user-initiated action that fails (create/archive a project or conversation,
+bind or chat with a specialist) raises a **dismissible toast** instead of
+failing silently — the seam hiccuping should never leave the UI mute.
+
+- Toasts are transient (auto-dismiss, error notices linger a little longer),
+  dismissible, stacked top-center so they never cover the pinned composer, and
+  each is announced to assistive tech (`role="alert"`).
+- This does **not** replace the deliberate inline messages that already have a
+  home: the composer's send-error banner (§6), the FR-44 "restore cannot happen"
+  notice, or read-only discovery that degrades quietly (FR-48). The toast is for
+  the action failures that had no surface at all.
