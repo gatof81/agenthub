@@ -5,7 +5,7 @@
  * Mac, a tap-to-expand sheet on iPhone.
  */
 
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   api,
   type Conversation,
@@ -28,8 +28,10 @@ import {
   type RunOutcome,
 } from '../lib/runStatus.js';
 import type { TextSize } from '../lib/textSize.js';
+import { formatRelativeTime } from '../lib/time.js';
 import { Inspector } from './Inspector.js';
 import { Markdown } from './Markdown.js';
+import { CopyButton } from './CopyButton.js';
 import { SendIcon, StopIcon } from './icons.js';
 
 /**
@@ -488,16 +490,23 @@ export function Thread({
           )}
           {messages.map((m) =>
             m.role === 'assistant' && m.segments ? (
-              // a tool-using turn: ordered bubbles (text → tool → text), A
-              <Fragment key={m.id}>
+              // a tool-using turn: ordered bubbles (text → tool → text), A. The
+              // group is wrapped so its footer has a container to anchor to,
+              // rather than floating as a bare sibling in the scroll region.
+              <div key={m.id} className="msg-turn">
                 <Segments segments={m.segments} />
-              </Fragment>
+                <MessageMeta createdAt={m.createdAt} copyText={m.content} />
+              </div>
             ) : (
               <div key={m.id} className={`msg msg-${m.role}`}>
                 {m.role === 'assistant' ? <Markdown>{m.content}</Markdown> : <pre>{m.content}</pre>}
                 {m.role === 'user' && m.runId && queuedRunIds.has(m.runId) && (
                   <span className="queued-pill">queued</span>
                 )}
+                <MessageMeta
+                  createdAt={m.createdAt}
+                  copyText={m.role === 'assistant' ? m.content : undefined}
+                />
               </div>
             ),
           )}
@@ -587,6 +596,27 @@ export function Thread({
 
       <Inspector open={inspectorOpen} detail={runDetail} onClose={() => setInspectorOpen(false)} />
     </>
+  );
+}
+
+/** A message's footer (11 §15): a relative timestamp (absolute on hover) and,
+ *  for assistant messages, a copy-the-whole-message affordance. */
+function MessageMeta({
+  createdAt,
+  copyText,
+}: {
+  createdAt: string;
+  copyText?: string;
+}): React.JSX.Element {
+  return (
+    <div className="msg-meta">
+      <time className="msg-time" dateTime={createdAt} title={new Date(createdAt).toLocaleString()}>
+        {formatRelativeTime(createdAt, Date.now())}
+      </time>
+      {copyText !== undefined && copyText !== '' && (
+        <CopyButton text={copyText} className="msg-copy" label="Copy" ariaLabel="Copy message" />
+      )}
+    </div>
   );
 }
 

@@ -130,6 +130,11 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-19** — **Message footer: timestamps + copy (owner decision, doc 11
+  §15).** Each message shows a relative time (absolute on hover); assistant
+  messages get a copy-the-whole-message button, sharing one `CopyButton` with the
+  code blocks. (Scroll-to-latest and one-click Retry already existed.)
+
 - **2026-07-19** — **Sidebar look & function refinements (owner decision, doc 11
   §14).** From a sidebar UX review: a visible "+ Create project" button (was
   Enter-only/undiscoverable), the workspace choice made visible (label +

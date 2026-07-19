@@ -303,6 +303,26 @@ body {
 .msg-user { background: var(--accent-strong); color: #fff; margin-left: auto; }
 .msg-assistant { background: var(--panel-2); border: 1px solid var(--border); }
 .msg-live { border: 1px dashed var(--accent); }
+/* a tool-using turn is several bubbles; the wrapper anchors its shared footer */
+.msg-turn { margin-bottom: 12px; }
+.msg-turn > .msg { margin-bottom: 6px; }
+/* message footer (11 §15): relative time + copy-the-message affordance */
+.msg-meta { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+.msg-user .msg-meta { justify-content: flex-end; }
+.msg-time { font-size: 11px; color: var(--muted); }
+.msg-user .msg-time { color: rgba(255, 255, 255, 0.72); }
+.msg-copy {
+  font-size: 11px;
+  padding: 1px 7px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  opacity: 0.55;
+  transition: opacity 0.12s;
+}
+.msg-copy:hover { color: var(--text); opacity: 1; }
+.msg-copy:focus-visible { opacity: 1; }
 
 /* — Markdown-rendered assistant responses (11 §10, §11) — */
 .md { line-height: 1.55; overflow-wrap: anywhere; }
