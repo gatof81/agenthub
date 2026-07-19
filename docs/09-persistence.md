@@ -181,6 +181,8 @@ never a half-migrated serving process.
 | 001 | Phase-1 schema (this doc §2) |
 | 002 | The workspace moves from the agent to the project; `repo_*` columns (ADR-006, FR-45). Backfills `workspace_template_id` from the live binding, so nothing re-provisions |
 | 003 | `runs.instructions_snapshot` — the role travels per turn and is recorded per run (B5-04, I-8). No backfill: pre-B5-04 rows stay NULL, meaning *unrecorded* |
+| 004–007 | The model-correction increments (N2–N4a): project session binding + ownership (004); `specialist_sessions` (005); conversation `mode` + nullable `project_id` (006); `runs.target_session_id`/`target_decision` (007). Full table with rationale in [doc 19 §5](./19-model-correction-plan.md) |
+| 008 | Tasks (N5a, ADR-009): new `tasks`, `task_steps`, `work_products`; `runs += task_step_id`. Forward-only, no backfill (no pre-N5 tasks). The dev → QA → human-approval `TaskState` machine (`taskStateMachine.ts`) and the `ImplementationReport`/`QaReport` bodies (stored as JSON, like the caps/policy/decision snapshots) live in the domain; the table shapes are in [06 §2](./06-domain-model.md) |
 
 A migration is exercised against a **populated prior-era database**, not only
 from empty (`test/migrations.test.ts`) — applying it to a fresh schema proves

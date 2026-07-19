@@ -6,6 +6,10 @@
 
 import { describe, expect, it } from 'vitest';
 import { IllegalTransitionError, StaleStateError } from '../src/domain/runStateMachine.js';
+import {
+  IllegalTaskTransitionError,
+  StaleTaskStateError,
+} from '../src/domain/taskStateMachine.js';
 import type { Caps, RunSummary } from '../src/domain/types.js';
 import {
   NotFoundError,
@@ -710,6 +714,119 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       const conv2 = store.listConversations().find((c) => c.title === 'c2')!;
       store.sendMessage({ conversationId: conv2.id, content: 'x', caps: CAPS, policy: POLICY, instructions: INSTRUCTIONS });
       expect(store.dispatchNextRun('specialist:claudio')).toBeUndefined();
+      store.close();
+    });
+
+    // — tasks: dev → QA → human-approval lifecycle (N5, ADR-009/010) —
+
+    it('creates a task in planning, scoped to its project', () => {
+      const store = makeStore();
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+      const conv = store.createConversation({ projectId: p.id, title: 't', agentId: 'dev' });
+      const task = store.createTask({ projectId: p.id, sourceConversationId: conv.id, sourceMessageId: 'msg_x' });
+      expect(task).toMatchObject({ state: 'planning', projectId: p.id, sourceConversationId: conv.id });
+      expect(store.getTask(task.id)).toMatchObject({ state: 'planning' });
+      expect(store.listTasks({ projectId: p.id }).map((t) => t.id)).toEqual([task.id]);
+      expect(store.listTasks({ projectId: 'other' })).toEqual([]);
+      expect(() => store.createTask({ projectId: 'ghost' })).toThrow();
+      store.close();
+    });
+
+    it('guards task transitions: legal walk, illegal jump, and stale-from all enforced (I-3)', () => {
+      const store = makeStore();
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+      const task = store.createTask({ projectId: p.id });
+      // legal walk to QA rejection loop and back
+      expect(store.transitionTask(task.id, 'planning', 'implementing').state).toBe('implementing');
+      store.transitionTask(task.id, 'implementing', 'qa_pending');
+      store.transitionTask(task.id, 'qa_pending', 'qa_running');
+      store.transitionTask(task.id, 'qa_running', 'changes_requested_by_qa');
+      expect(store.transitionTask(task.id, 'changes_requested_by_qa', 'implementing').state).toBe('implementing');
+      // illegal jump rejected (skipping QA + approval)
+      expect(() => store.transitionTask(task.id, 'implementing', 'approved')).toThrow(IllegalTaskTransitionError);
+      // stale-from rejected (row is in `implementing`, not `qa_running`)
+      expect(() => store.transitionTask(task.id, 'qa_running', 'awaiting_human_approval')).toThrow(
+        StaleTaskStateError,
+      );
+      store.close();
+    });
+
+    it('appends steps with an auto-incrementing seq, ordered', () => {
+      const store = makeStore();
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+      const task = store.createTask({ projectId: p.id });
+      const s0 = store.createTaskStep({ taskId: task.id, kind: 'implementation', specialistId: 'dev' });
+      const s1 = store.createTaskStep({ taskId: task.id, kind: 'qa', specialistId: 'qa' });
+      expect(s0.seq).toBe(0);
+      expect(s1.seq).toBe(1);
+      expect(store.listTaskSteps(task.id).map((s) => [s.seq, s.kind, s.specialistId])).toEqual([
+        [0, 'implementation', 'dev'],
+        [1, 'qa', 'qa'],
+      ]);
+      expect(() => store.createTaskStep({ taskId: 'ghost', kind: 'qa', specialistId: 'qa' })).toThrow();
+      store.close();
+    });
+
+    it('records and round-trips both work-product kinds by their typed body (18 §4)', () => {
+      const store = makeStore();
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+      const task = store.createTask({ projectId: p.id });
+      const step = store.createTaskStep({ taskId: task.id, kind: 'implementation', specialistId: 'dev' });
+      const impl = store.addWorkProduct({
+        taskId: task.id,
+        taskStepId: step.id,
+        producerSpecialistId: 'dev',
+        runId: 'run_x',
+        kind: 'implementation_report',
+        body: {
+          objective: 'add feature',
+          summary: 'did it',
+          filesChanged: ['a.ts'],
+          commandsRun: ['npm test'],
+          testsRun: ['unit'],
+          knownRisks: [],
+          commitOrPatch: 'abc123',
+        },
+      });
+      const qa = store.addWorkProduct({
+        taskId: task.id,
+        producerSpecialistId: 'qa',
+        kind: 'qa_report',
+        body: {
+          requirementsReviewed: ['R1'],
+          testsRun: ['unit'],
+          passed: ['unit'],
+          failed: [],
+          regressions: [],
+          verdict: 'passed',
+        },
+      });
+      const products = store.listWorkProducts(task.id);
+      expect(products.map((w) => w.kind).sort()).toEqual(['implementation_report', 'qa_report']);
+      const implBack = products.find((w) => w.id === impl.id)!;
+      expect(implBack.kind).toBe('implementation_report');
+      if (implBack.kind === 'implementation_report') {
+        expect(implBack.body.filesChanged).toEqual(['a.ts']);
+        expect(implBack.taskStepId).toBe(step.id);
+        expect(implBack.runId).toBe('run_x');
+      }
+      const qaBack = products.find((w) => w.id === qa.id)!;
+      if (qaBack.kind === 'qa_report') expect(qaBack.body.verdict).toBe('passed');
+      expect(() =>
+        store.addWorkProduct({
+          taskId: 'ghost',
+          producerSpecialistId: 'dev',
+          kind: 'qa_report',
+          body: { requirementsReviewed: [], testsRun: [], passed: [], failed: [], regressions: [], verdict: 'passed' },
+        }),
+      ).toThrow();
+      store.close();
+    });
+
+    it('an ordinary run has a null taskStepId (migration 008 column)', () => {
+      const store = makeStore();
+      const { run } = seedRun(store);
+      expect(store.getRun(run.id)?.taskStepId).toBeNull();
       store.close();
     });
   });

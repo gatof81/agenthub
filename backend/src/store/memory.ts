@@ -11,6 +11,7 @@ import {
   isTerminal,
   StaleStateError,
 } from '../domain/runStateMachine.js';
+import { assertLegalTaskTransition, StaleTaskStateError } from '../domain/taskStateMachine.js';
 import type {
   Conversation,
   ExecutionTargetDecision,
@@ -22,7 +23,11 @@ import type {
   RunSummary,
   SessionBinding,
   SpecialistSessionBinding,
+  Task,
+  TaskState,
+  TaskStep,
   UsageRecord,
+  WorkProduct,
 } from '../domain/types.js';
 import { capMessageContent, serializePayloadCapped, validateSendMessage } from './shared.js';
 import {
@@ -31,9 +36,11 @@ import {
   ValidationError,
   type CreateConversationInput,
   type CreateProjectInput,
+  type CreateTaskInput,
   type FinalizeRunInput,
   type HubStore,
   type NewRunEvent,
+  type NewWorkProduct,
   type ReplayableEvent,
   type RunTransitionPatch,
   type SendMessageInput,
@@ -64,6 +71,9 @@ export class MemoryHubStore implements HubStore {
   private usage = new Map<string, UsageRecord>();
   private summaries = new Map<string, RunSummary>();
   private sseCursors = new Map<string, number>();
+  private tasks: Task[] = [];
+  private taskSteps: TaskStep[] = [];
+  private workProducts: WorkProduct[] = [];
 
   constructor(opts: MemoryStoreOptions = {}) {
     this.id = opts.idGen ?? randomIds;
@@ -267,6 +277,7 @@ export class MemoryHubStore implements HubStore {
       errorDetail: null,
       targetSessionId: null,
       targetDecision: null,
+      taskStepId: null,
       createdAt: now,
       startedAt: null,
       endedAt: null,
@@ -500,6 +511,84 @@ export class MemoryHubStore implements HubStore {
   getSummary(runId: string): RunSummary | undefined {
     const s = this.summaries.get(runId);
     return s ? clone(s) : undefined;
+  }
+
+  // — tasks (N5, ADR-009/010) —
+
+  createTask(input: CreateTaskInput): Task {
+    this.mustProjectRef(input.projectId);
+    const now = this.now();
+    const task: Task = {
+      id: this.id('task'),
+      projectId: input.projectId,
+      sourceConversationId: input.sourceConversationId ?? null,
+      sourceMessageId: input.sourceMessageId ?? null,
+      state: 'planning',
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.tasks.push(task);
+    return clone(task);
+  }
+
+  getTask(id: string): Task | undefined {
+    const t = this.tasks.find((x) => x.id === id);
+    return t ? clone(t) : undefined;
+  }
+
+  listTasks(opts: { projectId?: string } = {}): Task[] {
+    return this.tasks.filter((t) => !opts.projectId || t.projectId === opts.projectId).map(clone);
+  }
+
+  transitionTask(taskId: string, from: TaskState, to: TaskState): Task {
+    assertLegalTaskTransition(taskId, from, to);
+    const task = this.tasks.find((x) => x.id === taskId);
+    if (!task || task.state !== from) throw new StaleTaskStateError(taskId, from);
+    task.state = to;
+    task.updatedAt = this.now();
+    return clone(task);
+  }
+
+  createTaskStep(input: { taskId: string; kind: TaskStep['kind']; specialistId: string }): TaskStep {
+    if (!this.tasks.some((t) => t.id === input.taskId)) throw new NotFoundError('task', input.taskId);
+    const seq = this.taskSteps.filter((s) => s.taskId === input.taskId).length;
+    const step: TaskStep = {
+      id: this.id('step'),
+      taskId: input.taskId,
+      seq,
+      kind: input.kind,
+      specialistId: input.specialistId,
+      createdAt: this.now(),
+    };
+    this.taskSteps.push(step);
+    return clone(step);
+  }
+
+  listTaskSteps(taskId: string): TaskStep[] {
+    return this.taskSteps
+      .filter((s) => s.taskId === taskId)
+      .sort((a, b) => a.seq - b.seq)
+      .map(clone);
+  }
+
+  addWorkProduct(input: NewWorkProduct): WorkProduct {
+    if (!this.tasks.some((t) => t.id === input.taskId)) throw new NotFoundError('task', input.taskId);
+    const wp = {
+      id: this.id('wp'),
+      taskId: input.taskId,
+      taskStepId: input.taskStepId ?? null,
+      producerSpecialistId: input.producerSpecialistId,
+      runId: input.runId ?? null,
+      createdAt: this.now(),
+      kind: input.kind,
+      body: input.body,
+    } as WorkProduct;
+    this.workProducts.push(wp);
+    return clone(wp);
+  }
+
+  listWorkProducts(taskId: string): WorkProduct[] {
+    return this.workProducts.filter((w) => w.taskId === taskId).map(clone);
   }
 
   // — internals —

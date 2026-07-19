@@ -178,6 +178,31 @@ cost/turns (from `UsageRecord`, `unknown` where it is), duration, and the
 (01 §4) — the Phase-4 generic artifact system grows from this seed. Narrative
 model-authored fields are a later enrichment, not Phase 1.
 
+### Task, TaskStep, Work Products (N5, ADR-009/010)
+
+Coordinated work, **one hardcoded flow** (ADR-009) — not a workflow engine
+(18 §6). Landed as the N5a data core; the supervisor that drives it is N5b.
+
+- **Task** `{id, projectId, sourceConversationId?, sourceMessageId?, state}` —
+  parents to the Project (18 §8), born from a conversation message the router
+  classifies as a task. `TaskState`: `planning → implementing → qa_pending →
+  qa_running → (changes_requested_by_qa → implementing)* →
+  awaiting_human_approval → approved | (changes_requested_by_user →
+  implementing) | rejected | failed` (`taskStateMachine.ts`). **Terminal
+  success is `approved`** — never the implementer finishing, never QA passing
+  alone; `changes_requested_*` loop back and are not terminal; `failed` is
+  reachable from any live state.
+- **TaskStep** `{id, taskId, seq, kind: implementation | qa, specialistId}` —
+  executed by a specialist (ADR-008) via the existing run machinery; a run
+  links back through `runs.task_step_id`.
+- **Work products** extend the RunSummary seed (18 §4 envelope: type, producer,
+  provenance, typed body): **ImplementationReport** `{objective, summary,
+  filesChanged, commandsRun, testsRun, knownRisks, commitOrPatch?}` and
+  **QaReport** `{requirementsReviewed, testsRun, passed, failed, regressions,
+  verdict: passed | changes_required}`. The QA→implementer loop is driven by
+  `QaReport.verdict`. Body stored as JSON (like the caps/policy/decision
+  snapshots) so the typed shape evolves without a migration.
+
 ## 3. Invariants
 
 | # | Invariant | Enforced by |
@@ -217,7 +242,7 @@ engine and **generic** `WorkProduct` entity (still deferred, 18 §6).
 
 Pulled forward by the correction (no longer "not modeled", each lands with
 its increment, doc 19): `Task`/`TaskStep` + the dev → QA → human-approval
-machine (ADR-009, N5–N6); the router and the deterministic execution-target
-selector (ADR-008, N4); `ImplementationReport`/`QaReport` as the first Work
-Products beyond `RunSummary` (ADR-009); `SpecialistSessionBinding` and
-`ExecutionTargetDecision` (ADR-008, N3–N4).
+machine and `ImplementationReport`/`QaReport` work products **landed as the N5a
+data core** (ADR-009; §2 above; the supervisor that drives the flow is N5b);
+the router and the deterministic execution-target selector (ADR-008, N4a/N4b);
+`SpecialistSessionBinding` and `ExecutionTargetDecision` (ADR-008, N3–N4).
