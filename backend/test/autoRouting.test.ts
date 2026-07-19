@@ -132,7 +132,7 @@ function suite(name: string, makeStore: () => HubStore): void {
     it('a direct turn records no execution-target decision (control)', async () => {
       const { store, port, orch, readyProject } = makeHarness(makeStore());
       const project = await readyProject();
-      const conv = orch.createConversation({ projectId: project.id }); // default: direct
+      const conv = orch.createConversation({ projectId: project.id, mode: 'direct' });
       expect(conv.mode).toBe('direct');
 
       port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });

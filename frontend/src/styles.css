@@ -259,6 +259,18 @@ body {
 }
 .thread header h2 { flex: 1; font-size: 15px; margin: 0; }
 .thread-title-h { min-width: 0; }
+.mode-badge {
+  flex: none;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+  white-space: nowrap;
+  cursor: default;
+}
+.mode-badge.direct { border-color: var(--border); color: var(--muted); background: var(--panel-2); }
 .thread-title {
   max-width: 100%;
   font: inherit;

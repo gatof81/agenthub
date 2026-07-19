@@ -72,7 +72,7 @@ describe('HTTP API (08 §1)', () => {
       .send({});
     expect(conv.status).toBe(201);
     expect(conv.body.conversation.agentId).toBe('dev');
-    expect(conv.body.conversation.mode).toBe('direct'); // default
+    expect(conv.body.conversation.mode).toBe('automatic'); // default since N4b
     expect(detail.headers['x-request-id']).not.toBe(created.headers['x-request-id']);
   });
 
@@ -98,6 +98,14 @@ describe('HTTP API (08 §1)', () => {
       .send({ mode: 'preferred-specialist' });
     expect(rejected.status).toBe(422);
     expect(rejected.body.code).toBe('validation');
+
+    // and an arbitrary string is rejected too — the store column would accept
+    // any value, so the API boundary is what backs doc 08's `422` promise
+    const garbage = await request(app)
+      .post(`/api/projects/${project.id}/conversations`)
+      .set(AUTH)
+      .send({ mode: 'garbage' });
+    expect(garbage.status).toBe(422);
   });
 
   it('send → 202 {runId}; GET /api/runs/:id returns activity + usage + summary when terminal (UC-02)', async () => {

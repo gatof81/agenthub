@@ -454,6 +454,18 @@ export function Thread({
               }}
             />
           )}
+          {conversation.mode === 'automatic' ? (
+            <span
+              className="mode-badge"
+              title="Automatic routing (N4b): the router picks the specialist for each message — see Activity for who ran and why."
+            >
+              Auto-routing
+            </span>
+          ) : (
+            <span className="mode-badge direct" title={`Direct: pinned to ${conversation.agentId}`}>
+              @{conversation.agentId}
+            </span>
+          )}
           <button
             className="mini text-size"
             onClick={onCycleTextSize}
