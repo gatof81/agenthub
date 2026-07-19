@@ -60,7 +60,7 @@ Agent definitions load from YAML (`AGENTS_CONFIG`); real definitions live **outs
 
 ## Deployment
 
-Production is a **single-replica, co-located, single-user** deploy (ADR-002): the compiled backend serves the built frontend on one host. Deploy is **manual and out-of-repo** — doc 14 §Deploy gives the shape (`stop → deploy → npm ci && npm run build → start`); on the current host `deploy` is a `git pull` and both backend and frontend are built. Notes:
+Production is a **single-replica, co-located, single-user** deploy (ADR-002): the compiled backend serves the built frontend on one host. Deploy is **manual and out-of-repo** — doc 14 §4 (Runbooks) gives the shape (`stop → deploy → npm ci && npm run build → start`); on the current host `deploy` is a `git pull` and both backend and frontend are built. Notes:
 
 - The production entrypoint is **compiled JS (`node dist/main.js`), never `tsx`** (B3-09) — under the tsx loader the clean-shutdown R2 snapshot silently fails.
 - **Migrations apply at boot** (forward-only, gated on `schema_version`); the **boot reconciler heals in-flight runs and rebuilds the queue** (UC-06) — no manual run cleanup after a restart.
