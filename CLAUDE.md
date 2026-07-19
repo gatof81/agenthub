@@ -57,3 +57,12 @@ Agent definitions load from YAML (`AGENTS_CONFIG`); real definitions live **outs
 - One PR = one coherent change; present the plan and wait for OK before writing. Never commit directly to main; squash-merge; Conventional Commits.
 - Every PR waits for the review bot. The verdict is the **text** in the PR comment (`gh pr view N --comments` → look for `## Verdict`: LGTM | NIT | SHOULD-FIX), **not** the check's `conclusion`, which only says the job ran. Merge only on LGTM/NIT and after the owner's merge word.
 - Public repo: no real hostnames, tokens, deployment identifiers, or session IDs anywhere — sanitize fixtures before committing.
+
+## Deployment
+
+Production is a **single-replica, co-located, single-user** deploy (ADR-002): the compiled backend serves the built frontend on one host. Deploy is **manual and out-of-repo** — doc 14 §4 (Runbooks) gives the shape (`stop → deploy → npm ci && npm run build → start`); on the current host `deploy` is a `git pull` and both backend and frontend are built. Notes:
+
+- The production entrypoint is **compiled JS (`node dist/main.js`), never `tsx`** (B3-09) — under the tsx loader the clean-shutdown R2 snapshot silently fails.
+- **Migrations apply at boot** (forward-only, gated on `schema_version`); the **boot reconciler heals in-flight runs and rebuilds the queue** (UC-06) — no manual run cleanup after a restart.
+- **Back up before migrating**: there are no down-migrations (rollback = restore from an R2 snapshot). A graceful `SIGTERM` triggers the clean-shutdown snapshot; confirm a fresh one before/around the restart.
+- The **concrete host runbook** — hostname, SSH key, port, DB path, and the exact relaunch env — deliberately lives **outside this public repo** (SEC-10): in the operator's private deployment config and private notes, never here. Doc 07 §4 intends a **systemd-or-compose-managed** process; the current deploy runs the bare `node dist/main.js` with **no supervisor configured yet**, so a botched relaunch stays down until fixed — capture the live process env before stopping it.

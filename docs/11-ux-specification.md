@@ -11,8 +11,8 @@ streaming: [ADR-004](./adr/ADR-004-ui-streaming-transport.md).
 
 ## 1. Frontend framework (Q-06 resolved)
 
-**Decision: React + Vite**, deployed static to Cloudflare Pages (target fixed
-by ADR-002). Consumes the API + SSE per ADR-004; TypeScript throughout,
+**Decision: React + Vite**, served same-origin by the Node backend (ADR-002,
+amended 2026-07-17 from the original Cloudflare Pages placement). Consumes the API + SSE per ADR-004; TypeScript throughout,
 matching the backend (Q-09).
 
 **Rationale:** the Mac productivity surface (UX-07) — command palette,
