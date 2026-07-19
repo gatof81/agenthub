@@ -60,7 +60,12 @@ export function Sidebar(props: Props): React.JSX.Element {
 
 function StatusBadge({ project }: { project: Project }): React.JSX.Element | null {
   if (project.status === 'ready') return null;
-  return <span className={`badge status-${project.status}`}>{project.status}</span>;
+  return (
+    <span className={`badge status-${project.status}`}>
+      {project.status === 'provisioning' && <span className="spinner" aria-hidden />}
+      {project.status}
+    </span>
+  );
 }
 
 /** A workspace to create from or bind (ADR-006, FR-45/FR-49). */
