@@ -2,7 +2,8 @@
 
 export interface Caps {
   maxTurns: number;
-  budgetUsd: number;
+  /** null = no dollar cap (optional, off by default — ADR-003) */
+  budgetUsd: number | null;
   timeoutMs: number;
 }
 
