@@ -138,6 +138,12 @@ function ProjectsHome(props: Props): React.JSX.Element {
     setKey: setWorkspaceKey,
     choice: effectiveChoice,
   } = useWorkspaceChoice(workspaceOptions);
+  const canCreate = newProjectName.trim() !== '' && effectiveChoice !== null;
+  const submitNewProject = (): void => {
+    if (!canCreate || effectiveChoice === null) return;
+    props.onCreateProject(newProjectName.trim(), effectiveChoice);
+    setNewProjectName('');
+  };
   return (
     <nav className="sidebar">
       <h2>Projects</h2>
@@ -165,27 +171,34 @@ function ProjectsHome(props: Props): React.JSX.Element {
           value={newProjectName}
           onChange={(e) => setNewProjectName(e.target.value)}
           placeholder="New project name…"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && newProjectName.trim() !== '' && effectiveChoice !== null) {
-              props.onCreateProject(newProjectName.trim(), effectiveChoice);
-              setNewProjectName('');
-            }
-          }}
+          onKeyDown={(e) => e.key === 'Enter' && submitNewProject()}
         />
         {/* The workspace is the project's and has no default (ADR-006, FR-45):
-            bind an existing session (FR-49) or create from a template. */}
-        <WorkspaceSelect
-          options={workspaceOptions}
-          value={effectiveKey}
-          onChange={setWorkspaceKey}
-          ariaLabel="Project workspace"
-        />
-        {workspaceOptions.length === 0 && (
+            bind an existing session (FR-49) or create from a template. Surfaced
+            so the choice is never silent — even the single-option case shows it. */}
+        {workspaceOptions.length > 1 && (
+          <label className="field-label">
+            Workspace
+            <WorkspaceSelect
+              options={workspaceOptions}
+              value={effectiveKey}
+              onChange={setWorkspaceKey}
+              ariaLabel="Project workspace"
+            />
+          </label>
+        )}
+        {workspaceOptions.length === 1 && (
+          <p className="field-note">Workspace: {workspaceOptions[0]!.label}</p>
+        )}
+        {workspaceOptions.length === 0 ? (
           <p className="empty-hint">
-            No workspace templates configured and no bindable sessions visible — a project cannot
-            declare a workspace, so creation is disabled. Add <code>workspaceTemplates:</code> to
-            the deployment config or create a session in Shared Terminal.
+            No workspace to create from — add a template to the deployment config, or create a
+            session in Shared Terminal.
           </p>
+        ) : (
+          <button className="new-conversation" onClick={submitNewProject} disabled={!canCreate}>
+            + Create project
+          </button>
         )}
       </div>
       {props.specialists.length > 0 && (
@@ -224,7 +237,7 @@ function SpecialistsSection({
 }): React.JSX.Element {
   return (
     <>
-      <h2>Specialists</h2>
+      <h2 className="sidebar-section">Specialists</h2>
       <ul className="nav-list">
         {specialists.map((s) => (
           <li key={s.id} className="nav-row">
@@ -304,11 +317,10 @@ function SessionsSection({ listing }: { listing: SessionListing }): React.JSX.El
   const sessions = ownerVisibleSessions(listing);
   return (
     <>
-      <h2>Sessions</h2>
+      <h2 className="sidebar-section">Sessions</h2>
       {listing.scope === 'own' && (
-        <p className="empty-hint">
-          Showing only the Hub identity's own sessions — the seam account has no admin flag, so
-          the owner's sessions are not visible yet (ADR-007).
+        <p className="empty-hint" title="The seam account is not admin-flagged, so the owner's own sessions are not visible yet (ADR-007).">
+          Partial view — Hub-owned sessions only.
         </p>
       )}
       <ul className="nav-list">
@@ -371,7 +383,7 @@ function ProjectPane(props: Props & { project: Project }): React.JSX.Element {
           <button
             className="switcher-button"
             onClick={() => setSwitcherOpen((v) => !v)}
-            aria-haspopup="listbox"
+            aria-haspopup="menu"
             aria-expanded={switcherOpen}
           >
             <span className="switcher-name">{props.project.name}</span>
@@ -381,12 +393,14 @@ function ProjectPane(props: Props & { project: Project }): React.JSX.Element {
             </span>
           </button>
           {switcherOpen && (
-            <div className="switcher-menu" role="listbox" aria-label="Switch project">
+            // role="menu": a jump list of actions, not a single-select listbox —
+            // matches the button-list reality (a11y). Always ends in "All
+            // projects", so the menu is never an empty dead-end.
+            <div className="switcher-menu" role="menu" aria-label="Switch project">
               {others.map((p) => (
                 <button
                   key={p.id}
-                  role="option"
-                  aria-selected={false}
+                  role="menuitem"
                   onClick={() => {
                     setSwitcherOpen(false);
                     props.onOpenProject(p);
@@ -396,7 +410,17 @@ function ProjectPane(props: Props & { project: Project }): React.JSX.Element {
                   <StatusBadge project={p} />
                 </button>
               ))}
-              {others.length === 0 && <p className="empty-hint">No other projects.</p>}
+              {others.length > 0 && <div className="switcher-divider" />}
+              <button
+                role="menuitem"
+                className="switcher-all"
+                onClick={() => {
+                  setSwitcherOpen(false);
+                  props.onBackToProjects();
+                }}
+              >
+                All projects…
+              </button>
             </div>
           )}
         </div>

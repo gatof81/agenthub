@@ -130,6 +130,15 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-19** — **Sidebar look & function refinements (owner decision, doc 11
+  §14).** From a sidebar UX review: a visible "+ Create project" button (was
+  Enter-only/undiscoverable), the workspace choice made visible (label +
+  single-option summary), the project switcher always offers "All projects"
+  (no dead-end) as a `role="menu"`, read-only Sessions/Specialists sections
+  divided off and no longer faking hover/click affordance with truncated names,
+  and a more present archive control. First `<Sidebar>` component tests (via the
+  #89 harness) cover the create button and the switcher.
+
 - **2026-07-18** — **User-facing error surface (owner decision, doc 11 §13).**
   Action failures (create/archive project or conversation, specialist bind/chat)
   that used to `.catch(() => {})` silently now raise a dismissible, screen-reader-
