@@ -353,3 +353,12 @@ Bringing the rest of the sidebar (§4) up to the finish of the conversation list
   hairline divider and no longer light up on hover (they are not clickable);
   their names truncate like the project rows. Archive is a touch more present at
   rest (it is the product's "delete").
+
+## 15. Message footer (owner decision 2026-07-19)
+
+Each message carries a small footer: a **relative timestamp** ("now", "3m",
+"2h", "5d", then a short date), with the absolute time on hover. Assistant
+messages also get a **copy-the-whole-message** button next to it — the same copy
+affordance the fenced code blocks use (one shared control), so a full response
+can be lifted, not just its code. The scroll-to-latest button (§5/§6) and the
+one-click Retry (§6) already cover the other read affordances.

@@ -9,11 +9,11 @@
  * not Markdown.
  */
 
-import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import type { Components } from 'react-markdown';
+import { CopyButton } from './CopyButton.js';
 
 /** Flatten a React subtree to its text — the code a copy button should copy. */
 export function nodeToText(node: React.ReactNode): string {
@@ -38,23 +38,6 @@ export function codeLanguage(node: React.ReactNode): string | null {
   return null;
 }
 
-function CopyButton({ text }: { text: string }): React.JSX.Element {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      type="button"
-      className="code-copy"
-      onClick={() => {
-        void navigator.clipboard?.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1200);
-      }}
-    >
-      {copied ? 'Copied' : 'Copy'}
-    </button>
-  );
-}
-
 const COMPONENTS: Components = {
   // Links leave the app — new tab, and never hand the opener to the target.
   a: ({ children, href }) => (
@@ -68,7 +51,7 @@ const COMPONENTS: Components = {
     <div className="code-block">
       <div className="code-head">
         <span className="code-lang">{codeLanguage(children) ?? 'code'}</span>
-        <CopyButton text={nodeToText(children)} />
+        <CopyButton text={nodeToText(children)} className="code-copy" ariaLabel="Copy code" />
       </div>
       <pre>{children}</pre>
     </div>
