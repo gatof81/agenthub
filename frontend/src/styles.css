@@ -32,6 +32,10 @@ body {
 .app {
   display: grid;
   grid-template-columns: 250px 1fr auto;
+  /* One full-height row so the thread column always fills the viewport and the
+     composer sits flush at the bottom — without this the auto row can size to
+     content and leave dead space below the composer on a short conversation. */
+  grid-template-rows: minmax(0, 1fr);
   /* Dynamic viewport height so the composer stays pinned under mobile browser
      chrome / the keyboard (100vh would sit behind the URL bar); 100vh fallback
      for engines without dvh. */
@@ -458,7 +462,7 @@ body {
   position: relative; /* containing block for the error banner below */
   display: flex;
   gap: 8px;
-  padding: 12px 14px;
+  padding: 8px 12px; /* tight — a single-line input shouldn't sit in a tall footer */
   border-top: 1px solid var(--border);
   background: var(--panel);
 }
@@ -467,7 +471,7 @@ body {
    non-zero gesture/taskbar inset on some desktop browsers, reading as an
    oversized gap below the input. */
 @media (pointer: coarse) {
-  .composer { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .composer { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
 }
 /* the composer is a rounded field that fills the width; its controls are
    compact icons inside it, so they never shrink the input (11 §12) */
@@ -479,8 +483,8 @@ body {
   min-width: 0;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: 22px;
-  padding: 5px 5px 5px 14px;
+  border-radius: 20px;
+  padding: 3px 4px 3px 13px;
 }
 .composer-field:focus-within { border-color: var(--accent); }
 .composer textarea {
@@ -601,6 +605,15 @@ summary:focus-visible {
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* the provisioning status badge shows the spinner inline before its label */
+.badge .spinner {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-width: 1.5px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
 
 /* Persistent terminal outcome chip (11 §6): the durable trace of how the last
    run ended, clickable to open activity. Reuses the state-* palette. */
