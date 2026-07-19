@@ -70,7 +70,9 @@ body {
   align-items: center;
   gap: 6px;
 }
-.nav-list .nav-main:hover { background: var(--raised); }
+/* only the interactive rows (buttons) light up — read-only session/specialist
+   rows are `div.nav-main` and must not fake a clickable affordance */
+.nav-list button.nav-main:hover { background: var(--raised); }
 .nav-list .nav-main.selected {
   background: var(--accent-soft);
   box-shadow: inset 3px 0 0 var(--accent);
@@ -110,11 +112,12 @@ body {
 .project-header .row-action { opacity: 0.75; }
 /* Fine-pointer devices keep the quieter resting state; touch keeps it visible. */
 @media (hover: hover) and (pointer: fine) {
-  .row-action { opacity: 0.28; }
+  .row-action { opacity: 0.45; } /* archive is the product's "delete" — discoverable at rest */
 }
 .row-action:hover { background: var(--raised); color: var(--danger); opacity: 1; }
 .row-action svg { display: block; }
 
+.new-item { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .new-item input {
   width: 100%;
   background: var(--panel-2);
@@ -124,6 +127,19 @@ body {
   padding: 8px 10px;
 }
 .new-item input:focus { outline: none; border-color: var(--accent); }
+/* a caption so the workspace select is never a bare, unexplained dropdown */
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.field-label .template-select { margin-top: 0; }
+/* the single-option workspace summary (the choice, made visible) */
+.field-note { margin: 0; font-size: 12px; color: var(--muted); }
 
 .new-conversation {
   width: 100%;
@@ -136,6 +152,14 @@ body {
   font: inherit;
 }
 .new-conversation:hover { background: var(--raised); border-color: var(--accent); }
+.new-conversation:disabled { border-style: solid; }
+/* hairline between the read-only Specialists/Sessions sections and the rest,
+   so "things you read" separate from "things you click" */
+.sidebar h2.sidebar-section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 10px;
+}
 
 .palette-hint { font-size: 12px; margin-top: auto; padding-top: 14px; }
 
@@ -720,6 +744,15 @@ button.retry:hover { background: var(--raised); border-color: var(--accent); }
   align-items: flex-start;
   gap: 2px;
   cursor: default;
+  min-width: 0;
+}
+/* truncate long session/specialist names + meta, matching the project rows */
+.session-name,
+.session-meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .session-name { font-weight: 500; }
 .session-meta { font-size: 12px; }

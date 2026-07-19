@@ -1,6 +1,6 @@
 # 11 — UX Specification (Phase 1)
 
-**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-18
+**Status:** approved (owner, 2026-07-15) · **Last updated:** 2026-07-19
 
 The model-relevant UX: device targets, information architecture, the surfaces
 each device needs, and how the client consumes the event stream. This is a
@@ -332,3 +332,24 @@ failing silently — the seam hiccuping should never leave the UI mute.
   home: the composer's send-error banner (§6), the FR-44 "restore cannot happen"
   notice, or read-only discovery that degrades quietly (FR-48). The toast is for
   the action failures that had no surface at all.
+
+## 14. Sidebar refinements (owner decision 2026-07-19)
+
+Bringing the rest of the sidebar (§4) up to the finish of the conversation list.
+
+- **Project creation has a visible button.** "+ Create project" mirrors "+ New
+  conversation" — creation is no longer an undiscoverable Enter-only action. It
+  is present-but-disabled until a name is entered; when no workspace exists at
+  all (no template configured, no bindable session), it is replaced by an inline
+  hint instead, since there is nothing to create from.
+- **The workspace choice is never silent.** The template-or-session picker
+  carries a visible label; when there is exactly one option, a read-only summary
+  shows what will be used, so a first project doesn't bind/create a workspace
+  invisibly.
+- **The project switcher is never a dead-end.** It always ends in "All
+  projects", and drops the stale "no other projects" empty state; it is a menu
+  (role="menu") of jumps, not a single-select listbox.
+- **Read-only sections read as read-only.** Sessions/Specialists sit under a
+  hairline divider and no longer light up on hover (they are not clickable);
+  their names truncate like the project rows. Archive is a touch more present at
+  rest (it is the product's "delete").
