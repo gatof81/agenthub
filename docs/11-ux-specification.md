@@ -353,6 +353,11 @@ Bringing the rest of the sidebar (§4) up to the finish of the conversation list
   hairline divider and no longer light up on hover (they are not clickable);
   their names truncate like the project rows. Archive is a touch more present at
   rest (it is the product's "delete").
+- **Projects and conversations read at different levels (owner, 2026-07-19).**
+  They no longer share one row skin: **projects** are bolder and roomier so the
+  top-level entity stands out; **conversations** are a lighter, distinct nested
+  list, each with a leading dot that (with the row) lights up when it is the
+  active conversation.
 
 ## 15. Message footer (owner decision 2026-07-19)
 
