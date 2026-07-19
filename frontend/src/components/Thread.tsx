@@ -576,7 +576,7 @@ export function Thread({
                 projectStatus !== 'ready'
                   ? `Project is ${projectStatus}…`
                   : active
-                    ? 'Queue a follow-up… (runs after the current one)'
+                    ? 'Queue a follow-up…'
                     : 'Message the agent…'
               }
               disabled={projectStatus !== 'ready'}
