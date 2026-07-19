@@ -22,7 +22,14 @@ the router call the model?" is a real architectural fork.
 
 ## Options
 
-1. **Route via the seam (a `claude -p` one-shot).** Consistent with ADR-001
+1. **Do nothing — keep N4a's `DeterministicRouter` as the real-mode router.**
+   No new dependency, no model call, no ADR-001 tension. Rejected: the router
+   would then echo the conversation's pinned specialist regardless of the
+   message, so `automatic` mode is indistinguishable from `direct` — the
+   capability-based dispatch that is the whole point of N4b (ADR-008, doc 19 §7)
+   never happens. The router-cost/latency worry that motivates staying put
+   (doc 19 §8) is already bounded by caps and avoidable via `direct` mode.
+2. **Route via the seam (a `claude -p` one-shot).** Consistent with ADR-001
    (all model I/O through the seam) and reuses the adapter. Rejected:
    - **Chicken-and-egg.** Running the CLI needs a substrate session to exec on,
      but choosing the session is *exactly* what routing feeds into (the selector
@@ -30,7 +37,7 @@ the router call the model?" is a real architectural fork.
    - **Cost/latency.** A CLI cold start per message (seconds) for what is a
      lightweight classification, and it would consume the workspace's single
      active-run lock (I-2) for a meta-decision that isn't a run.
-2. **Direct Messages API call.** The router makes one cheap
+3. **Direct Messages API call.** The router makes one cheap
    `POST /v1/messages` call to a small model (Haiku 4.5) with structured output,
    authenticated with the **existing** `CLAUDE_CODE_OAUTH_TOKEN` (OAuth bearer +
    `anthropic-beta: oauth-2025-04-20`) — no new credential. Fast (sub-second),
@@ -39,7 +46,7 @@ the router call the model?" is a real architectural fork.
 
 ## Decision
 
-Option 2.
+Option 3.
 
 - The **model router** (`ModelRouter`, real mode) calls the Anthropic Messages
   API directly via `@anthropic-ai/sdk`, model `claude-haiku-4-5`. It gets a
