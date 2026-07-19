@@ -67,7 +67,9 @@ is watching (unattended, unlike interactive Claude).
 - Curated allowlist (SEC-02, 08 §5): no web tools while egress is open —
   `curl`-from-Bash at least lands in the audit trail; `WebFetch` normalizes
   exfiltration. Backend-enforced, `--dangerously-skip-permissions` forbidden.
-- Per-run caps (FR-17) bound blast radius: turns, budget, wall-clock.
+- Per-run caps (FR-17) bound blast radius: **turns and wall-clock** are the
+  always-on bounds; a dollar budget cap is an opt-in guard, off by default
+  (ADR-003 amendment 2026-07-19).
 - Every command/file/denial in the audit trail (SEC-08) — post-hoc
   detection.
 - Autonomy levels + approvals (Phase 2+, `awaiting_approval` reserved)
