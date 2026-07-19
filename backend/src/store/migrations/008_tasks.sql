@@ -55,5 +55,9 @@ CREATE TABLE work_products (
 );
 CREATE INDEX idx_work_products_task ON work_products(task_id);
 
--- a run may belong to a task step (N5a); NULL for an ordinary conversation run
-ALTER TABLE runs ADD COLUMN task_step_id TEXT;
+-- a run may belong to a task step (N5a); NULL for an ordinary conversation run.
+-- Hard FK like `work_products.task_step_id`: a step is part of a task and is
+-- never pruned out from under its runs, so a run must point at a real step (or
+-- NULL). SQLite allows a REFERENCES on ADD COLUMN because the column defaults to
+-- NULL; the migration runner applies it with FK enforcement off, then checks.
+ALTER TABLE runs ADD COLUMN task_step_id TEXT REFERENCES task_steps(id);
