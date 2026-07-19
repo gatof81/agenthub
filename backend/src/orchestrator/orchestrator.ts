@@ -600,9 +600,10 @@ export class Orchestrator {
     title?: string;
     agentId?: string;
     /**
-     * `direct` (default) pins `agentId`; `automatic` (N4a, ADR-008) routes each
-     * turn — the router proposes the specialist and the selector the session,
-     * both recorded on the run. `agentId` is still the routing prior/default.
+     * `automatic` (default since N4b, ADR-008/012) routes each turn — the model
+     * router proposes the specialist and the deterministic selector the session,
+     * both recorded on the run. `direct` pins `agentId` and interposes no model
+     * call. `agentId` is the routing prior/default either way.
      */
     mode?: ConversationMode;
   }): Conversation {
@@ -614,7 +615,8 @@ export class Orchestrator {
       projectId: input.projectId,
       title: input.title ?? DEFAULT_CONVERSATION_TITLE,
       agentId,
-      mode: input.mode ?? 'direct',
+      // N4b: automatic routing is the default for new project conversations.
+      mode: input.mode ?? 'automatic',
     });
   }
 

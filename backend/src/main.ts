@@ -25,7 +25,9 @@ import type { RuntimeAdapter, SubstrateExecPort } from './domain/ports.js';
 import { JsonLogger } from './observability/logger.js';
 import { CountingMetrics } from './observability/metrics.js';
 import { Orchestrator } from './orchestrator/orchestrator.js';
+import { ModelRouter } from './orchestrator/modelRouter.js';
 import { DeterministicRouter } from './orchestrator/router.js';
+import type { RouterPort } from './domain/ports.js';
 import { ClaudeCliRuntimeAdapter } from './runtime/claudeCliAdapter.js';
 import { FakeRuntimeAdapter } from './runtime/fakeAdapter.js';
 import { SqliteHubStore } from './store/sqlite.js';
@@ -127,14 +129,21 @@ async function main(): Promise<void> {
     dbPath: dbPath === ':memory:' ? null : dbPath,
   });
 
+  // Automatic-mode router (ADR-008/012): the message-aware model router in
+  // `real` mode (one cheap Haiku call, reusing the OAuth token, deterministic
+  // fallback on failure); the offline deterministic router in `fake` mode, so
+  // CI stays credential-free (13 §6).
+  const router: RouterPort =
+    runtimeConfig.kind === 'real'
+      ? new ModelRouter({ oauthToken: runtimeConfig.oauthToken, logger })
+      : new DeterministicRouter();
+
   const orchestrator = new Orchestrator({
     store,
     adapter,
     execPort,
     agents,
-    // N4a: deterministic router (no model) for both fake and real modes; N4b
-    // swaps a model-backed router into `real` behind the same port.
-    router: new DeterministicRouter(),
+    router,
     notify: broadcaster,
     runEnv,
     tokenPrices: resolveTokenPrices(process.env), // budget estimate (B3-06)

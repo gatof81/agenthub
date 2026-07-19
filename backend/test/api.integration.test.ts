@@ -72,7 +72,7 @@ describe('HTTP API (08 §1)', () => {
       .send({});
     expect(conv.status).toBe(201);
     expect(conv.body.conversation.agentId).toBe('dev');
-    expect(conv.body.conversation.mode).toBe('direct'); // default
+    expect(conv.body.conversation.mode).toBe('automatic'); // default since N4b
     expect(detail.headers['x-request-id']).not.toBe(created.headers['x-request-id']);
   });
 

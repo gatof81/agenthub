@@ -88,8 +88,8 @@ nothing created. The owner stopping/renaming/deleting a bound session
 outside the Hub is **observed and surfaced**, never silently repaired
 (ADR-007, FR-44's principle generalized).
 
-Detailed flows for automatic routing and the dev → QA → approval loop land
-with their increments (N4–N6, [doc 19 §7](./19-model-correction-plan.md)).
+Automatic routing lands in N4a/N4b (UC-12 below); the dev → QA → approval loop
+lands with N5–N6 ([doc 19 §7](./19-model-correction-plan.md)).
 
 ## UC-02 — Send a message (happy path)
 
@@ -258,6 +258,36 @@ the database.
    (`409 project_archived`, I-12) — its session is stopped, so it could not
    take a turn.
 
+## UC-12 — Automatic routing (a message picks its specialist)
+
+Default mode for a project conversation since N4b (ADR-008/012). The owner
+writes what they need without naming a specialist:
+
+1. Message arrives on an `automatic` conversation. Snapshots (caps/policy/
+   instructions) are still taken at send from the conversation's default
+   specialist (I-8) — N4a's router echoes it, so the snapshot is unaffected;
+   the message-aware router (N4b) can propose a different one, which the run
+   records.
+2. At dispatch the **router proposes** (ADR-008 Option 3): question or task,
+   and which specialist by capability. N4b makes one cheap Messages-API call
+   (Haiku 4.5, structured output, ADR-012), reusing `CLAUDE_CODE_OAUTH_TOKEN`;
+   N4a/offline use the deterministic router. A model never chooses the
+   execution environment (01 §3, SEC-01).
+3. The **deterministic selector** chooses the session from real bindings —
+   the project's primary session by default (it has the repo, local changes,
+   credentials), a specialist session only for a recorded reason (ADR-008/010).
+4. The **orchestrator disposes**: validates the proposal against the real
+   specialist set, permissions, caps, queues, and the per-workspace lock (I-2),
+   then runs the turn in the chosen session. The `ExecutionTargetDecision`
+   (who ran, where, why, alternatives) persists on the run (migration 007).
+5. The chat surfaces the routed specialist; the run inspector shows the full
+   decision (surfaced there, not necessarily the main chat, ADR-008).
+6. **Graceful degradation (ADR-012):** any router failure — model error,
+   timeout, or a proposal naming an unknown specialist — falls back to the
+   deterministic router (the conversation's own specialist). Automatic mode
+   never breaks a turn; the recorded reason names the fallback. `direct` mode
+   interposes no model call.
+
 ## Coverage map
 
 | Flow | Requirements exercised |
@@ -273,6 +303,7 @@ the database.
 | UC-09 | FR-19/31/32, UX-05 |
 | UC-10 | OPS-01/02/03 |
 | UC-11 | FR-40/43/44, I-12, UX-08 |
+| UC-12 | ADR-008/010/012, SEC-01, I-2/I-8 |
 
 Not flow-shaped (hence absent above): SEC-01/02/04/05/08/10/11 (enforcement and
 cross-cutting security properties, asserted in code review and tests, not in
