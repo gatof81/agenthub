@@ -80,7 +80,9 @@ Module rules:
 
 Mirrors the substrate (ADR-002 context): systemd-or-compose managed Node
 process on the same host, SQLite file on local disk (outside
-`WORKSPACE_ROOT`, OPS-05), frontend static on Pages, exposure through the
+`WORKSPACE_ROOT`, OPS-05), frontend served same-origin from the Node backend
+(ADR-002 frontend-placement amendment, 2026-07-17 — not Cloudflare Pages),
+exposure through the
 existing Cloudflare tunnel under a Hub hostname (identifier stays out of this
 repo, R-09). Before creating sessions the Hub checks its account's headroom
 via the substrate's `GET /quotas` (02 §6). Single replica by design; every
