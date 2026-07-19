@@ -131,7 +131,7 @@ inspector (ADR-009).
 | 005 | specialist sessions (N3b-1, **landed first**) | new `specialist_sessions` (specialist identities stay in config); the `busy` status value is unused — N3b-2 serializes via the dispatch transaction, not a cached status |
 | 006 | conversation mode (N3b-2) | rebuilds `conversations`: `project_id` becomes **nullable** (a specialist conversation has none) + adds `mode` (backfill `direct`). SQLite can't drop NOT NULL in place, so the table is rebuilt with FK enforcement off (the runner toggles it around migrations and integrity-checks after). `agent_id` stays required. The 005/006 order swapped from the original plan — specialist sessions shipped before conversation mode |
 | 007 | run execution target (N4a) | `runs` += `target_session_id?` (NULL = derived: project primary or the pinned specialist's), `target_decision?` — makes the routing decision persist so the inspector shows it on reload, not only for an in-flight run. Split out of the original 007 (tasks) so N4a lands its own audit surface ahead of N5 |
-| 008 | tasks (N5) | new `tasks`, `task_steps`, `work_products`; `runs` += `task_step_id?` |
+| 008 | tasks (N5a) | new `tasks`, `task_steps`, `work_products`; `runs` += `task_step_id?` |
 
 Projects, conversations, runs, messages, and events are preserved untouched;
 each migration ships with contract-suite updates for both store

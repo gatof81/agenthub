@@ -51,7 +51,7 @@ export class IllegalTaskTransitionError extends Error {
   }
 }
 
-/** Guarded-update mismatch: the row was not in the expected `from` state (I-3). */
+/** Guarded-update mismatch: the row was not in the expected `from` state (I-13). */
 export class StaleTaskStateError extends Error {
   constructor(
     readonly taskId: string,

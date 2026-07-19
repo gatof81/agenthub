@@ -230,7 +230,7 @@ export interface HubStore {
   getTask(id: string): Task | undefined;
   listTasks(opts?: { projectId?: string }): Task[];
   /**
-   * Guarded transition (I-3) against the task state machine: asserts legality
+   * Guarded transition (I-13) against the task state machine: asserts legality
    * and that the row is currently in `from` (StaleTaskStateError otherwise),
    * one tx, stamps updatedAt. Terminal transitions are legal here (a task ends
    * in `approved`/`rejected`/`failed`); there is no separate finalize.

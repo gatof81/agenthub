@@ -20,9 +20,11 @@
 CREATE TABLE tasks (
   id                     TEXT PRIMARY KEY,
   project_id             TEXT NOT NULL REFERENCES projects(id),
-  -- nullable: a task's originating conversation/message may be pruned, but the
-  -- task (and its work products) stay as the record of what was done
-  source_conversation_id TEXT REFERENCES conversations(id),
+  -- soft references (NO FK), like `source_message_id` and `work_products.run_id`
+  -- below: a task's originating conversation/message may be pruned, but the task
+  -- (and its work products) stay as the record of what was done. A hard FK here
+  -- would block that prune, contradicting the intent.
+  source_conversation_id TEXT,
   source_message_id      TEXT,
   state                  TEXT NOT NULL,
   created_at             TEXT NOT NULL,

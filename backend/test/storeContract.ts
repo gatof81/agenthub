@@ -732,7 +732,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       store.close();
     });
 
-    it('guards task transitions: legal walk, illegal jump, and stale-from all enforced (I-3)', () => {
+    it('guards task transitions: legal walk, illegal jump, and stale-from all enforced (I-13)', () => {
       const store = makeStore();
       const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
       const task = store.createTask({ projectId: p.id });
