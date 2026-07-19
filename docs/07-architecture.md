@@ -12,7 +12,7 @@ deployment, and the decisions that bind them. Domain names from
 
 ```mermaid
 flowchart LR
-    U[User] -->|browser| FE[Hub frontend<br/>Cloudflare Pages]
+    U[User] -->|browser| FE[Hub frontend<br/>served by Node backend]
     FE -->|HTTPS via tunnel: POST commands,<br/>SSE event streams ADR-004| BE[Hub backend<br/>Node, co-located host]
     BE -->|localhost seam: sessions API +<br/>exec API ADR-001| ST[shared-terminal backend]
     ST --> C[session containers<br/>Claude CLI 2.1.207]
