@@ -358,6 +358,11 @@ Bringing the rest of the sidebar (§4) up to the finish of the conversation list
   top-level entity stands out; **conversations** are a lighter, distinct nested
   list, each with a leading dot that (with the row) lights up when it is the
   active conversation.
+- **Archive confirms in-app, not with `window.confirm` (owner, 2026-07-19).**
+  The destructive confirm is the app's own dark-theme modal (Escape or an
+  outside click cancels; Cancel is the default focus), so it stops jarring
+  against the rest of the UI. The wording is unchanged (reversible, session
+  stops — FR-40/FR-43).
 
 ## 15. Message footer (owner decision 2026-07-19)
 

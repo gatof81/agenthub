@@ -26,11 +26,13 @@ import {
   type TextSize,
 } from './lib/textSize.js';
 import { toastError } from './lib/toast.js';
+import { confirmDialog } from './lib/confirm.js';
 import { Sidebar } from './components/Sidebar.js';
 import { Thread, type ThreadCommands } from './components/Thread.js';
 import { CommandPalette, type PaletteCommand } from './components/CommandPalette.js';
 import { ArchivedView } from './components/ArchivedView.js';
 import { Toasts } from './components/Toasts.js';
+import { ConfirmDialog } from './components/ConfirmDialog.js';
 
 function TokenGate({ onReady }: { onReady: () => void }): React.JSX.Element {
   const [value, setValue] = useState('');
@@ -259,13 +261,11 @@ export function App(): React.JSX.Element {
       // FR-40 — archiving stops the session; confirm before that happens.
       // Reversible since FR-43, and the prompt must say so: claiming false
       // permanence is as misleading as implying it merely leaves the list.
-      if (
-        !window.confirm(
-          `Archive "${project.name}"? Its session stops. You can restore it later from Archived.`,
-        )
-      ) {
-        return;
-      }
+      const ok = await confirmDialog(
+        `Archive "${project.name}"? Its session stops. You can restore it later from Archived.`,
+        { confirmLabel: 'Archive', danger: true },
+      );
+      if (!ok) return;
       try {
         await api.archiveProject(project.id);
         if (selectedProject?.id === project.id) backToProjects();
@@ -280,13 +280,11 @@ export function App(): React.JSX.Element {
   const archiveConversation = useCallback(
     async (conversation: Conversation) => {
       // Confirm, and say it is recoverable (FR-43) — parity with the project path.
-      if (
-        !window.confirm(
-          `Archive "${conversation.title}"? You can restore it later from Archived.`,
-        )
-      ) {
-        return;
-      }
+      const ok = await confirmDialog(
+        `Archive "${conversation.title}"? You can restore it later from Archived.`,
+        { confirmLabel: 'Archive', danger: true },
+      );
+      if (!ok) return;
       try {
         await api.archiveConversation(conversation.id);
         setConversations((prev) => prev.filter((c) => c.id !== conversation.id));
@@ -474,6 +472,7 @@ export function App(): React.JSX.Element {
         onClose={() => setPaletteOpen(false)}
       />
       <Toasts />
+      <ConfirmDialog />
     </div>
   );
 }
