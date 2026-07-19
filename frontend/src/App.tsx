@@ -25,10 +25,12 @@ import {
   TEXT_SIZES,
   type TextSize,
 } from './lib/textSize.js';
+import { toastError } from './lib/toast.js';
 import { Sidebar } from './components/Sidebar.js';
 import { Thread, type ThreadCommands } from './components/Thread.js';
 import { CommandPalette, type PaletteCommand } from './components/CommandPalette.js';
 import { ArchivedView } from './components/ArchivedView.js';
+import { Toasts } from './components/Toasts.js';
 
 function TokenGate({ onReady }: { onReady: () => void }): React.JSX.Element {
   const [value, setValue] = useState('');
@@ -134,18 +136,26 @@ export function App(): React.JSX.Element {
   // bind or create a specialist's personal session (N3b-1), then refresh
   const bindSpecialistSession = useCallback(
     async (specialistId: string, workspace: WorkspaceChoice) => {
-      await api.bindSpecialistSession(specialistId, workspace);
-      await refreshSpecialists();
+      try {
+        await api.bindSpecialistSession(specialistId, workspace);
+        await refreshSpecialists();
+      } catch (e) {
+        toastError(e, "Couldn't bind the session");
+      }
     },
     [refreshSpecialists],
   );
 
   // start a direct conversation with a specialist (N3b-2) and open it
   const chatWithSpecialist = useCallback(async (specialistId: string) => {
-    const { conversation } = await api.createSpecialistConversation(specialistId);
-    setSelectedProject(null); // a specialist conversation has no project
-    setConversations([]); // drop the previous project's list (as backToProjects does)
-    setSelectedConversation(conversation);
+    try {
+      const { conversation } = await api.createSpecialistConversation(specialistId);
+      setSelectedProject(null); // a specialist conversation has no project
+      setConversations([]); // drop the previous project's list (as backToProjects does)
+      setSelectedConversation(conversation);
+    } catch (e) {
+      toastError(e, "Couldn't start the conversation");
+    }
   }, []);
 
   useEffect(() => {
@@ -187,24 +197,32 @@ export function App(): React.JSX.Element {
 
   const createProject = useCallback(
     async (name: string, workspace: WorkspaceChoice) => {
-      const defaultAgent = agents[0]?.id ?? 'dev';
-      await api.createProject(name, defaultAgent, workspace);
-      await refreshProjects();
-      // a bind marks the session with its project (external_ref) and the
-      // binding column — refresh so the Sessions list reflects it
-      void api
-        .listSessions()
-        .then(setSessionListing)
-        .catch(() => {});
+      try {
+        const defaultAgent = agents[0]?.id ?? 'dev';
+        await api.createProject(name, defaultAgent, workspace);
+        await refreshProjects();
+        // a bind marks the session with its project (external_ref) and the
+        // binding column — refresh so the Sessions list reflects it
+        void api
+          .listSessions()
+          .then(setSessionListing)
+          .catch(() => {});
+      } catch (e) {
+        toastError(e, "Couldn't create the project");
+      }
     },
     [agents, refreshProjects],
   );
 
   const createConversation = useCallback(async () => {
     if (!selectedProject) return;
-    const { conversation } = await api.createConversation(selectedProject.id);
-    setConversations((prev) => [...prev, conversation]);
-    setSelectedConversation(conversation);
+    try {
+      const { conversation } = await api.createConversation(selectedProject.id);
+      setConversations((prev) => [...prev, conversation]);
+      setSelectedConversation(conversation);
+    } catch (e) {
+      toastError(e, "Couldn't create the conversation");
+    }
   }, [selectedProject]);
 
   // A restore has to land in the view the user returns to, not just vanish
@@ -248,9 +266,13 @@ export function App(): React.JSX.Element {
       ) {
         return;
       }
-      await api.archiveProject(project.id);
-      if (selectedProject?.id === project.id) backToProjects();
-      await refreshProjects();
+      try {
+        await api.archiveProject(project.id);
+        if (selectedProject?.id === project.id) backToProjects();
+        await refreshProjects();
+      } catch (e) {
+        toastError(e, "Couldn't archive the project");
+      }
     },
     [selectedProject, backToProjects, refreshProjects],
   );
@@ -265,9 +287,13 @@ export function App(): React.JSX.Element {
       ) {
         return;
       }
-      await api.archiveConversation(conversation.id);
-      setConversations((prev) => prev.filter((c) => c.id !== conversation.id));
-      setSelectedConversation((cur) => (cur?.id === conversation.id ? null : cur));
+      try {
+        await api.archiveConversation(conversation.id);
+        setConversations((prev) => prev.filter((c) => c.id !== conversation.id));
+        setSelectedConversation((cur) => (cur?.id === conversation.id ? null : cur));
+      } catch (e) {
+        toastError(e, "Couldn't archive the conversation");
+      }
     },
     [],
   );
@@ -447,6 +473,7 @@ export function App(): React.JSX.Element {
         commands={paletteCommands}
         onClose={() => setPaletteOpen(false)}
       />
+      <Toasts />
     </div>
   );
 }
