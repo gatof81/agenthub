@@ -132,6 +132,17 @@ export function Thread({
   // When the tracked run last produced any SSE frame — the watchdog only polls
   // once the stream has genuinely gone quiet.
   const lastEventAtRef = useRef<number>(Date.now());
+  // Every activity.item / run.summary / run.usage frame triggers a getRun, and
+  // those responses can resolve out of order — an older, fuller-vs-thinner
+  // snapshot could clobber a newer one. A monotonic token drops any response
+  // that a later request has already superseded.
+  const runDetailSeqRef = useRef(0);
+  const fetchRunDetail = useCallback((runId: string) => {
+    const seq = (runDetailSeqRef.current += 1);
+    void api.getRun(runId).then((detail) => {
+      if (seq === runDetailSeqRef.current) setRunDetail(detail);
+    });
+  }, []);
 
   const refetch = useCallback(async () => {
     const detail = await api.getConversation(conversation.id);
@@ -148,8 +159,9 @@ export function Thread({
     // missed (a socket drop around finalize, or no subscriber at that instant).
     const trackedRunId = liveRunRef.current?.runId ?? detail.messages.findLast((m) => m.runId)?.runId;
     if (trackedRunId) {
+      const seq = (runDetailSeqRef.current += 1);
       const runDetail = await api.getRun(trackedRunId);
-      setRunDetail(runDetail);
+      if (seq === runDetailSeqRef.current) setRunDetail(runDetail);
       setLiveRun((prev) => {
         const reconciled = reconcileLiveRun(prev, runDetail.run);
         // F: the conversation was opened mid-run — nothing live yet, but the
@@ -260,10 +272,10 @@ export function Thread({
               }
             : prev,
         );
-        void api.getRun(d.runId).then(setRunDetail);
+        fetchRunDetail(d.runId);
       } else if (ev.event === 'run.summary' || ev.event === 'run.usage') {
         const d = ev.data;
-        void api.getRun(d.runId).then(setRunDetail);
+        fetchRunDetail(d.runId);
       }
     };
     const handle = subscribeConversation(conversation.id, onEvent, () => void refetch());
@@ -311,10 +323,15 @@ export function Thread({
         setMessages((prev) =>
           prev.map((m) => (m.id === optimistic.id ? { ...m, runId: res.runId } : m)),
         );
-        const busy = liveRunRef.current !== null && !isTerminalRun(liveRunRef.current.state);
+        // "Busy" means a DIFFERENT run holds the live stage. If the SSE stream
+        // already lit up THIS run while the POST was in flight, it is not queued
+        // behind anything — don't mark it queued (it is already streaming) and
+        // don't overwrite the live state SSE seeded.
+        const live = liveRunRef.current;
+        const busy = live !== null && live.runId !== res.runId && !isTerminalRun(live.state);
         if (busy) {
           setQueuedRunIds((q) => new Set(q).add(res.runId));
-        } else {
+        } else if (live?.runId !== res.runId) {
           setLiveRun({ runId: res.runId, state: res.runState, segments: [], startedAt: Date.now() });
         }
       } catch (err) {
