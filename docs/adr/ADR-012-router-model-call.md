@@ -67,7 +67,8 @@ Option 2.
 - **Offline discipline preserved (13 §6).** `RouterPort` keeps its
   `DeterministicRouter` fake; the offline suite runs only that (no network, no
   credentials). `ModelRouter` is instantiated **only** in `real` mode
-  (`config/runtime.ts` wiring), exactly like the real seam client and adapter,
+  (`main.ts` wiring, gated on `runtimeConfig.kind`), exactly like the real seam
+  client and adapter,
   so CI's no-`CLAUDE*`-env assertion still holds.
 
 ## Consequences

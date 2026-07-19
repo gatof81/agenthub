@@ -19,7 +19,13 @@ import { NOOP_LOGGER, type Logger } from '../domain/ports.js';
 import type { RouteProposal } from '../domain/types.js';
 import { DeterministicRouter } from './router.js';
 
-/** Small, cheap model for the routing classification (ADR-012). */
+/**
+ * Small, cheap model for the routing classification (ADR-012). `claude-haiku-4-5`
+ * is the Anthropic-documented **alias** for Haiku 4.5 (full id
+ * `claude-haiku-4-5-20251001`); the alias is the recommended form — date
+ * suffixes are only for the full id, never appended to an alias. Overridable
+ * via `ModelRouterDeps.model`; verified live in `real` mode on the host.
+ */
 const ROUTER_MODEL = 'claude-haiku-4-5';
 /** Bound the router call so a slow model never stalls a turn; fallback on trip. */
 const DEFAULT_TIMEOUT_MS = 8000;
