@@ -75,6 +75,13 @@ export interface SendMessageInput {
    * never new ones.
    */
   instructions: string;
+  /**
+   * Links this run to a task step (N5b, ADR-009) when the supervisor runs a
+   * specialist turn as a step. `undefined`/absent for an ordinary chat run.
+   * A step run skips routing — its specialist is already chosen (see
+   * `resolveRunSession`).
+   */
+  taskStepId?: string;
 }
 
 /** Patch applied alongside a guarded non-terminal transition. */

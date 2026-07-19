@@ -583,8 +583,8 @@ export class SqliteHubStore implements HubStore {
       this.db
         .prepare(
           `INSERT INTO runs (id, conversation_id, message_id, state, caps_snapshot, policy_snapshot,
-                             instructions_snapshot, created_at)
-           VALUES (?, ?, ?, 'queued', ?, ?, ?, ?)`,
+                             instructions_snapshot, task_step_id, created_at)
+           VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?)`,
         )
         .run(
           runId,
@@ -593,6 +593,7 @@ export class SqliteHubStore implements HubStore {
           JSON.stringify(input.caps),
           JSON.stringify(input.policy),
           input.instructions,
+          input.taskStepId ?? null,
           now,
         );
     });

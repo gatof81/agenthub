@@ -22,13 +22,17 @@ import {
   type HubNotifier,
   type Logger,
   type Metrics,
+  type ReportExtractorPort,
   type RouterPort,
   type RuntimeAdapter,
   type SessionInfo,
   type SubstrateExecPort,
   type TurnRequest,
 } from '../domain/ports.js';
+import { isTerminal } from '../domain/runStateMachine.js';
 import { DeterministicRouter } from './router.js';
+import { DeterministicReportExtractor } from './reportExtractor.js';
+import { Supervisor, type StepResult } from './supervisor.js';
 import { NoExecutionTargetError, selectExecutionTarget } from './selector.js';
 import {
   assembleAssistantText,
@@ -53,6 +57,7 @@ import type {
   SpecialistSessionBinding,
   SpecialistSessionStatus,
   SweepResult,
+  Task,
   TerminalRunState,
   UsageSource,
 } from '../domain/types.js';
@@ -88,6 +93,21 @@ export interface OrchestratorDeps {
    * `real` mode behind this same port. Only automatic-mode conversations use it.
    */
   router?: RouterPort;
+  /**
+   * Turns a specialist step's output into a typed work product (N5b, ADR-009).
+   * Defaults to the deterministic (mechanical) extractor; `real` mode injects
+   * the model-backed one behind the same port. Used only by the task supervisor.
+   */
+  reportExtractor?: ReportExtractorPort;
+  /** Bound on the dev↔QA cycle before a task fails (N5b); supervisor default otherwise. */
+  maxQaCycles?: number;
+  /**
+   * The specialist that reviews (QA) a task's implementation (N5b). The task
+   * envelope only fires when this is set (and differs from the routed developer),
+   * so a hub with no QA specialist configured never spawns tasks — an ordinary
+   * turn runs instead. `real` mode sets it from config.
+   */
+  qaSpecialistId?: string;
   clock?: Clock;
   /** extra env for every run (e.g. the OAuth token in Increment 2) */
   runEnv?: Record<string, string>;
@@ -172,6 +192,16 @@ export class Orchestrator {
    */
   private readonly pendingKills = new Map<string, Promise<KillOutcome | undefined>>();
 
+  /**
+   * The N5b task supervisor and the plumbing it needs: `runCompletions` wakes a
+   * step run's awaiter when `finalize` seals it, and `taskDriving` holds each
+   * in-flight `supervise()` so `idle()` settles a whole task, not just its runs.
+   */
+  private readonly supervisor: Supervisor;
+  private readonly runCompletions = new Map<string, () => void>();
+  private readonly taskDriving = new Set<Promise<void>>();
+  private readonly qaSpecialistId: string | null;
+
   constructor(deps: OrchestratorDeps) {
     this.store = deps.store;
     this.adapter = deps.adapter;
@@ -185,6 +215,16 @@ export class Orchestrator {
     this.notify = deps.notify ?? NOOP_NOTIFIER;
     this.logger = deps.logger ?? NOOP_LOGGER;
     this.metrics = deps.metrics ?? NOOP_METRICS;
+    this.supervisor = new Supervisor({
+      store: this.store,
+      // the step machinery is the run loop itself, wrapped behind the seam the
+      // supervisor is unit-tested against (N5b)
+      runner: { runStep: (i) => this.runTaskStep(i) },
+      extractor: deps.reportExtractor ?? new DeterministicReportExtractor(),
+      logger: this.logger,
+      ...(deps.maxQaCycles !== undefined ? { maxQaCycles: deps.maxQaCycles } : {}),
+    });
+    this.qaSpecialistId = deps.qaSpecialistId ?? null;
   }
 
   // — N1: session discovery (FR-48, ADR-007) —
@@ -705,11 +745,128 @@ export class Orchestrator {
     this.inFlight.set(run.id, promise);
   }
 
-  /** Awaits every in-flight run — deterministic tests, clean shutdown. */
+  /** Awaits every in-flight run and task-supervision — deterministic tests, clean shutdown. */
   async idle(): Promise<void> {
-    while (this.inFlight.size > 0) {
-      await Promise.all([...this.inFlight.values()]);
+    while (this.inFlight.size > 0 || this.taskDriving.size > 0) {
+      await Promise.all([...this.inFlight.values(), ...this.taskDriving.values()]);
     }
+  }
+
+  // — N5b (ADR-009): task supervision (developer → QA → human approval) —
+
+  /**
+   * Start a task from a routed `task` message: create the Task row and drive it
+   * through the dev → QA loop to `awaiting_human_approval` (or `failed`) on the
+   * project's primary session. The supervisor owns every step run; this returns
+   * as soon as the task exists, the loop running in the background (tracked so
+   * `idle()` settles the whole task, not just its runs). Step runs are hosted by
+   * the originating conversation.
+   */
+  startTask(input: {
+    projectId: string;
+    sourceConversationId: string;
+    sourceMessageId: string;
+    objective: string;
+    devSpecialistId: string;
+    qaSpecialistId: string;
+  }): Task {
+    const task = this.store.createTask({
+      projectId: input.projectId,
+      sourceConversationId: input.sourceConversationId,
+      sourceMessageId: input.sourceMessageId,
+    });
+    const driving = this.supervisor
+      .supervise(task, input.objective, input.devSpecialistId, input.qaSpecialistId)
+      .catch((err) => {
+        // supervise() lands flow outcomes in `failed` itself; a throw here is a
+        // bug guard so a background rejection is never swallowed silently
+        this.logger.error('task.supervise_crashed', {
+          taskId: task.id,
+          error: err instanceof Error ? err.name : 'unknown',
+        });
+      })
+      .finally(() => {
+        this.taskDriving.delete(driving);
+      });
+    this.taskDriving.add(driving);
+    return task;
+  }
+
+  /**
+   * Run one specialist turn as a task step (the N5b StepRunner impl): create a
+   * step run in the task's conversation carrying the specialist's snapshot and
+   * the step link, pump it, await its terminal state, and report what it said
+   * plus whether it failed. A step run skips routing (see `resolveRunSession`).
+   */
+  private async runTaskStep(input: {
+    taskId: string;
+    taskStepId: string;
+    specialistId: string;
+    prompt: string;
+  }): Promise<StepResult> {
+    const failed = (): StepResult => ({ assistantOutput: '', summary: null, runId: null, failed: true });
+    const conversationId = this.store.getTask(input.taskId)?.sourceConversationId ?? null;
+    if (!conversationId) return failed();
+    const conversation = this.store.getConversation(conversationId);
+    if (!conversation) return failed();
+    const agent = this.agents.get(input.specialistId);
+    if (!agent) {
+      this.logger.warn('task.step_unknown_specialist', {
+        taskId: input.taskId,
+        specialistId: input.specialistId,
+      });
+      return failed();
+    }
+    const { run } = this.store.sendMessage({
+      conversationId,
+      content: input.prompt,
+      caps: agent.defaultCaps,
+      policy: agent.allowedTools,
+      instructions: agent.instructions,
+      taskStepId: input.taskStepId,
+    });
+    // register the awaiter BEFORE dispatch so a fast finalize is never missed
+    const done = this.awaitRunTerminal(run.id);
+    this.pump(workspaceKeyFor(conversation));
+    await done;
+    const final = this.store.getRun(run.id);
+    return {
+      assistantOutput: assembleAssistantText(this.store.getEvents(run.id)) || '',
+      summary: this.store.getSummary(run.id) ?? null,
+      runId: run.id,
+      failed: !final || (final.state !== 'completed' && final.state !== 'completed_with_denials'),
+    };
+  }
+
+  /** Resolve when `runId` reaches a terminal state (woken by `finalize`), or now if already there. */
+  private awaitRunTerminal(runId: string): Promise<void> {
+    const run = this.store.getRun(runId);
+    if (!run || isTerminal(run.state)) return Promise.resolve();
+    return new Promise<void>((resolve) => this.runCompletions.set(runId, resolve));
+  }
+
+  /**
+   * Seal the light kickoff run for a task (N5b envelope): it runs no turn, so it
+   * goes starting → streaming → completed carrying a short note that a task was
+   * started. The developer/QA work happens in separate step runs the supervisor
+   * owns — the kickoff never touches the substrate.
+   */
+  private finalizeTaskKickoff(
+    run: Run,
+    conversation: Conversation,
+    userMessageContent: string,
+    task: Task,
+  ): void {
+    this.store.transitionRun(run.id, 'starting', 'streaming');
+    this.notify.runState(conversation.id, { runId: run.id, state: 'streaming' });
+    const note = `Started task ${task.id}. Routing to the developer, then QA; you'll be asked to approve the result.`;
+    this.finalize(run, 'streaming', 'completed', {
+      usageSource: 'result-event',
+      assistantContent: note,
+      userMessageContent,
+      warnings: [],
+      runtimeSessionId: conversation.runtimeSessionId,
+    });
   }
 
   // — UC-04: cancellation —
@@ -884,6 +1041,17 @@ export class Orchestrator {
       return null;
     };
 
+    // A task step run (N5b, ADR-009/010 A): the supervisor already chose the
+    // specialist, and the step runs in its project's primary session — never
+    // re-routed. Structural, so no selector and no recorded target decision.
+    if (run.taskStepId !== null) {
+      const sessionId =
+        conversation.projectId !== null
+          ? this.store.getProject(conversation.projectId)?.sessionBinding.sessionId ?? null
+          : null;
+      return sessionId ?? fail('task step run has no project session (ADR-010 A)');
+    }
+
     // Automatic mode (N4a, ADR-008): the router proposes a specialist and the
     // deterministic selector chooses the session, recorded on the run. Direct
     // mode derives the session structurally, with no selector in the loop.
@@ -927,6 +1095,30 @@ export class Orchestrator {
         mode: conversation.mode,
       },
     });
+
+    // Envelope (N5b, ADR-009): a routed `task` in a project conversation is not
+    // a single turn — it spawns a supervised developer → QA task. This run is a
+    // light kickoff (no substrate turn); the implementation and QA execute as
+    // their own step runs the supervisor owns. Gated on a configured QA
+    // specialist distinct from the developer, so a hub without one just runs a
+    // normal turn (the developer answers).
+    if (
+      proposal.workType === 'task' &&
+      conversation.projectId !== null &&
+      this.qaSpecialistId !== null &&
+      this.qaSpecialistId !== proposal.specialistId
+    ) {
+      const task = this.startTask({
+        projectId: conversation.projectId,
+        sourceConversationId: conversation.id,
+        sourceMessageId: run.messageId,
+        objective: userMessageContent,
+        devSpecialistId: proposal.specialistId,
+        qaSpecialistId: this.qaSpecialistId,
+      });
+      this.finalizeTaskKickoff(run, conversation, userMessageContent, task);
+      return null; // the kickoff run executes no turn
+    }
 
     const projectPrimarySessionId =
       conversation.projectId !== null
@@ -1365,6 +1557,15 @@ export class Orchestrator {
       numTurns: summary.numTurns,
       durationMs: summary.durationMs,
     });
+
+    // wake a task-step awaiter (N5b): the supervisor blocks on its step run's
+    // terminal state, and `finalize` is the one choke point every outcome flows
+    // through — success, failure, cancel, timeout alike.
+    const wake = this.runCompletions.get(run.id);
+    if (wake) {
+      this.runCompletions.delete(run.id);
+      wake();
+    }
   }
 
   /**
