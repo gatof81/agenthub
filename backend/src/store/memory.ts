@@ -513,7 +513,7 @@ export class MemoryHubStore implements HubStore {
     return s ? clone(s) : undefined;
   }
 
-  // — tasks (N5, ADR-009/010) —
+  // — tasks (N5a, ADR-009/010) —
 
   createTask(input: CreateTaskInput): Task {
     this.mustProjectRef(input.projectId);

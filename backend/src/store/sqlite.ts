@@ -895,7 +895,7 @@ export class SqliteHubStore implements HubStore {
     return row ? (JSON.parse(row.summary) as RunSummary) : undefined;
   }
 
-  // — tasks (N5, ADR-009/010) —
+  // — tasks (N5a, ADR-009/010) —
 
   createTask(input: CreateTaskInput): Task {
     this.mustProject(input.projectId);

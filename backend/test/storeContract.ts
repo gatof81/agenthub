@@ -717,7 +717,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       store.close();
     });
 
-    // — tasks: dev → QA → human-approval lifecycle (N5, ADR-009/010) —
+    // — tasks: dev → QA → human-approval lifecycle (N5a, ADR-009/010) —
 
     it('creates a task in planning, scoped to its project', () => {
       const store = makeStore();
