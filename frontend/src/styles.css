@@ -78,6 +78,36 @@ body {
   box-shadow: inset 3px 0 0 var(--accent);
   color: #fff;
 }
+/* Visual hierarchy: projects are the top-level entity — bolder and roomier so
+   they stand out; conversations are a distinct, lighter nested list. */
+.nav-list .nav-main.project-row {
+  padding: 11px 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.nav-list .nav-main.conversation-row {
+  position: relative;
+  padding: 7px 10px 7px 20px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+}
+/* a leading dot marks each conversation; it and the label light up when active */
+.nav-list .nav-main.conversation-row::before {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--border);
+}
+.nav-list button.nav-main.conversation-row:hover { color: var(--text); }
+.nav-list button.nav-main.conversation-row:hover::before { background: var(--muted); }
+.nav-list .nav-main.conversation-row.selected { color: #fff; }
+.nav-list .nav-main.conversation-row.selected::before { background: var(--accent); }
 .empty-hint { color: var(--muted); font-size: 13px; padding: 6px 10px; list-style: none; }
 
 /* rows with a hover-revealed archive action */

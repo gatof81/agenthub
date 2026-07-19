@@ -150,7 +150,12 @@ numbers are noted per item as they land, since the two drift.
   (no dead-end) as a `role="menu"`, read-only Sessions/Specialists sections
   divided off and no longer faking hover/click affordance with truncated names,
   and a more present archive control. First `<Sidebar>` component tests (via the
-  #89 harness) cover the create button and the switcher.
+  #89 harness) cover the create button and the switcher. **Follow-up (same day):
+  a visual hierarchy** — projects render bolder/roomier so the top-level entity
+  stands out, and conversations become a lighter, distinct nested list (muted,
+  smaller, a leading dot that lights up when active) instead of sharing the
+  projects' row skin. Composer bottom padding also scoped away from desktop
+  (`env(safe-area-inset-bottom)` was leaking a gap on some desktop browsers).
 
 - **2026-07-18** — **User-facing error surface (owner decision, doc 11 §13).**
   Action failures (create/archive project or conversation, specialist bind/chat)

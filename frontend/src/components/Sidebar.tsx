@@ -150,7 +150,7 @@ function ProjectsHome(props: Props): React.JSX.Element {
       <ul className="nav-list">
         {props.projects.map((p) => (
           <li key={p.id} className="nav-row">
-            <button className="nav-main" onClick={() => props.onOpenProject(p)}>
+            <button className="nav-main project-row" onClick={() => props.onOpenProject(p)}>
               <span>{p.name}</span>
               <StatusBadge project={p} />
             </button>
@@ -439,7 +439,7 @@ function ProjectPane(props: Props & { project: Project }): React.JSX.Element {
         {props.conversations.map((c) => (
           <li key={c.id} className="nav-row">
             <button
-              className={`nav-main ${props.selectedConversation?.id === c.id ? 'selected' : ''}`}
+              className={`nav-main conversation-row ${props.selectedConversation?.id === c.id ? 'selected' : ''}`}
               onClick={() => props.onOpenConversation(c)}
             >
               {c.title}
