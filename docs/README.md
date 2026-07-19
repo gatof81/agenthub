@@ -131,6 +131,13 @@ numbers are noted per item as they land, since the two drift.
 
 ## Changelog
 
+- **2026-07-19** — **Budget cap made optional (owner decision, ADR-003
+  amendment).** `Caps.budgetUsd` is now nullable and **off by default** — on a
+  Claude subscription a dollar figure is a lagging estimate that only trips
+  false alarms, not real billing. `--max-turns` + the wall-clock timeout remain
+  the always-on runaway bounds; the budget cap is opt-in per role. Amends FR-17,
+  R-06, and the B3-06 entry above.
+
 - **2026-07-19** — **Message footer: timestamps + copy (owner decision, doc 11
   §15).** Each message shows a relative time (absolute on hover); assistant
   messages get a copy-the-whole-message button, sharing one `CopyButton` with the
@@ -283,7 +290,9 @@ numbers are noted per item as they land, since the two drift.
   the stream-json mapping) and trips `budget_exceeded` on crossing
   `caps.budgetUsd` — prices configurable, conservative defaults (a
   runaway cap, not a billing figure; the estimate lags by up to one model
-  call, ADR-003). Seam 409/429 classifies as `exec_refused`, anything
+  call, ADR-003; **amended 2026-07-19 — `budgetUsd` is now optional, off by
+  default; the always-on bounds are `--max-turns` + wall-clock, see the entry
+  below**). Seam 409/429 classifies as `exec_refused`, anything
   unreachable as `seam_unavailable`. Timeout/budget kills resolve as
   `failed` (not `cancelled`) and run the FR-21 sweep for escaped children.
 
