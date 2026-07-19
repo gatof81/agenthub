@@ -42,10 +42,14 @@ the router call the model?" is a real architectural fork.
 Option 2.
 
 - The **model router** (`ModelRouter`, real mode) calls the Anthropic Messages
-  API directly via `@anthropic-ai/sdk`, model `claude-haiku-4-5`, with
-  structured output constraining the response to the `RouteProposal` shape
-  (`{workType, capabilities, specialistId, reason}`, N4a). It authenticates with
-  the OAuth token already resolved for `real` mode — reused, not a new secret.
+  API directly via `@anthropic-ai/sdk`, model `claude-haiku-4-5`. It gets a
+  structured proposal (`{workType, specialistId, reason}`; `capabilities` are
+  grounded from the chosen specialist's config, not the model) via a **forced
+  tool call** (`tool_choice` on a `route` tool) — fully typed in the SDK, stable,
+  and needs no beta header (chosen over `output_config`, which is untyped in the
+  pinned SDK and would silently fall back on every turn if unsupported). It
+  authenticates with the OAuth token already resolved for `real` mode — reused,
+  not a new secret.
 - **This is a deliberate, narrow carve-out from ADR-001.** ADR-001 governs
   *agent execution* — running a Claude turn in a workspace — which stays entirely
   on the seam. The router is a **control-plane meta-decision** (which specialist,
@@ -87,4 +91,4 @@ Option 2.
   same caps machinery in spirit and avoidable via `direct` mode; Haiku keeps it
   cheap and sub-second. Direct mode interposes no model call.
 - ADR-008's "default `automatic` once N4b lands" takes effect here; ADR-001's
-  scope statement is amended to note this single control-plane carve-out.
+  Status records this single control-plane carve-out (amended 2026-07-19).

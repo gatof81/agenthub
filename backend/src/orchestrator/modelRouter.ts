@@ -102,6 +102,10 @@ export class ModelRouter implements RouterPort {
       .map((s) => `- ${s.id}: ${s.name} — ${s.role ?? 'specialist'} (capabilities: ${(s.capabilities ?? []).join(', ') || 'none'})`)
       .join('\n');
 
+    // Structured output via a FORCED tool call — fully typed in the SDK (no
+    // cast), stable, and needs no beta header, unlike `output_config`. The
+    // enum on `specialistId` constrains the pick; `route()` re-validates and
+    // falls back regardless, so a malformed input never reaches the run.
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 256,
@@ -109,18 +113,18 @@ export class ModelRouter implements RouterPort {
         'You route a user message to the right specialist. Decide whether the ' +
         'message is a QUESTION (answer directly) or a TASK (do work), then pick ' +
         'the single best specialist for it from the roster by their capabilities. ' +
-        'Reply with the specialist id exactly as given. Be concise in the reason.',
+        'Use the specialist id exactly as given, and record the tool call via `route`.',
       messages: [
         {
           role: 'user',
           content: `Specialists:\n${roster}\n\nUser message:\n${input.message}`,
         },
       ],
-      output_config: {
-        format: {
-          type: 'json_schema',
-          name: 'route_proposal',
-          schema: {
+      tools: [
+        {
+          name: 'route',
+          description: 'Record the routing decision for this message.',
+          input_schema: {
             type: 'object',
             additionalProperties: false,
             properties: {
@@ -131,12 +135,13 @@ export class ModelRouter implements RouterPort {
             required: ['workType', 'specialistId', 'reason'],
           },
         },
-      },
-    } as Anthropic.MessageCreateParamsNonStreaming);
+      ],
+      tool_choice: { type: 'tool', name: 'route' },
+    });
 
-    const text = response.content.find((b) => b.type === 'text');
-    if (!text || text.type !== 'text') throw new Error('router: no text block in response');
-    const parsed = JSON.parse(text.text) as ModelProposal;
+    const toolUse = response.content.find((b) => b.type === 'tool_use');
+    if (!toolUse || toolUse.type !== 'tool_use') throw new Error('router: no tool_use block');
+    const parsed = toolUse.input as ModelProposal;
     if (parsed.workType !== 'question' && parsed.workType !== 'task') {
       throw new Error('router: invalid workType');
     }

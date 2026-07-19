@@ -3,7 +3,11 @@
 Status: accepted (owner sign-off 2026-07-13) · auth/ownership clause (the
 "dedicated account owns Hub-created sessions" option that provisionally
 resolved Q-04) superseded by [ADR-007](./ADR-007-session-ownership-and-binding.md)
-on 2026-07-17; the exec contract itself stands
+on 2026-07-17; the exec contract itself stands · **scope carve-out
+(2026-07-19):** the automatic-mode router calls the Messages API directly
+rather than through this seam — a narrow, session-independent control-plane
+exception ([ADR-012](./ADR-012-router-model-call.md)); all **agent execution**
+stays on the seam
 Date: 2026-07-13
 
 Substrate evidence cited at [shared-terminal](https://github.com/gatof81/shared-terminal) `main` @ `36be2f2`.

@@ -37,11 +37,11 @@ const INPUT: RouteInput = {
   conversation: { id: 'conv_1', projectId: 'proj_1', agentId: 'dev', mode: 'automatic' },
 };
 
-/** A fake Anthropic-shaped client whose create() returns one text block. */
+/** A fake Anthropic-shaped client whose create() returns one forced tool_use block. */
 function fakeClient(reply: unknown | (() => never)) {
   const create = vi.fn(async () => {
     if (typeof reply === 'function') (reply as () => never)();
-    return { content: [{ type: 'text', text: JSON.stringify(reply) }] };
+    return { content: [{ type: 'tool_use', id: 'toolu_1', name: 'route', input: reply }] };
   });
   return { client: { messages: { create } } as never, create };
 }
