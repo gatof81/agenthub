@@ -429,10 +429,15 @@ body {
   display: flex;
   gap: 8px;
   padding: 12px 14px;
-  /* clear the iPhone home-indicator / safe area so the input isn't cut off */
-  padding-bottom: calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
   background: var(--panel);
+}
+/* The iPhone home-indicator safe area only exists on touch devices. Scoped so
+   desktop never gets it — `env(safe-area-inset-bottom)` can resolve to a
+   non-zero gesture/taskbar inset on some desktop browsers, reading as an
+   oversized gap below the input. */
+@media (pointer: coarse) {
+  .composer { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
 }
 /* the composer is a rounded field that fills the width; its controls are
    compact icons inside it, so they never shrink the input (11 §12) */
