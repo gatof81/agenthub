@@ -91,9 +91,16 @@ function suite(name: string, makeStore: () => HubStore): void {
       expect(task.state).toBe('awaiting_human_approval');
       expect(task.sourceConversationId).toBe(conv.id);
 
-      // two steps (implementation, qa), each linked to a real run
+      // both step turns ran inside the task's git worktree (ADR-010 B) — the
+      // exec carried its path as workingDir, isolated from the session root
+      const worktree = `.hub-task-worktrees/${task.id}`;
+      expect(port.execRequests.every((r) => r.req.workingDir === worktree)).toBe(true);
+
+      // two steps (implementation, qa), each linked to a real run + an audited grant
       const steps = store.listTaskSteps(task.id);
       expect(steps.map((s) => s.kind)).toEqual(['implementation', 'qa']);
+      expect(steps[0]!.workspaceAccess).toMatchObject({ accessMode: 'worktree-write', path: worktree });
+      expect(steps[1]!.workspaceAccess).toMatchObject({ accessMode: 'test-execution', path: worktree });
 
       // both work products recorded, each with run provenance
       const wps = store.listWorkProducts(task.id);

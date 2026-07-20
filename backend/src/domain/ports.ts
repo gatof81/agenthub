@@ -22,6 +22,8 @@ import type {
   RunState,
   RunSummary,
   SweepResult,
+  Task,
+  TaskWorkspace,
   UsageRecord,
 } from './types.js';
 
@@ -39,6 +41,13 @@ export interface ExecRequest {
   argv: string[];
   stdin?: string;
   env?: Record<string, string>;
+  /**
+   * Working directory for the exec, a seam-native field (the exec schema is
+   * `cmd`/`env`/`workingDir`/`maxDurationMs`, contracts doc). Absent → the
+   * session's default workspace root. Used to run a task step inside its git
+   * worktree (ADR-010 B, N5b-2) without copying files or a `cd` wrapper.
+   */
+  workingDir?: string;
   /** Always bounded (FR-17); the seam's 1 h backstop sits behind it. */
   maxDurationMs: number;
 }
@@ -228,6 +237,13 @@ export interface TurnRequest {
    * every role in it shares them.
    */
   instructions: string | null;
+  /**
+   * Working directory for the turn (N5b-2, ADR-010 B): a task step runs inside
+   * its git worktree, isolated from concurrent tasks in the same project
+   * session. Absent → the session's default workspace root (an ordinary turn).
+   * Threaded to the seam's `workingDir` exec field by the adapter.
+   */
+  workingDir?: string;
 }
 
 /**
@@ -392,4 +408,40 @@ export interface QaReportInput extends ReportInput {
 export interface ReportExtractorPort {
   extractImplementation(input: ReportInput): Promise<ImplementationReport>;
   extractQa(input: QaReportInput): Promise<QaReport>;
+}
+
+// — WorkspaceManagerPort (ADR-010 B, N5b-2) —
+
+/**
+ * Isolates a task's code work in a git worktree/branch owned by the project
+ * session (ADR-010 B), so concurrent tasks never collide in the shared session
+ * workspace. Every operation is plain git executed BY the project session over
+ * the exec seam — no new substrate capability, no cross-session file access, no
+ * copies. Behind a port so the supervisor's worktree orchestration (create →
+ * step → commit → cleanup) is unit-tested offline against a fake.
+ *
+ * The project session stays the source of truth and the only holder of repo
+ * credentials (ADR-010); a specialist never holds a token.
+ */
+export interface WorkspaceManagerPort {
+  /**
+   * Create the task's isolated workspace. Strategy B (a worktree on a fresh
+   * task branch) when the project session has a git repo; otherwise the
+   * `project-primary` fallback (the session root, no worktree) so a task still
+   * runs rather than failing on a repo-less project.
+   */
+  createTaskWorkspace(task: Task): Promise<TaskWorkspace>;
+  /**
+   * Commit the working tree in the task's workspace so QA sees exactly the
+   * implementer's version as a committed ref and the work survives specialist
+   * failure (ADR-010). Safe no-op when there is nothing to commit or on the
+   * project-primary fallback.
+   */
+  commitWork(task: Task, workspace: TaskWorkspace, message: string): Promise<void>;
+  /**
+   * Remove the task's worktree on a terminal task state (ADR-010 cleanup
+   * obligation). The task branch — the commits — survives for human review and
+   * the eventual PR (N6). No-op on the project-primary fallback.
+   */
+  cleanup(task: Task, workspace: TaskWorkspace): Promise<void>;
 }

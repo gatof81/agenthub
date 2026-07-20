@@ -37,6 +37,7 @@ import {
   type CreateConversationInput,
   type CreateProjectInput,
   type CreateTaskInput,
+  type CreateTaskStepInput,
   type FinalizeRunInput,
   type HubStore,
   type NewRunEvent,
@@ -549,7 +550,7 @@ export class MemoryHubStore implements HubStore {
     return clone(task);
   }
 
-  createTaskStep(input: { taskId: string; kind: TaskStep['kind']; specialistId: string }): TaskStep {
+  createTaskStep(input: CreateTaskStepInput): TaskStep {
     if (!this.tasks.some((t) => t.id === input.taskId)) throw new NotFoundError('task', input.taskId);
     const seq = this.taskSteps.filter((s) => s.taskId === input.taskId).length;
     const step: TaskStep = {
@@ -558,10 +559,16 @@ export class MemoryHubStore implements HubStore {
       seq,
       kind: input.kind,
       specialistId: input.specialistId,
+      workspaceAccess: input.workspaceAccess ? clone(input.workspaceAccess) : null,
       createdAt: this.now(),
     };
     this.taskSteps.push(step);
     return clone(step);
+  }
+
+  getTaskStep(id: string): TaskStep | undefined {
+    const step = this.taskSteps.find((s) => s.id === id);
+    return step ? clone(step) : undefined;
   }
 
   listTaskSteps(taskId: string): TaskStep[] {

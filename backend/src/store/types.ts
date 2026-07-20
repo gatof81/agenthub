@@ -25,6 +25,7 @@ import type {
   SessionBinding,
   SpecialistSessionBinding,
   SweepResult,
+  DelegatedWorkspaceAccess,
   Task,
   TaskState,
   TaskStep,
@@ -244,7 +245,8 @@ export interface HubStore {
    */
   transitionTask(taskId: string, from: TaskState, to: TaskState): Task;
   /** Append a step; its `seq` is the next in the task's order. */
-  createTaskStep(input: { taskId: string; kind: TaskStep['kind']; specialistId: string }): TaskStep;
+  createTaskStep(input: CreateTaskStepInput): TaskStep;
+  getTaskStep(id: string): TaskStep | undefined;
   listTaskSteps(taskId: string): TaskStep[];
   /** Record a work product (ImplementationReport/QaReport, 18 §4 envelope). */
   addWorkProduct(input: NewWorkProduct): WorkProduct;
@@ -255,6 +257,14 @@ export interface CreateTaskInput {
   projectId: string;
   sourceConversationId?: string | null;
   sourceMessageId?: string | null;
+}
+
+export interface CreateTaskStepInput {
+  taskId: string;
+  kind: TaskStep['kind'];
+  specialistId: string;
+  /** the audited workspace grant for this step (ADR-010 §71, N5b-2); absent → NULL. */
+  workspaceAccess?: DelegatedWorkspaceAccess | null;
 }
 
 /** A work product to record; the id/createdAt are assigned by the store. */

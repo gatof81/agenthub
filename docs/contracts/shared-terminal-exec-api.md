@@ -85,6 +85,14 @@ at shared-terminal `main @ 6291397` (`backend/src/routes/exec.ts`).
   table (`exited | killed | timeout`, no optional marker). The Hub's fake
   port mirrors this so real-vs-fake adapter streams stay byte-identical
   (B2-04).
+- **`workingDir` (N5b-2, ADR-010 B).** The exec schema's `workingDir` field
+  (part of the seam's request shape from the start; see the delta table) is now
+  used: a task step's turn runs inside its git worktree by setting
+  `workingDir` to the worktree path, and the worktree itself is created/removed
+  with plain `git worktree` execs run BY the project session — no new substrate
+  capability, no cross-session file access. `RealSubstrateExecPort` sends it in
+  the exec body when present; the fake port records it on `execRequests`. Absent
+  → the session's default workspace root (every ordinary turn).
 
 ### Session provisioning (B2-02, UC-01)
 

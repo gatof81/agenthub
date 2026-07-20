@@ -91,6 +91,7 @@ export class ClaudeCliRuntimeAdapter implements RuntimeAdapter {
       ],
       stdin: turn.prompt,
       env: turn.env,
+      ...(turn.workingDir ? { workingDir: turn.workingDir } : {}),
       maxDurationMs: turn.caps.timeoutMs,
     };
   }

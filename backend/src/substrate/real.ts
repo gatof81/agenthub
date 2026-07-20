@@ -520,6 +520,7 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
     const res = await this.request('POST', `/api/sessions/${sessionId}/exec`, {
       cmd,
       ...(req.env !== undefined ? { env: req.env } : {}),
+      ...(req.workingDir !== undefined ? { workingDir: req.workingDir } : {}),
       maxDurationMs: req.maxDurationMs,
     });
     if (!res.ok) throw await SeamHttpError.from(res, 'exec');
