@@ -164,4 +164,21 @@ describe('Supervisor dev → QA loop (ADR-009)', () => {
     // one worktree, a commit per dev attempt, cleaned up on the terminal failure
     expect(workspace.calls).toEqual(['create', 'commit', 'commit', 'cleanup']);
   });
+
+  it('an unexpected throw mid-loop fails the task from its current state and cleans up (UC-06)', async () => {
+    const { store, task, workspace, sup } = setup([okStep('implemented it')]);
+    // commitWork throws — an UNEXPECTED failure after the dev step, NOT one of the
+    // flow outcomes that return via failTask. Without supervise()'s try/catch this
+    // would escape, leaving the task stuck non-terminal forever and leaking the
+    // worktree; instead it is failed from its current state and cleaned up.
+    workspace.commitWork = (): Promise<void> => {
+      workspace.calls.push('commit');
+      return Promise.reject(new Error('git worktree add exploded'));
+    };
+    await sup.supervise(task, 'X', 'dev', 'qa'); // must not throw
+
+    // the throw happened in `implementing`; the task is failed from there, not left hanging
+    expect(store.getTask(task.id)!.state).toBe('failed');
+    expect(workspace.calls).toEqual(['create', 'commit', 'cleanup']);
+  });
 });

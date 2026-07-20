@@ -60,6 +60,7 @@ import type {
   SpecialistSessionStatus,
   SweepResult,
   Task,
+  TaskState,
   TerminalRunState,
   UsageSource,
 } from '../domain/types.js';
@@ -1088,6 +1089,36 @@ export class Orchestrator {
         });
       }
     }
+    // in-flight tasks whose supervise() loop died with the crash: their step
+    // runs were healed above, but the Task row would otherwise stay non-terminal
+    // FOREVER (UC-06) — the source kickoff already told the user to expect an
+    // approval, so nothing would ever advance it. Heal to `failed` and clean up
+    // the worktree (best-effort — the session may be down). awaiting_human_approval
+    // is a resting state waiting on the owner, never a crash artifact — left alone.
+    const CRASH_HEALABLE_TASK_STATES: TaskState[] = [
+      'planning',
+      'implementing',
+      'qa_pending',
+      'qa_running',
+      'changes_requested_by_qa',
+      'changes_requested_by_user',
+    ];
+    for (const task of this.store.listTasksByState(CRASH_HEALABLE_TASK_STATES)) {
+      const steps = this.store.listTaskSteps(task.id);
+      if (steps.length > 0) {
+        try {
+          await this.workspaceManager.cleanup(task, workspaceFromSteps(steps));
+        } catch (err) {
+          this.logger.warn('task.reconcile_cleanup_failed', {
+            taskId: task.id,
+            error: err instanceof Error ? err.name : 'unknown',
+          });
+        }
+      }
+      this.store.transitionTask(task.id, task.state, 'failed');
+      this.logger.warn('task.reconciled_failed', { taskId: task.id, from: task.state });
+    }
+
     // queue rebuild: re-arm every WORKSPACE that still has queued runs
     // (projects and specialist workspaces alike, N3b-2)
     const keys = new Set<string>();

@@ -22,6 +22,7 @@ import type {
   TaskWorkspace,
   WorkspaceAccessMode,
 } from '../domain/types.js';
+import { isTerminalTask } from '../domain/taskStateMachine.js';
 import type { HubStore } from '../store/types.js';
 import { workspaceFromSteps } from './workspaceManager.js';
 
@@ -93,11 +94,10 @@ export class Supervisor {
     qaSpecialistId: string,
     resume?: { feedback: string },
   ): Promise<void> {
-    let fromState: Task['state'] = resume ? 'changes_requested_by_user' : task.state; // 'planning' fresh
-    let cycle = 0;
-    // consumed by the first developer prompt: the owner's requested changes on a
-    // resume, or (thereafter, and in the QA loop) the last QA report
-    let pendingFeedback: string | null = resume ? resume.feedback : null;
+    // seed the first developer turn: 'planning' fresh, or on a resume fold in
+    // the owner's requested changes from `changes_requested_by_user`
+    const fromState: Task['state'] = resume ? 'changes_requested_by_user' : task.state;
+    const pendingFeedback: string | null = resume ? resume.feedback : null;
 
     // Isolate the task's code in a git worktree/branch owned by the project
     // session (ADR-010 B). All steps run inside it; it survives a `failed`
@@ -108,6 +108,43 @@ export class Supervisor {
       ? workspaceFromSteps(this.store.listTaskSteps(task.id))
       : await this.workspace.createTaskWorkspace(task);
 
+    try {
+      await this.driveDevQaLoop({
+        task,
+        objective,
+        devSpecialistId,
+        qaSpecialistId,
+        workspace,
+        fromState,
+        pendingFeedback,
+      });
+    } catch (err) {
+      // An unexpected throw AFTER the workspace exists — a store/extractor/commit
+      // or transition failure, not a flow outcome that returns via failTask —
+      // would otherwise escape supervise(). startTask's .catch only logs, so the
+      // task would stay non-terminal forever and leak the worktree (UC-06). Fail
+      // it from whatever state it is now in, cleaning up.
+      await this.failFromCurrentState(task, workspace, err);
+    }
+  }
+
+  /**
+   * The dev → QA loop itself, extracted so supervise() wraps it in one
+   * try/catch. `fromState`/`pendingFeedback` seed the first developer turn.
+   */
+  private async driveDevQaLoop(input: {
+    task: Task;
+    objective: string;
+    devSpecialistId: string;
+    qaSpecialistId: string;
+    workspace: TaskWorkspace;
+    fromState: Task['state'];
+    pendingFeedback: string | null;
+  }): Promise<void> {
+    const { task, objective, devSpecialistId, qaSpecialistId, workspace } = input;
+    let fromState = input.fromState;
+    let pendingFeedback = input.pendingFeedback;
+    let cycle = 0;
     for (;;) {
       // — implementation —
       this.store.transitionTask(task.id, fromState, 'implementing');
@@ -212,6 +249,36 @@ export class Supervisor {
     await this.workspace.cleanup(task, workspace);
     this.store.transitionTask(task.id, from, 'failed');
     this.logger.warn('task.failed', { taskId: task.id, from, why });
+  }
+
+  /**
+   * Crash-path failure (an unexpected throw, not a flow outcome): read the
+   * task's CURRENT state and fail it from there, cleaning up the worktree
+   * best-effort. Every non-terminal task state can transition to `failed`.
+   */
+  private async failFromCurrentState(task: Task, workspace: TaskWorkspace, err: unknown): Promise<void> {
+    const current = this.store.getTask(task.id);
+    if (!current || isTerminalTask(current.state)) {
+      this.logger.error('task.supervise_threw_after_terminal', {
+        taskId: task.id,
+        error: err instanceof Error ? err.name : 'unknown',
+      });
+      return;
+    }
+    try {
+      await this.workspace.cleanup(task, workspace);
+    } catch (cleanupErr) {
+      this.logger.warn('task.cleanup_failed_on_crash', {
+        taskId: task.id,
+        error: cleanupErr instanceof Error ? cleanupErr.name : 'unknown',
+      });
+    }
+    this.store.transitionTask(current.id, current.state, 'failed');
+    this.logger.error('task.supervise_crashed', {
+      taskId: task.id,
+      from: current.state,
+      error: err instanceof Error ? err.name : 'unknown',
+    });
   }
 
   private lastQaReport(taskId: string): unknown {

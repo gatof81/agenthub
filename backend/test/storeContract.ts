@@ -732,6 +732,25 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       store.close();
     });
 
+    it('lists tasks by state, filtered to the requested states (boot reconcile, UC-06)', () => {
+      const store = makeStore();
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+      const inflight = store.createTask({ projectId: p.id });
+      store.transitionTask(inflight.id, 'planning', 'implementing');
+      const fresh = store.createTask({ projectId: p.id }); // stays in planning
+      const done = store.createTask({ projectId: p.id });
+      store.transitionTask(done.id, 'planning', 'implementing');
+      store.transitionTask(done.id, 'implementing', 'failed');
+
+      expect(store.listTasksByState(['implementing']).map((t) => t.id)).toEqual([inflight.id]);
+      expect(
+        store.listTasksByState(['planning', 'implementing']).map((t) => t.id).sort(),
+      ).toEqual([inflight.id, fresh.id].sort());
+      expect(store.listTasksByState(['failed']).map((t) => t.id)).toEqual([done.id]);
+      expect(store.listTasksByState([])).toEqual([]); // empty states → empty, no full-table scan
+      store.close();
+    });
+
     it('guards task transitions: legal walk, illegal jump, and stale-from all enforced (I-13)', () => {
       const store = makeStore();
       const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });

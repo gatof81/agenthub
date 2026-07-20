@@ -149,6 +149,27 @@ function suite(name: string, makeStore: () => HubStore): void {
       expect(port.execRequests).toHaveLength(1);
       store.close();
     });
+
+    it('boot reconcile heals a crashed in-flight task to failed, leaving awaiting_human_approval alone (UC-06)', async () => {
+      const { store, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject();
+      // a task caught mid-flight by the crash: its supervise() loop died with the
+      // process, so it would otherwise stay non-terminal forever
+      const stuck = store.createTask({ projectId: project.id });
+      store.transitionTask(stuck.id, 'planning', 'implementing');
+      // a task legitimately paused for the owner — a resting state, NOT a crash
+      const paused = store.createTask({ projectId: project.id });
+      store.transitionTask(paused.id, 'planning', 'implementing');
+      store.transitionTask(paused.id, 'implementing', 'qa_pending');
+      store.transitionTask(paused.id, 'qa_pending', 'qa_running');
+      store.transitionTask(paused.id, 'qa_running', 'awaiting_human_approval');
+
+      await orch.reconcile();
+
+      expect(store.getTask(stuck.id)!.state).toBe('failed'); // healed, not stuck
+      expect(store.getTask(paused.id)!.state).toBe('awaiting_human_approval'); // untouched
+      store.close();
+    });
   });
 }
 
