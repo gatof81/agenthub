@@ -1191,8 +1191,8 @@ export class Orchestrator {
     try {
       sessionId = await this.resolveRunSession(run, conversation, message.content);
     } catch (err) {
-      // An UNEXPECTED throw from resolution (e.g. the seam's getSession/
-      // startSession call hits a transient 500/timeout/ECONNRESET) is not one
+      // An UNEXPECTED throw from resolution (e.g. the seam's getSession call
+      // hits a transient 500/timeout/ECONNRESET) is not one
       // of resolveRunSession's own fail() paths — those already finalize and
       // return null. Left uncaught, this would escape executeRun; pump()'s
       // `.catch(() => {})` would swallow it silently while the run stayed
