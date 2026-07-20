@@ -152,7 +152,7 @@ describe('BackupService', () => {
     expect(utcStamp(parseUtcStamp('2026-07-15T060000Z'))).toBe('2026-07-15T060000Z');
   });
 
-  it('seeds freshness from the newest existing snapshot in the sink at boot (OPS-01)', async () => {
+  it('seeds freshness from the newest existing snapshot in the sink at boot (OPS-02)', async () => {
     const clock = new Date('2026-07-15T06:05:00Z');
     const { svc, sink } = makeService({ now: () => clock, intervalMs: 3600_000 });
     // two snapshots from a prior run land straight in the sink (no boot yet)
