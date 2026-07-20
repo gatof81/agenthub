@@ -621,7 +621,8 @@ export function buildApp(deps: ApiDeps): express.Express {
   app.post('/api/tasks/:id/request-changes', (req, res, next) => {
     const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
     if (note === '') {
-      res.status(400).json({ code: 'validation', detail: 'a note describing the requested changes is required' });
+      // 422 for validation (doc 08 §6), matching every other validation reject
+      res.status(422).json({ code: 'validation', detail: 'a note describing the requested changes is required' });
       return;
     }
     try {

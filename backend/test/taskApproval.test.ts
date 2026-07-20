@@ -91,7 +91,7 @@ describe('human approval API (N6)', () => {
     const { app, store, orch } = makeApiHarness();
     const { task } = await seedApprovable(orch, store);
     const res = await request(app).post(`/api/tasks/${task.id}/request-changes`).set(AUTH).send({ note: '  ' });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
     expect(store.getTask(task.id)!.state).toBe('awaiting_human_approval'); // untouched
   });
 
