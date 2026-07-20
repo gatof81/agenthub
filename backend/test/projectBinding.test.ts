@@ -412,4 +412,60 @@ describe('direct specialist conversation (N3b-2, ADR-008)', () => {
     expect(run.state).toBe('failed');
     expect(run.errorCode).toBe('exec_refused');
   });
+
+  it('a transient seam blip during session resolution fails the run instead of wedging the queue (FR-04)', async () => {
+    const { store, port, orch } = boundHarness();
+    await orch.bindSpecialistSession('dev', { sessionId: 's_claudio' });
+    const conv = orch.createSpecialistConversation('dev');
+    // Unlike a 404 (getSession → null, handled by fail()) or a start refusal
+    // (caught try/catch, also handled), an UNEXPECTED throw from getSession —
+    // an HTTP 500, a timeout, ECONNRESET — used to escape resolveRunSession
+    // and executeRun's own try/catch entirely: pump()'s `.catch(() => {})`
+    // swallowed it while the run stayed `starting` forever. dispatchNextRun
+    // treats any `starting`/`streaming` run as the workspace's active run, so
+    // that one seam blip wedged the whole specialist's queue (I-2/FR-04)
+    // until a process restart. Only the FIRST call throws, so the second run
+    // proves resolution recovers and completes normally once the queue moves.
+    let calls = 0;
+    const originalGetSession = port.getSession.bind(port);
+    port.getSession = (sessionId: string): ReturnType<FakeSubstrateExecPort['getSession']> => {
+      calls += 1;
+      if (calls === 1) return Promise.reject(new Error('ECONNRESET'));
+      return originalGetSession(sessionId);
+    };
+    port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) }); // consumed by the second run
+    const r1 = orch.send(conv.id, 'one').run;
+    const r2 = orch.send(conv.id, 'two').run;
+    await orch.idle();
+
+    const f1 = store.getRun(r1.id)!;
+    expect(f1.state).toBe('failed'); // not wedged in `starting`
+    expect(f1.errorCode).toBe('seam_unavailable');
+    expect(f1.errorDetail).toContain('ECONNRESET');
+
+    // the queue survived the blip: the second run in the SAME workspace
+    // dispatched and ran to completion, not stuck behind the first forever
+    const f2 = store.getRun(r2.id)!;
+    expect(f2.state).toBe('completed');
+  });
+
+  it('a 409/429 during session resolution is exec_refused, not seam_unavailable (08 §6, FR-33)', async () => {
+    const { store, port, orch } = boundHarness();
+    await orch.bindSpecialistSession('dev', { sessionId: 's_claudio' });
+    const conv = orch.createSpecialistConversation('dev');
+    // A seam 409/429 (container down / at caps) carries retryable context and
+    // is classified exec_refused with the FR-33 session state — the same
+    // duck-typing the mid-turn seam catch uses. An unqualified throw (above)
+    // stays seam_unavailable; this proves resolution honours the distinction.
+    port.getSession = (): ReturnType<FakeSubstrateExecPort['getSession']> =>
+      Promise.reject(Object.assign(new Error('session at capacity'), { status: 429 }));
+    const run = orch.send(conv.id, 'one').run;
+    await orch.idle();
+
+    const finalized = store.getRun(run.id)!;
+    expect(finalized.state).toBe('failed');
+    expect(finalized.errorCode).toBe('exec_refused');
+    expect(finalized.errorDetail).toContain('429');
+    expect(finalized.errorDetail).toContain('FR-33');
+  });
 });

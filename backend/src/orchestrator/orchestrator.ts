@@ -1196,7 +1196,39 @@ export class Orchestrator {
   private async executeRun(run: Run): Promise<void> {
     const conversation = this.store.getConversation(run.conversationId)!;
     const message = this.store.getMessage(run.messageId)!;
-    const sessionId = await this.resolveRunSession(run, conversation, message.content);
+    let sessionId: string | null;
+    try {
+      sessionId = await this.resolveRunSession(run, conversation, message.content);
+    } catch (err) {
+      // An UNEXPECTED throw from resolution (e.g. the seam's getSession call
+      // hits a transient 500/timeout/ECONNRESET) is not one
+      // of resolveRunSession's own fail() paths — those already finalize and
+      // return null. Left uncaught, this would escape executeRun; pump()'s
+      // `.catch(() => {})` would swallow it silently while the run stayed
+      // `starting` forever, wedging the whole workspace queue behind it
+      // (dispatchNextRun treats `starting` as the active run — I-2/FR-04).
+      // Finalizing here — same pattern as resolveRunSession's own fail() —
+      // keeps the queue moving no matter how resolution fails.
+      //
+      // Classify like the mid-turn seam catch (08 §6): a 409/429 (container
+      // down / caps) is exec_refused with the FR-33 session-state context so a
+      // client can retry; anything else unreachable is seam_unavailable. Duck-
+      // typed on `status` so the orchestrator keeps no substrate import.
+      const status =
+        err && typeof err === 'object' && 'status' in err ? Number((err as { status: unknown }).status) : NaN;
+      const refused = status === 409 || status === 429;
+      const raw = err instanceof Error ? err.message : String(err);
+      const lastKnownState = this.sessionMetaForConversation(conversation).lastKnownState ?? 'unknown';
+      this.finalize(run, 'starting', 'failed', {
+        usageSource: 'error-partial',
+        errorCode: refused ? 'exec_refused' : 'seam_unavailable',
+        errorDetail: refused ? `seam ${status}: ${raw} — session lastKnownState=${lastKnownState} (FR-33)` : raw,
+        userMessageContent: message.content,
+        warnings: [],
+        runtimeSessionId: conversation.runtimeSessionId,
+      });
+      return;
+    }
     if (sessionId === null) return; // resolveRunSession finalized the run
 
     // A task step runs inside its git worktree (ADR-010 B, N5b-2): the working
