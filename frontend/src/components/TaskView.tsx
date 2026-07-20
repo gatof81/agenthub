@@ -103,6 +103,11 @@ export function TaskView({
 }): React.JSX.Element {
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Approval actions (N6): the owner's verdict when awaiting_human_approval.
+  const [reload, setReload] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [changeNote, setChangeNote] = useState<string | null>(null); // non-null → the note field is open
 
   useEffect(() => {
     let live = true;
@@ -113,7 +118,19 @@ export function TaskView({
     return () => {
       live = false;
     };
-  }, [taskId, refreshKey]);
+  }, [taskId, refreshKey, reload]);
+
+  const act = (fn: () => Promise<unknown>): void => {
+    setBusy(true);
+    setActionError(null);
+    fn()
+      .then(() => {
+        setChangeNote(null);
+        setReload((n) => n + 1); // re-read so the state badge + actions update
+      })
+      .catch((e: unknown) => setActionError(e instanceof Error ? e.message : 'action failed'))
+      .finally(() => setBusy(false));
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -174,6 +191,55 @@ export function TaskView({
                 <WorkProductCard key={wp.id} wp={wp} />
               ))}
             </div>
+
+            {detail.task.state === 'awaiting_human_approval' && (
+              <div className="task-approval">
+                <h4 className="task-section-title">Your verdict</h4>
+                {actionError && <p className="task-error">{actionError}</p>}
+                {changeNote === null ? (
+                  <div className="task-verdict-actions">
+                    <button
+                      className="approve"
+                      disabled={busy}
+                      onClick={() => act(() => api.approveTask(detail.task.id))}
+                    >
+                      Approve
+                    </button>
+                    <button className="mini" disabled={busy} onClick={() => setChangeNote('')}>
+                      Request changes
+                    </button>
+                    <button
+                      className="danger"
+                      disabled={busy}
+                      onClick={() => act(() => api.rejectTask(detail.task.id))}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                ) : (
+                  <div className="task-change-request">
+                    <textarea
+                      className="task-note"
+                      placeholder="Describe the changes you want…"
+                      value={changeNote}
+                      onChange={(e) => setChangeNote(e.target.value)}
+                      autoFocus
+                    />
+                    <div className="task-verdict-actions">
+                      <button className="mini" disabled={busy} onClick={() => setChangeNote(null)}>
+                        Cancel
+                      </button>
+                      <button
+                        disabled={busy || changeNote.trim() === ''}
+                        onClick={() => act(() => api.requestTaskChanges(detail.task.id, changeNote.trim()))}
+                      >
+                        Send request
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="modal-actions">
               <button className="mini" onClick={onClose}>

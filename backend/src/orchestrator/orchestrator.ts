@@ -33,7 +33,7 @@ import {
 import { isTerminal } from '../domain/runStateMachine.js';
 import { DeterministicRouter } from './router.js';
 import { DeterministicReportExtractor } from './reportExtractor.js';
-import { FakeWorkspaceManager } from './workspaceManager.js';
+import { FakeWorkspaceManager, workspaceFromSteps } from './workspaceManager.js';
 import { Supervisor, type StepResult } from './supervisor.js';
 import { NoExecutionTargetError, selectExecutionTarget } from './selector.js';
 import {
@@ -74,7 +74,9 @@ export class OrchestratorError extends Error {
       | 'not_found'
       // restore (FR-44 / I-12): the API maps both to 409 with the code
       | 'session_gone'
-      | 'project_archived',
+      | 'project_archived'
+      // N6: an approval action on a task not in awaiting_human_approval (409)
+      | 'task_not_approvable',
     message: string,
   ) {
     super(message);
@@ -206,6 +208,7 @@ export class Orchestrator {
    * in-flight `supervise()` so `idle()` settles a whole task, not just its runs.
    */
   private readonly supervisor: Supervisor;
+  private readonly workspaceManager: WorkspaceManagerPort;
   private readonly runCompletions = new Map<string, () => void>();
   private readonly taskDriving = new Set<Promise<void>>();
   private readonly qaSpecialistId: string | null;
@@ -223,13 +226,14 @@ export class Orchestrator {
     this.notify = deps.notify ?? NOOP_NOTIFIER;
     this.logger = deps.logger ?? NOOP_LOGGER;
     this.metrics = deps.metrics ?? NOOP_METRICS;
+    this.workspaceManager = deps.workspaceManager ?? new FakeWorkspaceManager();
     this.supervisor = new Supervisor({
       store: this.store,
       // the step machinery is the run loop itself, wrapped behind the seam the
       // supervisor is unit-tested against (N5b)
       runner: { runStep: (i) => this.runTaskStep(i) },
       extractor: deps.reportExtractor ?? new DeterministicReportExtractor(),
-      workspace: deps.workspaceManager ?? new FakeWorkspaceManager(),
+      workspace: this.workspaceManager,
       logger: this.logger,
       ...(deps.maxQaCycles !== undefined ? { maxQaCycles: deps.maxQaCycles } : {}),
     });
@@ -799,6 +803,87 @@ export class Orchestrator {
       });
     this.taskDriving.add(driving);
     return task;
+  }
+
+  // — N6 (ADR-009): human approval of a task awaiting_human_approval —
+
+  /** The owner approves the work: terminal success. The worktree is cleaned up;
+   *  its branch (the commits) survives for the PR (N6b creates it here). */
+  approveTask(taskId: string): Promise<Task> {
+    return this.finalizeApproval(taskId, 'approved');
+  }
+
+  /** The owner rejects the work: terminal. The worktree is cleaned up; the branch survives. */
+  rejectTask(taskId: string): Promise<Task> {
+    return this.finalizeApproval(taskId, 'rejected');
+  }
+
+  private async finalizeApproval(taskId: string, to: 'approved' | 'rejected'): Promise<Task> {
+    const task = this.approvableTask(taskId);
+    // terminal task state → clean up the worktree (ADR-010), branch survives
+    await this.workspaceManager.cleanup(task, workspaceFromSteps(this.store.listTaskSteps(taskId)));
+    return this.store.transitionTask(taskId, 'awaiting_human_approval', to);
+  }
+
+  /**
+   * The owner requests changes (N6): the task re-enters the developer → QA loop
+   * with `note` as the first developer prompt's feedback, back to
+   * `awaiting_human_approval` (or `failed`). Returns once the task has moved to
+   * `changes_requested_by_user`; the loop runs in the background (tracked so
+   * `idle()` settles it). Reuses the existing worktree — the work continues on
+   * the same branch.
+   */
+  requestTaskChanges(taskId: string, note: string): Task {
+    const task = this.approvableTask(taskId);
+    const objective = this.taskObjective(task);
+    const { devSpecialistId, qaSpecialistId } = this.taskSpecialists(taskId);
+    const updated = this.store.transitionTask(
+      taskId,
+      'awaiting_human_approval',
+      'changes_requested_by_user',
+    );
+    const driving = this.supervisor
+      .supervise(updated, objective, devSpecialistId, qaSpecialistId, { feedback: note })
+      .catch((err) => {
+        this.logger.error('task.resume_crashed', {
+          taskId,
+          error: err instanceof Error ? err.name : 'unknown',
+        });
+      })
+      .finally(() => {
+        this.taskDriving.delete(driving);
+      });
+    this.taskDriving.add(driving);
+    return updated;
+  }
+
+  private approvableTask(taskId: string): Task {
+    const task = this.store.getTask(taskId);
+    if (!task) throw new OrchestratorError('not_found', `task ${taskId}`);
+    if (task.state !== 'awaiting_human_approval') {
+      throw new OrchestratorError(
+        'task_not_approvable',
+        `task is ${task.state}, not awaiting_human_approval (409)`,
+      );
+    }
+    return task;
+  }
+
+  /** The task brief, recovered from its source message (the resume prompt's base). */
+  private taskObjective(task: Task): string {
+    if (task.sourceMessageId) {
+      const msg = this.store.getMessage(task.sourceMessageId);
+      if (msg) return msg.content;
+    }
+    return ''; // source message pruned — the loop still runs on the note alone
+  }
+
+  /** The developer/QA specialists that ran this task, recovered from its steps. */
+  private taskSpecialists(taskId: string): { devSpecialistId: string; qaSpecialistId: string } {
+    const steps = this.store.listTaskSteps(taskId);
+    const dev = steps.find((s) => s.kind === 'implementation')?.specialistId;
+    const qa = steps.find((s) => s.kind === 'qa')?.specialistId ?? this.qaSpecialistId;
+    return { devSpecialistId: dev ?? '', qaSpecialistId: qa ?? '' };
   }
 
   /**

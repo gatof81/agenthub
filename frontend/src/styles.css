@@ -953,3 +953,16 @@ button.retry:hover { background: var(--raised); border-color: var(--accent); }
 }
 .task-affordance:hover { background: var(--raised); border-color: var(--accent); }
 .task-affordance .badge.task-state { font-size: 11px; }
+
+/* approval actions (N6): the owner's verdict when awaiting_human_approval */
+.task-approval { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.task-verdict-actions { display: flex; gap: 8px; align-items: center; }
+.task-verdict-actions .approve { background: var(--ok); color: #06281c; border-color: var(--ok); }
+.task-verdict-actions .danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.task-change-request { display: flex; flex-direction: column; gap: 8px; }
+.task-note {
+  width: 100%; min-height: 72px; resize: vertical; padding: 8px 10px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); font: inherit;
+}
+.task-note:focus { outline: none; border-color: var(--accent); }

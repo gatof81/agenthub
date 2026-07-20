@@ -109,6 +109,32 @@ describe('Supervisor dev → QA loop (ADR-009)', () => {
     expect(workspace.calls).toEqual(['create', 'commit', 'commit']);
   });
 
+  it('resume (owner-requested changes) reuses the worktree and folds the note into the first dev prompt', async () => {
+    const { store, task, runner, workspace, sup } = setup([
+      okStep('first impl'),
+      okStep('QA: ok'), // round 1 → awaiting_human_approval
+      okStep('addressed the rename'),
+      okStep('QA: ok now'), // resume round → awaiting_human_approval again
+    ]);
+    await sup.supervise(task, 'add feature X', 'dev', 'qa');
+    expect(store.getTask(task.id)!.state).toBe('awaiting_human_approval');
+
+    // the owner requests changes → the orchestrator moves the state, then resumes
+    store.transitionTask(task.id, 'awaiting_human_approval', 'changes_requested_by_user');
+    await sup.supervise(store.getTask(task.id)!, 'add feature X', 'dev', 'qa', {
+      feedback: 'please rename foo to bar',
+    });
+
+    expect(store.getTask(task.id)!.state).toBe('awaiting_human_approval');
+    // the resume's developer turn (call #3) carried the owner's note, not a bare objective
+    expect(runner.calls[2]!.prompt).toContain('owner requested changes');
+    expect(runner.calls[2]!.prompt).toContain('please rename foo to bar');
+    // the worktree was created ONCE (round 1); the resume recovered it — no second create
+    expect(workspace.calls.filter((c) => c === 'create')).toHaveLength(1);
+    // four steps total: two developer + two QA across the two rounds
+    expect(store.listTaskSteps(task.id)).toHaveLength(4);
+  });
+
   it('a failed dev step fails the task and cleans up the worktree', async () => {
     const { store, task, workspace, sup } = setup([failStep()]);
     await sup.supervise(task, 'X', 'dev', 'qa');

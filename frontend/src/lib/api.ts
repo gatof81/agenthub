@@ -442,4 +442,9 @@ export const api = {
   conversationTasks: (conversationId: string) =>
     call<{ tasks: Task[] }>('GET', `/api/conversations/${conversationId}/tasks`),
   getTask: (id: string) => call<TaskDetail>('GET', `/api/tasks/${id}`),
+  // Human approval (N6): the owner's verdict on a task awaiting_human_approval.
+  approveTask: (id: string) => call<{ task: Task }>('POST', `/api/tasks/${id}/approve`),
+  rejectTask: (id: string) => call<{ task: Task }>('POST', `/api/tasks/${id}/reject`),
+  requestTaskChanges: (id: string, note: string) =>
+    call<{ task: Task }>('POST', `/api/tasks/${id}/request-changes`, { note }),
 };

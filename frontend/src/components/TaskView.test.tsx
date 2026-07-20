@@ -7,10 +7,24 @@ import { api, type TaskDetail } from '../lib/api.js';
 
 vi.mock('../lib/api.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/api.js')>();
-  return { ...actual, api: { ...actual.api, getTask: vi.fn() } };
+  return {
+    ...actual,
+    api: {
+      ...actual.api,
+      getTask: vi.fn(),
+      approveTask: vi.fn(),
+      rejectTask: vi.fn(),
+      requestTaskChanges: vi.fn(),
+    },
+  };
 });
 
-const mockedApi = api as unknown as { getTask: ReturnType<typeof vi.fn> };
+const mockedApi = api as unknown as {
+  getTask: ReturnType<typeof vi.fn>;
+  approveTask: ReturnType<typeof vi.fn>;
+  rejectTask: ReturnType<typeof vi.fn>;
+  requestTaskChanges: ReturnType<typeof vi.fn>;
+};
 
 function detail(over: Partial<TaskDetail> = {}): TaskDetail {
   return {
@@ -118,5 +132,35 @@ describe('TaskView (N5b-2b)', () => {
     await waitFor(() => expect(screen.getByText('Close')).toBeInTheDocument());
     await userEvent.click(screen.getByText('Close'));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('shows the verdict actions only when awaiting_human_approval', async () => {
+    mockedApi.getTask.mockResolvedValue(detail({ task: { ...detail().task, state: 'approved' } }));
+    render(<TaskView taskId="task_1" onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByText('approved')).toBeInTheDocument());
+    expect(screen.queryByText('Approve')).not.toBeInTheDocument();
+  });
+
+  it('approve calls the API and re-reads the task', async () => {
+    mockedApi.getTask.mockResolvedValue(detail());
+    mockedApi.approveTask.mockResolvedValue({ task: { ...detail().task, state: 'approved' } });
+    render(<TaskView taskId="task_1" onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByText('Approve')).toBeInTheDocument());
+    const before = mockedApi.getTask.mock.calls.length;
+    await userEvent.click(screen.getByText('Approve'));
+    expect(mockedApi.approveTask).toHaveBeenCalledWith('task_1');
+    await waitFor(() => expect(mockedApi.getTask.mock.calls.length).toBeGreaterThan(before));
+  });
+
+  it('request changes reveals a note field and sends it', async () => {
+    mockedApi.getTask.mockResolvedValue(detail());
+    mockedApi.requestTaskChanges.mockResolvedValue({ task: { ...detail().task, state: 'changes_requested_by_user' } });
+    render(<TaskView taskId="task_1" onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByText('Request changes')).toBeInTheDocument());
+    await userEvent.click(screen.getByText('Request changes'));
+    const box = await screen.findByPlaceholderText(/Describe the changes/);
+    await userEvent.type(box, 'rename foo to bar');
+    await userEvent.click(screen.getByText('Send request'));
+    expect(mockedApi.requestTaskChanges).toHaveBeenCalledWith('task_1', 'rename foo to bar');
   });
 });
