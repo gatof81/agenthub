@@ -28,6 +28,8 @@ export interface BackupServiceDeps {
   tmpDir: string;
   /** Snapshot cadence; freshness degrades past 2× this. */
   intervalMs: number;
+  /** Delay before the prompt first snapshot after start(); lets boot settle. */
+  initialDelayMs?: number;
   now?: () => Date;
   /** Retention: keep the most-recent N snapshots + one per day for M days. */
   retention?: { recent: number; dailyDays: number };
@@ -39,6 +41,13 @@ export function utcStamp(d: Date): string {
   return `${d.toISOString().slice(0, 19).replace(/[:]/g, '')}Z`;
 }
 
+/** Inverse of `utcStamp`: `2026-07-15T183000Z` → the same Date. */
+export function parseUtcStamp(stamp: string): Date {
+  // stamp layout: YYYY-MM-DD 'T' HH MM SS 'Z' — re-insert the ':' utcStamp stripped.
+  const iso = `${stamp.slice(0, 13)}:${stamp.slice(13, 15)}:${stamp.slice(15, 17)}.000Z`;
+  return new Date(iso);
+}
+
 /** Day bucket of a snapshot key, e.g. `snapshots/2026-07-15T183000Z...` → `2026-07-15`. */
 function dayOf(key: string): string {
   const base = key.slice(key.lastIndexOf('/') + 1);
@@ -48,6 +57,7 @@ function dayOf(key: string): string {
 export class BackupService {
   private readonly now: () => Date;
   private readonly retention: { recent: number; dailyDays: number };
+  private readonly initialDelayMs: number;
   private readonly log: (msg: string) => void;
   private lastSnapshotAt: Date | null = null;
   private lastError: string | null = null;
@@ -56,6 +66,7 @@ export class BackupService {
   constructor(private readonly deps: BackupServiceDeps) {
     this.now = deps.now ?? (() => new Date());
     this.retention = deps.retention ?? { recent: 8, dailyDays: 14 };
+    this.initialDelayMs = deps.initialDelayMs ?? 5_000;
     // eslint-disable-next-line no-console -- operator-visible backup warnings (never payload data, SEC-05)
     this.log = deps.log ?? ((m) => console.warn(`[backup] ${m}`));
   }
@@ -139,6 +150,31 @@ export class BackupService {
     }
   }
 
+  /**
+   * Boot seed (OPS-01/02): adopt the newest existing snapshot's timestamp as
+   * `lastSnapshotAt`, so the freshness gauge reads fresh from boot whenever a
+   * snapshot already lives in the sink — instead of degraded until the first
+   * interval tick fires (+intervalMs). Best-effort: a `list()` failure leaves
+   * `lastSnapshotAt` null (degraded), exactly as before — it never throws.
+   *
+   * The newest snapshot is the lexicographic max of the keys — `utcStamp` is
+   * time-sortable — so we compare key strings rather than parse dates to rank.
+   */
+  async seedFromSink(): Promise<void> {
+    try {
+      const keys = (await this.deps.sink.list(SNAPSHOT_PREFIX)).map((s) => s.key);
+      if (keys.length === 0) return;
+      const newest = keys.sort()[keys.length - 1]!; // lexicographic max = newest
+      const base = newest.slice(newest.lastIndexOf('/') + 1);
+      const stamp = base.slice(0, base.indexOf('.')); // strip `.sqlite.gz`
+      this.lastSnapshotAt = parseUtcStamp(stamp);
+    } catch (err) {
+      this.log(
+        `freshness boot-seed from sink failed (staying degraded): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   freshness(): SnapshotFreshness {
     const last = this.lastSnapshotAt;
     const degraded =
@@ -150,9 +186,16 @@ export class BackupService {
     };
   }
 
-  /** Periodic snapshots; the first fires one interval in (boot already has the db). */
+  /**
+   * Periodic snapshots. A prompt first snapshot fires `initialDelayMs` after
+   * start (OPS-01) rather than only at +intervalMs — so a Hub that restarts
+   * more often than the interval still produces periodic snapshots, not just
+   * shutdown ones. Scheduled, never awaited: it must not block boot or a
+   * request; `unref` keeps it from holding the process open.
+   */
   start(): void {
     if (this.timer !== null) return;
+    setTimeout(() => void this.snapshotOnce(), this.initialDelayMs).unref?.();
     this.timer = setInterval(() => void this.snapshotOnce(), this.deps.intervalMs);
     this.timer.unref?.();
   }

@@ -204,6 +204,10 @@ async function main(): Promise<void> {
       tmpDir,
       intervalMs: backupConfig.intervalMs,
     });
+    // Seed the freshness gauge from the sink so /api/health reads fresh from
+    // boot when a snapshot already exists, not degraded until the first tick
+    // (OPS-01/02). Best-effort — a list() failure just leaves it degraded.
+    await backupService.seedFromSink();
     backupService.start();
     logger.info('backup.enabled', { sink: backupConfig.kind, intervalMs: backupConfig.intervalMs });
   }

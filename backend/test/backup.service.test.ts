@@ -7,8 +7,8 @@ import { gunzipSync } from 'node:zlib';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { BackupService, utcStamp } from '../src/backup/service.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { BackupService, parseUtcStamp, utcStamp } from '../src/backup/service.js';
 import { LocalSnapshotSink } from '../src/backup/localSink.js';
 
 let dir: string;
@@ -26,6 +26,7 @@ const fakeSnapshot =
 function makeService(opts: {
   now: () => Date;
   intervalMs?: number;
+  initialDelayMs?: number;
   retention?: { recent: number; dailyDays: number };
   payload?: string;
   snapshot?: (p: string) => void;
@@ -38,6 +39,7 @@ function makeService(opts: {
     sink,
     tmpDir: tmp,
     intervalMs: opts.intervalMs ?? 6 * 3600_000,
+    ...(opts.initialDelayMs !== undefined ? { initialDelayMs: opts.initialDelayMs } : {}),
     now: opts.now,
     ...(opts.retention ? { retention: opts.retention } : {}),
     log: () => {},
@@ -140,6 +142,64 @@ describe('BackupService', () => {
     expect(a).toBe('2026-07-15T060000Z');
     expect(a < b).toBe(true);
     expect(a).not.toContain(':');
+  });
+
+  it('parseUtcStamp is the inverse of utcStamp (round-trip)', () => {
+    const d = new Date('2026-07-15T18:30:45Z');
+    expect(parseUtcStamp(utcStamp(d))).toEqual(d);
+    expect(parseUtcStamp('2026-07-15T060000Z')).toEqual(new Date('2026-07-15T06:00:00Z'));
+    // the stamp → date → stamp loop is stable
+    expect(utcStamp(parseUtcStamp('2026-07-15T060000Z'))).toBe('2026-07-15T060000Z');
+  });
+
+  it('seeds freshness from the newest existing snapshot in the sink at boot (OPS-01)', async () => {
+    const clock = new Date('2026-07-15T06:05:00Z');
+    const { svc, sink } = makeService({ now: () => clock, intervalMs: 3600_000 });
+    // two snapshots from a prior run land straight in the sink (no boot yet)
+    await sink.put('snapshots/2026-07-15T000000Z.sqlite.gz', new Uint8Array([1]));
+    await sink.put('snapshots/2026-07-15T060000Z.sqlite.gz', new Uint8Array([2]));
+
+    // before seeding the gauge reads null/degraded, as it did from boot
+    expect(svc.freshness()).toMatchObject({ lastSnapshotAt: null, degraded: true });
+
+    await svc.seedFromSink();
+    // adopts the NEWEST (06:00), 5 min old under a 1h interval → fresh, not null
+    expect(svc.freshness()).toMatchObject({
+      lastSnapshotAt: '2026-07-15T06:00:00.000Z',
+      degraded: false,
+    });
+  });
+
+  it('boot seed is best-effort: a list() failure leaves the gauge degraded, never throws', async () => {
+    const clock = new Date('2026-07-15T06:05:00Z');
+    const { svc, sink } = makeService({ now: () => clock, intervalMs: 3600_000 });
+    sink.list = () => Promise.reject(new Error('sink offline'));
+    await expect(svc.seedFromSink()).resolves.toBeUndefined();
+    expect(svc.freshness()).toMatchObject({ lastSnapshotAt: null, degraded: true });
+  });
+
+  it('start() fires a prompt first snapshot without waiting a full interval (OPS-01)', async () => {
+    const clock = new Date('2026-07-15T06:00:00Z');
+    const { svc, sink } = makeService({
+      now: () => clock,
+      intervalMs: 6 * 3600_000,
+      initialDelayMs: 1,
+    });
+    expect(await sink.list('snapshots')).toHaveLength(0);
+
+    svc.start();
+    try {
+      // the scheduled prompt snapshot (delay 1ms) lands well before +intervalMs
+      await vi.waitFor(async () => {
+        expect(await sink.list('snapshots')).toHaveLength(1);
+      });
+      expect(svc.freshness()).toMatchObject({
+        lastSnapshotAt: '2026-07-15T06:00:00.000Z',
+        degraded: false,
+      });
+    } finally {
+      svc.stop();
+    }
   });
 });
 
