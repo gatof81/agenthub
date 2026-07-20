@@ -12,7 +12,9 @@ import type {
   RepoAuth,
   RepoSpec,
   KillOutcome,
+  ImplementationReport,
   ProjectStatus,
+  QaReport,
   RouteProposal,
   RunErrorCode,
   RunEvent,
@@ -360,4 +362,34 @@ export interface RouteInput {
  */
 export interface RouterPort {
   route(input: RouteInput): Promise<RouteProposal>;
+}
+
+// — ReportExtractorPort (ADR-009, N5b) —
+
+/** What the extractor sees to produce a step's work product. */
+export interface ReportInput {
+  /** the step's objective (the task brief / the message that created the task) */
+  objective: string;
+  /** the specialist run's final assistant text — what it said it did */
+  assistantOutput: string;
+  /** the run's mechanical summary (files touched, commands run) as grounding */
+  summary: RunSummary | null;
+}
+
+export interface QaReportInput extends ReportInput {
+  /** the ImplementationReport QA is reviewing against */
+  implementationReport: ImplementationReport;
+}
+
+/**
+ * Turns a specialist run's output into a typed work product (ADR-009). Chosen
+ * over "the specialist emits structured text" because the CLI can't take custom
+ * tools and the `QaReport.verdict` is load-bearing (it drives the dev↔QA loop) —
+ * so it must be reliably structured. Deterministic (mechanical) in the offline
+ * fake; a model call (Messages API forced tool, reusing the ADR-012 carve-out)
+ * in `real`, behind this same port so the offline suite always runs the fake.
+ */
+export interface ReportExtractorPort {
+  extractImplementation(input: ReportInput): Promise<ImplementationReport>;
+  extractQa(input: QaReportInput): Promise<QaReport>;
 }

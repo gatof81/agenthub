@@ -27,7 +27,11 @@ import { CountingMetrics } from './observability/metrics.js';
 import { Orchestrator } from './orchestrator/orchestrator.js';
 import { ModelRouter } from './orchestrator/modelRouter.js';
 import { DeterministicRouter } from './orchestrator/router.js';
-import type { RouterPort } from './domain/ports.js';
+import {
+  DeterministicReportExtractor,
+  ModelReportExtractor,
+} from './orchestrator/reportExtractor.js';
+import type { ReportExtractorPort, RouterPort } from './domain/ports.js';
 import { ClaudeCliRuntimeAdapter } from './runtime/claudeCliAdapter.js';
 import { FakeRuntimeAdapter } from './runtime/fakeAdapter.js';
 import { SqliteHubStore } from './store/sqlite.js';
@@ -138,12 +142,32 @@ async function main(): Promise<void> {
       ? new ModelRouter({ oauthToken: runtimeConfig.oauthToken, logger })
       : new DeterministicRouter();
 
+  // Task work-product extractor (N5b, ADR-009): the model-backed one in `real`
+  // (a cheap Haiku forced tool call, reusing the OAuth token, mechanical
+  // fallback), the deterministic one offline. Same real/fake split as the router.
+  const reportExtractor: ReportExtractorPort =
+    runtimeConfig.kind === 'real'
+      ? new ModelReportExtractor({ oauthToken: runtimeConfig.oauthToken, logger })
+      : new DeterministicReportExtractor();
+
+  // The developer → QA task envelope is opt-in (N5b): only a configured QA
+  // specialist arms it, so a hub without one spawns no tasks and every message
+  // runs as an ordinary turn (prod-safe default). Ignored — with a warning — if
+  // it does not name a loaded agent, so a typo never fails every task.
+  let qaSpecialistId = process.env.HUB_QA_SPECIALIST?.trim() || undefined;
+  if (qaSpecialistId && !agents.has(qaSpecialistId)) {
+    logger.warn('config.qa_specialist_unknown', { specialistId: qaSpecialistId });
+    qaSpecialistId = undefined;
+  }
+
   const orchestrator = new Orchestrator({
     store,
     adapter,
     execPort,
     agents,
     router,
+    reportExtractor,
+    ...(qaSpecialistId ? { qaSpecialistId } : {}),
     notify: broadcaster,
     runEnv,
     tokenPrices: resolveTokenPrices(process.env), // budget estimate (B3-06)

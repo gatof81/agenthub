@@ -277,7 +277,7 @@ export class MemoryHubStore implements HubStore {
       errorDetail: null,
       targetSessionId: null,
       targetDecision: null,
-      taskStepId: null,
+      taskStepId: input.taskStepId ?? null,
       createdAt: now,
       startedAt: null,
       endedAt: null,
