@@ -192,21 +192,6 @@ job, not the Hub's. Reconciliation works purely from persisted ids and the
 seam's status endpoint — no sticky connections — which is what keeps the
 contract replica-agnostic (NFR-05).
 
-### Tasks in flight (N5b, ADR-009/010)
-
-A supervised task (dev → QA) is driven by an in-memory `supervise()` loop, not a
-persisted queue, so a crash mid-task cannot be resumed in v1 — the loop died with
-the process. Its *step runs* reconcile as ordinary runs (above); the `Task` row
-itself is healed in the same boot pass: every task in a **crash-healable** state
-is transitioned to `failed` and its worktree (ADR-010 B) is cleaned up
-(best-effort — the session may be down). Crash-healable means every non-terminal
-task state **except** `awaiting_human_approval`, which is a *resting* state
-waiting on the owner (N6), not an interrupted computation, and so must survive a
-restart untouched. A new non-terminal task state MUST be classified here —
-transient (driven by the loop → crash-healable) or resting (waiting on an
-external actor → excluded) — exactly as a new run state must pick a reconciler
-branch above.
-
 ## UC-07 — Substrate container recreate
 
 1. Session container is killed/recreated (substrate lifecycle).

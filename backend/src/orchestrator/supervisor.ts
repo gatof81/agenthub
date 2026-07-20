@@ -105,8 +105,8 @@ export class Supervisor {
     // whole (N6 makes the PR from it). On resume the worktree already exists —
     // recover its descriptor rather than creating it again. Acquired INSIDE the
     // try so a worktree-provisioning failure fails the task now, not only on the
-    // next boot's reconcile (UC-06) — `workspace` stays null until it succeeds,
-    // so the catch knows there is nothing to clean up.
+    // next boot's reconcile (ADR-009 "Boot reconciliation of tasks") — `workspace`
+    // stays null until it succeeds, so the catch knows there is nothing to clean up.
     let workspace: TaskWorkspace | null = null;
     try {
       workspace = resume
@@ -126,8 +126,9 @@ export class Supervisor {
       // — createTaskWorkspace, a store/extractor/commit or transition failure,
       // not a flow outcome that returns via failTask — would otherwise escape
       // supervise(). startTask's .catch only logs, so the task would stay
-      // non-terminal forever and leak the worktree (UC-06). Fail it from whatever
-      // state it is now in, cleaning up if a worktree was created.
+      // non-terminal forever and leak the worktree (ADR-009 "Boot reconciliation
+      // of tasks"). Fail it from whatever state it is now in, cleaning up if a
+      // worktree was created.
       await this.failFromCurrentState(task, workspace, err);
     }
   }

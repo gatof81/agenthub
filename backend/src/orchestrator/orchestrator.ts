@@ -1091,12 +1091,12 @@ export class Orchestrator {
     }
     // in-flight tasks whose supervise() loop died with the crash: their step
     // runs were healed above, but the Task row would otherwise stay non-terminal
-    // FOREVER (UC-06) — the source kickoff already told the user to expect an
-    // approval, so nothing would ever advance it. Heal to `failed` and clean up
-    // the worktree (best-effort — the session may be down). awaiting_human_approval
-    // is a resting state waiting on the owner, never a crash artifact — left alone.
-    // The set is normative (05 UC-06, "Tasks in flight"): a new non-terminal task
-    // state must be classified here — transient (crash-healable) or resting.
+    // FOREVER (ADR-009 "Boot reconciliation of tasks"; UC-06 covers runs) — the
+    // source kickoff already told the user to expect an approval, so nothing
+    // would ever advance it. Heal every TRANSIENT state to `failed` and clean up
+    // the worktree (best-effort — the session may be down). RESTING states
+    // (awaiting_human_approval, waiting on the owner) are not crash artifacts and
+    // are left alone. A new non-terminal state must be classified here (ADR-009).
     const CRASH_HEALABLE_TASK_STATES: TaskState[] = [
       'planning',
       'implementing',

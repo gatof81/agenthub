@@ -41,11 +41,7 @@ Option 3.
   alone. 05's reserved `awaiting_approval` concept lands at the **task**
   level as `awaiting_human_approval`; the run-level reservation stays for
   autonomy-gated tool approval (a different mechanism: approving a result is
-  not pre-authorizing dangerous commands). Crash recovery: a task caught in a
-  non-terminal state by a restart is healed at boot per **UC-06** — every state
-  is crash-healable (→ `failed` + worktree cleanup) except
-  `awaiting_human_approval`, the one state resting on the owner rather than on
-  the in-memory `supervise()` loop.
+  not pre-authorizing dangerous commands).
 - **TaskStep**: each step is executed by a specialist in a session chosen per
   ADR-008, producing runs (the existing run machinery unchanged underneath).
 - **Work products** (extending the 18 §4 family envelope; `RunSummary` stays
@@ -74,3 +70,29 @@ Option 3.
   machinery (SEC-01/02) — two mechanisms, deliberately not merged.
 - Doc 18 §8's "Task, ahead of its phase" is realized; 06 §5's
   deliberately-not-modeled list shrinks accordingly.
+
+## Boot reconciliation of tasks (amended, N6)
+
+UC-06 (doc 05) heals in-flight **runs** at boot. The same obligation extends to
+**tasks**: a task's progress is driven by the supervisor's `supervise()` loop,
+which lives in process memory — a crash kills it, and the Task row would
+otherwise sit non-terminal **forever** (the kickoff already told the owner to
+expect a result, but nothing remains to advance it). So on boot the reconciler
+heals every task in a **transient** non-terminal state to `failed`, cleaning up
+its worktree best-effort (ADR-010), after healing its runs.
+
+The distinction that governs the healable set is **transient vs. resting**:
+
+- **Transient** states are mid-flight and only make progress while the
+  supervisor loop runs — `planning`, `implementing`, `qa_pending`, `qa_running`,
+  `changes_requested_by_qa`, `changes_requested_by_user`. A crash strands them;
+  boot heals them to `failed`.
+- **Resting** states are waiting on input from outside the process and are **not**
+  crash artifacts — they must survive a restart untouched. Today the only one is
+  `awaiting_human_approval` (waiting on the owner's verdict). The reconciler
+  leaves resting states alone.
+
+Forward constraint: **any new non-terminal task state must be classified
+transient or resting when it is added**, and the reconciler's healable set
+updated accordingly — a state that is neither healed nor deliberately excluded
+is a reconciliation gap.
