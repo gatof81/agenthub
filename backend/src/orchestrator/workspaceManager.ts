@@ -219,7 +219,8 @@ export class RealWorkspaceManager implements WorkspaceManagerPort {
     if (!sessionId) return { url: null };
     // push the task branch, then open the PR — both FROM the project session with
     // its own repo credential (ADR-010). branch/title/body ride as positional
-    // params ($1..$3), never shell-interpreted; `gh pr create` prints the URL.
+    // params ($2..$4; $0='hub_pr', $1=WORKSPACE_ROOT), never shell-interpreted;
+    // `gh pr create` prints the URL.
     const script =
       'set -e; git -C "$1" push -u origin "$2" >/dev/null; cd "$1"; gh pr create --head "$2" --title "$3" --body "$4"';
     const r = await runExec(this.execPort, sessionId, [
