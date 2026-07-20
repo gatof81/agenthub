@@ -444,4 +444,22 @@ export interface WorkspaceManagerPort {
    * the eventual PR (N6). No-op on the project-primary fallback.
    */
   cleanup(task: Task, workspace: TaskWorkspace): Promise<void>;
+  /**
+   * On approval (N6b, ADR-010): push the task branch and open a pull request
+   * FROM the project session with its own repo credential — never a specialist's,
+   * no PR before human approval. Returns the PR URL, or `null` when there is no
+   * branch to publish (the project-primary fallback) or the operation fails
+   * (best-effort: a failure must not un-approve the task).
+   */
+  openPullRequest(
+    task: Task,
+    workspace: TaskWorkspace,
+    content: PullRequestContent,
+  ): Promise<{ url: string | null }>;
+}
+
+/** The title + body for a task's approval pull request (N6b). */
+export interface PullRequestContent {
+  title: string;
+  body: string;
 }

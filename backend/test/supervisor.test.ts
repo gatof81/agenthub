@@ -45,6 +45,10 @@ class RecordingWorkspace implements WorkspaceManagerPort {
     this.calls.push('cleanup');
     return Promise.resolve();
   }
+  openPullRequest(): Promise<{ url: string | null }> {
+    this.calls.push('openPullRequest');
+    return Promise.resolve({ url: null });
+  }
 }
 
 const okStep = (text: string): StepResult => ({ assistantOutput: text, summary: null, runId: 'run_x', failed: false });

@@ -253,6 +253,8 @@ export interface HubStore {
    * in `approved`/`rejected`/`failed`); there is no separate finalize.
    */
   transitionTask(taskId: string, from: TaskState, to: TaskState): Task;
+  /** Record the PR opened on approval (N6b). */
+  setTaskPullRequestUrl(taskId: string, url: string): Task;
   /** Append a step; its `seq` is the next in the task's order. */
   createTaskStep(input: CreateTaskStepInput): TaskStep;
   getTaskStep(id: string): TaskStep | undefined;

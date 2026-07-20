@@ -784,6 +784,13 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       expect(store.listTasks({ projectId: p.id }).map((t) => t.id)).toEqual([task.id]);
       expect(store.listTasks({ projectId: 'other' })).toEqual([]);
       expect(() => store.createTask({ projectId: 'ghost' })).toThrow();
+      // the approval PR url (N6b) starts null and round-trips once recorded
+      expect(task.pullRequestUrl).toBeNull();
+      expect(store.setTaskPullRequestUrl(task.id, 'https://github.com/o/r/pull/3').pullRequestUrl).toBe(
+        'https://github.com/o/r/pull/3',
+      );
+      expect(store.getTask(task.id)!.pullRequestUrl).toBe('https://github.com/o/r/pull/3');
+      expect(() => store.setTaskPullRequestUrl('ghost', 'x')).toThrow();
       store.close();
     });
 

@@ -163,6 +163,17 @@ export function TaskView({
               </span>
             </div>
 
+            {detail.task.pullRequestUrl && (
+              <a
+                className="task-pr-link"
+                href={detail.task.pullRequestUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                View pull request ↗
+              </a>
+            )}
+
             <div className="task-section">
               <h4 className="task-section-title">Steps</h4>
               {detail.steps.length === 0 && <p className="task-empty">No steps yet.</p>}

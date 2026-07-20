@@ -534,6 +534,7 @@ export class MemoryHubStore implements HubStore {
       sourceConversationId: input.sourceConversationId ?? null,
       sourceMessageId: input.sourceMessageId ?? null,
       state: 'planning',
+      pullRequestUrl: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -562,6 +563,14 @@ export class MemoryHubStore implements HubStore {
     const task = this.tasks.find((x) => x.id === taskId);
     if (!task || task.state !== from) throw new StaleTaskStateError(taskId, from);
     task.state = to;
+    task.updatedAt = this.now();
+    return clone(task);
+  }
+
+  setTaskPullRequestUrl(taskId: string, url: string): Task {
+    const task = this.tasks.find((x) => x.id === taskId);
+    if (!task) throw new NotFoundError('task', taskId);
+    task.pullRequestUrl = url;
     task.updatedAt = this.now();
     return clone(task);
   }
