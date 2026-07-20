@@ -181,4 +181,19 @@ describe('Supervisor dev → QA loop (ADR-009)', () => {
     expect(store.getTask(task.id)!.state).toBe('failed');
     expect(workspace.calls).toEqual(['create', 'commit', 'cleanup']);
   });
+
+  it('a worktree-provisioning failure fails the task with nothing to clean up (UC-06)', async () => {
+    const { store, task, workspace, sup } = setup([]);
+    // createTaskWorkspace throws — acquisition itself fails, BEFORE any worktree
+    // exists. The task must still be failed (from `planning`), and cleanup must
+    // NOT run (there is nothing created to remove).
+    workspace.createTaskWorkspace = (): Promise<TaskWorkspace> => {
+      workspace.calls.push('create');
+      return Promise.reject(new Error('git worktree add failed'));
+    };
+    await sup.supervise(task, 'X', 'dev', 'qa'); // must not throw
+
+    expect(store.getTask(task.id)!.state).toBe('failed');
+    expect(workspace.calls).toEqual(['create']); // no 'cleanup' — nothing was created
+  });
 });

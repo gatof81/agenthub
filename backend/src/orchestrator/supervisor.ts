@@ -103,12 +103,15 @@ export class Supervisor {
     // session (ADR-010 B). All steps run inside it; it survives a `failed`
     // cleanup only as a branch (the commits), and survives an approval hand-off
     // whole (N6 makes the PR from it). On resume the worktree already exists —
-    // recover its descriptor rather than creating it again.
-    const workspace = resume
-      ? workspaceFromSteps(this.store.listTaskSteps(task.id))
-      : await this.workspace.createTaskWorkspace(task);
-
+    // recover its descriptor rather than creating it again. Acquired INSIDE the
+    // try so a worktree-provisioning failure fails the task now, not only on the
+    // next boot's reconcile (UC-06) — `workspace` stays null until it succeeds,
+    // so the catch knows there is nothing to clean up.
+    let workspace: TaskWorkspace | null = null;
     try {
+      workspace = resume
+        ? workspaceFromSteps(this.store.listTaskSteps(task.id))
+        : await this.workspace.createTaskWorkspace(task);
       await this.driveDevQaLoop({
         task,
         objective,
@@ -119,11 +122,12 @@ export class Supervisor {
         pendingFeedback,
       });
     } catch (err) {
-      // An unexpected throw AFTER the workspace exists — a store/extractor/commit
-      // or transition failure, not a flow outcome that returns via failTask —
-      // would otherwise escape supervise(). startTask's .catch only logs, so the
-      // task would stay non-terminal forever and leak the worktree (UC-06). Fail
-      // it from whatever state it is now in, cleaning up.
+      // An unexpected throw anywhere from workspace acquisition through the loop
+      // — createTaskWorkspace, a store/extractor/commit or transition failure,
+      // not a flow outcome that returns via failTask — would otherwise escape
+      // supervise(). startTask's .catch only logs, so the task would stay
+      // non-terminal forever and leak the worktree (UC-06). Fail it from whatever
+      // state it is now in, cleaning up if a worktree was created.
       await this.failFromCurrentState(task, workspace, err);
     }
   }
@@ -256,7 +260,11 @@ export class Supervisor {
    * task's CURRENT state and fail it from there, cleaning up the worktree
    * best-effort. Every non-terminal task state can transition to `failed`.
    */
-  private async failFromCurrentState(task: Task, workspace: TaskWorkspace, err: unknown): Promise<void> {
+  private async failFromCurrentState(
+    task: Task,
+    workspace: TaskWorkspace | null,
+    err: unknown,
+  ): Promise<void> {
     const current = this.store.getTask(task.id);
     if (!current || isTerminalTask(current.state)) {
       this.logger.error('task.supervise_threw_after_terminal', {
@@ -265,13 +273,17 @@ export class Supervisor {
       });
       return;
     }
-    try {
-      await this.workspace.cleanup(task, workspace);
-    } catch (cleanupErr) {
-      this.logger.warn('task.cleanup_failed_on_crash', {
-        taskId: task.id,
-        error: cleanupErr instanceof Error ? cleanupErr.name : 'unknown',
-      });
+    if (workspace) {
+      // only if a worktree was actually created — a failure during acquisition
+      // itself leaves nothing to clean up
+      try {
+        await this.workspace.cleanup(task, workspace);
+      } catch (cleanupErr) {
+        this.logger.warn('task.cleanup_failed_on_crash', {
+          taskId: task.id,
+          error: cleanupErr instanceof Error ? cleanupErr.name : 'unknown',
+        });
+      }
     }
     this.store.transitionTask(current.id, current.state, 'failed');
     this.logger.error('task.supervise_crashed', {

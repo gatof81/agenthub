@@ -11,7 +11,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { Agent, Project } from '../src/domain/types.js';
+import type { WorkspaceManagerPort } from '../src/domain/ports.js';
+import type { Agent, Project, Task, TaskWorkspace } from '../src/domain/types.js';
 import { Orchestrator } from '../src/orchestrator/orchestrator.js';
 import { FakeRuntimeAdapter } from '../src/runtime/fakeAdapter.js';
 import { MemoryHubStore } from '../src/store/memory.js';
@@ -41,7 +42,22 @@ const QA: Agent = {
   capabilities: ['qa'],
 };
 
-function makeHarness(store: HubStore) {
+/** Records cleanup calls so the reconcile worktree-cleanup path can be asserted. */
+class RecordingWorkspaceManager implements WorkspaceManagerPort {
+  cleanupCalls: TaskWorkspace[] = [];
+  createTaskWorkspace(task: Task): Promise<TaskWorkspace> {
+    return Promise.resolve({ strategy: 'worktree', branch: `hub/task/${task.id}`, path: `/w/${task.id}` });
+  }
+  commitWork(): Promise<void> {
+    return Promise.resolve();
+  }
+  cleanup(_task: Task, workspace: TaskWorkspace): Promise<void> {
+    this.cleanupCalls.push(workspace);
+    return Promise.resolve();
+  }
+}
+
+function makeHarness(store: HubStore, workspaceManager?: WorkspaceManagerPort) {
   const port = new FakeSubstrateExecPort();
   const orch = new Orchestrator({
     store,
@@ -54,6 +70,7 @@ function makeHarness(store: HubStore) {
     // the developer is routed (DeterministicRouter echoes the conversation's
     // agent); QA is the configured reviewer that arms the task envelope
     qaSpecialistId: 'qa',
+    ...(workspaceManager ? { workspaceManager } : {}),
   });
   const readyProject = async (): Promise<Project> => {
     const p = orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
@@ -150,13 +167,28 @@ function suite(name: string, makeStore: () => HubStore): void {
       store.close();
     });
 
-    it('boot reconcile heals a crashed in-flight task to failed, leaving awaiting_human_approval alone (UC-06)', async () => {
-      const { store, orch, readyProject } = makeHarness(makeStore());
+    it('boot reconcile heals a crashed in-flight task to failed and cleans up its worktree, leaving awaiting_human_approval alone (UC-06)', async () => {
+      const workspace = new RecordingWorkspaceManager();
+      const { store, orch, readyProject } = makeHarness(makeStore(), workspace);
       const project = await readyProject();
       // a task caught mid-flight by the crash: its supervise() loop died with the
       // process, so it would otherwise stay non-terminal forever
       const stuck = store.createTask({ projectId: project.id });
       store.transitionTask(stuck.id, 'planning', 'implementing');
+      // a persisted step carries the worktree grant — reconcile recovers the
+      // worktree descriptor from the steps (workspaceFromSteps) and cleans it up
+      store.createTaskStep({
+        taskId: stuck.id,
+        kind: 'implementation',
+        specialistId: 'dev',
+        workspaceAccess: {
+          accessMode: 'worktree-write',
+          branch: `hub/task/${stuck.id}`,
+          path: `/w/${stuck.id}`,
+          pathBounds: [],
+          expiresAt: null,
+        },
+      });
       // a task legitimately paused for the owner — a resting state, NOT a crash
       const paused = store.createTask({ projectId: project.id });
       store.transitionTask(paused.id, 'planning', 'implementing');
@@ -168,6 +200,10 @@ function suite(name: string, makeStore: () => HubStore): void {
 
       expect(store.getTask(stuck.id)!.state).toBe('failed'); // healed, not stuck
       expect(store.getTask(paused.id)!.state).toBe('awaiting_human_approval'); // untouched
+      // the crashed task's worktree was recovered from its steps and cleaned up;
+      // the paused task (no steps, resting) was never touched
+      expect(workspace.cleanupCalls).toHaveLength(1);
+      expect(workspace.cleanupCalls[0]).toMatchObject({ path: `/w/${stuck.id}` });
       store.close();
     });
   });
