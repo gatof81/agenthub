@@ -767,6 +767,42 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       store.close();
     });
 
+    it('round-trips a step, with and without a DelegatedWorkspaceAccess grant (N5b-2)', () => {
+      const store = makeStore();
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+      const task = store.createTask({ projectId: p.id });
+      const withGrant = store.createTaskStep({
+        taskId: task.id,
+        kind: 'implementation',
+        specialistId: 'dev',
+        workspaceAccess: {
+          accessMode: 'worktree-write',
+          branch: 'hub/task/t1',
+          path: '.hub-task-worktrees/t1',
+          pathBounds: [],
+          expiresAt: null,
+        },
+      });
+      const noGrant = store.createTaskStep({ taskId: task.id, kind: 'qa', specialistId: 'qa' });
+
+      // fetched by id and in the list, the grant survives the JSON round-trip;
+      // a step created without one reads back null (an ordinary strategy-A step)
+      expect(store.getTaskStep(withGrant.id)!.workspaceAccess).toEqual({
+        accessMode: 'worktree-write',
+        branch: 'hub/task/t1',
+        path: '.hub-task-worktrees/t1',
+        pathBounds: [],
+        expiresAt: null,
+      });
+      expect(store.getTaskStep(noGrant.id)!.workspaceAccess).toBeNull();
+      expect(store.getTaskStep('ghost')).toBeUndefined();
+      expect(store.listTaskSteps(task.id).map((s) => s.workspaceAccess?.accessMode ?? null)).toEqual([
+        'worktree-write',
+        null,
+      ]);
+      store.close();
+    });
+
     it('records and round-trips both work-product kinds by their typed body (18 §4)', () => {
       const store = makeStore();
       const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });

@@ -28,10 +28,12 @@ import {
   type SessionInfo,
   type SubstrateExecPort,
   type TurnRequest,
+  type WorkspaceManagerPort,
 } from '../domain/ports.js';
 import { isTerminal } from '../domain/runStateMachine.js';
 import { DeterministicRouter } from './router.js';
 import { DeterministicReportExtractor } from './reportExtractor.js';
+import { FakeWorkspaceManager } from './workspaceManager.js';
 import { Supervisor, type StepResult } from './supervisor.js';
 import { NoExecutionTargetError, selectExecutionTarget } from './selector.js';
 import {
@@ -99,6 +101,12 @@ export interface OrchestratorDeps {
    * the model-backed one behind the same port. Used only by the task supervisor.
    */
   reportExtractor?: ReportExtractorPort;
+  /**
+   * Isolates each task in a git worktree over the exec seam (ADR-010 B, N5b-2).
+   * Defaults to the offline fake (a deterministic worktree descriptor, no git);
+   * `real` mode injects the git-backed one. Used only by the task supervisor.
+   */
+  workspaceManager?: WorkspaceManagerPort;
   /** Bound on the dev↔QA cycle before a task fails (N5b); supervisor default otherwise. */
   maxQaCycles?: number;
   /**
@@ -221,6 +229,7 @@ export class Orchestrator {
       // supervisor is unit-tested against (N5b)
       runner: { runStep: (i) => this.runTaskStep(i) },
       extractor: deps.reportExtractor ?? new DeterministicReportExtractor(),
+      workspace: deps.workspaceManager ?? new FakeWorkspaceManager(),
       logger: this.logger,
       ...(deps.maxQaCycles !== undefined ? { maxQaCycles: deps.maxQaCycles } : {}),
     });
@@ -1190,6 +1199,15 @@ export class Orchestrator {
     const sessionId = await this.resolveRunSession(run, conversation, message.content);
     if (sessionId === null) return; // resolveRunSession finalized the run
 
+    // A task step runs inside its git worktree (ADR-010 B, N5b-2): the working
+    // directory is the step's audited DelegatedWorkspaceAccess.path — the single
+    // source of truth for where the step was granted to run. Null path (an
+    // ordinary run, or the strategy-A fallback) → the session's default root.
+    const workingDir =
+      run.taskStepId !== null
+        ? this.store.getTaskStep(run.taskStepId)?.workspaceAccess?.path ?? null
+        : null;
+
     const turn: TurnRequest = {
       prompt: message.content,
       policy: run.policySnapshot,
@@ -1201,6 +1219,7 @@ export class Orchestrator {
       // `agents.yaml` — so reading it here would run the turn under whatever
       // the role says NOW, not what it said when the turn was queued.
       instructions: run.instructionsSnapshot,
+      ...(workingDir !== null ? { workingDir } : {}),
     };
 
     let seq = 0;

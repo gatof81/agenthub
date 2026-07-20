@@ -17,6 +17,7 @@ import type {
   Conversation,
   ExecutionTargetDecision,
   Message,
+  DelegatedWorkspaceAccess,
   Project,
   Run,
   RunEvent,
@@ -39,6 +40,7 @@ import {
   type CreateConversationInput,
   type CreateProjectInput,
   type CreateTaskInput,
+  type CreateTaskStepInput,
   type FinalizeRunInput,
   type HubStore,
   type NewRunEvent,
@@ -274,6 +276,7 @@ interface TaskStepRow {
   seq: number;
   kind: TaskStep['kind'];
   specialist_id: string;
+  workspace_access: string | null;
   created_at: string;
 }
 function toTaskStep(r: TaskStepRow): TaskStep {
@@ -283,6 +286,9 @@ function toTaskStep(r: TaskStepRow): TaskStep {
     seq: r.seq,
     kind: r.kind,
     specialistId: r.specialist_id,
+    workspaceAccess: r.workspace_access
+      ? (JSON.parse(r.workspace_access) as DelegatedWorkspaceAccess)
+      : null,
     createdAt: r.created_at,
   };
 }
@@ -932,10 +938,11 @@ export class SqliteHubStore implements HubStore {
     return this.getTask(taskId)!;
   }
 
-  createTaskStep(input: { taskId: string; kind: TaskStep['kind']; specialistId: string }): TaskStep {
+  createTaskStep(input: CreateTaskStepInput): TaskStep {
     if (!this.getTask(input.taskId)) throw new NotFoundError('task', input.taskId);
     const now = this.now();
     const id = this.id('step');
+    const access = input.workspaceAccess ? JSON.stringify(input.workspaceAccess) : null;
     const tx = this.db.transaction((): string => {
       const seq =
         (this.db.prepare(`SELECT COALESCE(MAX(seq), -1) + 1 AS n FROM task_steps WHERE task_id = ?`).get(
@@ -943,13 +950,21 @@ export class SqliteHubStore implements HubStore {
         ) as { n: number }).n;
       this.db
         .prepare(
-          `INSERT INTO task_steps (id, task_id, seq, kind, specialist_id, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO task_steps (id, task_id, seq, kind, specialist_id, workspace_access, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(id, input.taskId, seq, input.kind, input.specialistId, now);
+        .run(id, input.taskId, seq, input.kind, input.specialistId, access, now);
       return id;
     });
     tx();
     return toTaskStep(this.db.prepare(`SELECT * FROM task_steps WHERE id = ?`).get(id) as TaskStepRow);
+  }
+
+  getTaskStep(id: string): TaskStep | undefined {
+    const row = this.db.prepare(`SELECT * FROM task_steps WHERE id = ?`).get(id) as
+      | TaskStepRow
+      | undefined;
+    return row ? toTaskStep(row) : undefined;
   }
 
   listTaskSteps(taskId: string): TaskStep[] {

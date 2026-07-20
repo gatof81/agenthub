@@ -31,7 +31,8 @@ import {
   DeterministicReportExtractor,
   ModelReportExtractor,
 } from './orchestrator/reportExtractor.js';
-import type { ReportExtractorPort, RouterPort } from './domain/ports.js';
+import { FakeWorkspaceManager, RealWorkspaceManager } from './orchestrator/workspaceManager.js';
+import type { ReportExtractorPort, RouterPort, WorkspaceManagerPort } from './domain/ports.js';
 import { ClaudeCliRuntimeAdapter } from './runtime/claudeCliAdapter.js';
 import { FakeRuntimeAdapter } from './runtime/fakeAdapter.js';
 import { SqliteHubStore } from './store/sqlite.js';
@@ -150,6 +151,13 @@ async function main(): Promise<void> {
       ? new ModelReportExtractor({ oauthToken: runtimeConfig.oauthToken, logger })
       : new DeterministicReportExtractor();
 
+  // Task worktree isolation (N5b-2, ADR-010 B): git worktrees over the exec seam
+  // in `real`; a deterministic no-git descriptor offline. Same real/fake split.
+  const workspaceManager: WorkspaceManagerPort =
+    runtimeConfig.kind === 'real'
+      ? new RealWorkspaceManager({ store, execPort, logger })
+      : new FakeWorkspaceManager();
+
   // The developer → QA task envelope is opt-in (N5b): only a configured QA
   // specialist arms it, so a hub without one spawns no tasks and every message
   // runs as an ordinary turn (prod-safe default). Ignored — with a warning — if
@@ -167,6 +175,7 @@ async function main(): Promise<void> {
     agents,
     router,
     reportExtractor,
+    workspaceManager,
     ...(qaSpecialistId ? { qaSpecialistId } : {}),
     notify: broadcaster,
     runEnv,

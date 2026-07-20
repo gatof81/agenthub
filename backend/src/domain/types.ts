@@ -363,6 +363,47 @@ export interface Task {
   updatedAt: string;
 }
 
+/**
+ * How a task shares a project's code with a specialist for one step (ADR-010).
+ * `worktree-write` — implement in the task's git worktree; `test-execution` —
+ * run tests in it; `project-workspace-write` — the strategy-A fallback (the
+ * session root, no worktree); `read-only` — reserved for review/consulting
+ * strategies (C/D). Recorded as a snapshot on the step, like `capsSnapshot`
+ * (I-8): revocable, auditable, no lateral reach into other projects.
+ */
+export type WorkspaceAccessMode =
+  | 'read-only'
+  | 'worktree-write'
+  | 'project-workspace-write'
+  | 'test-execution';
+
+/** The audited grant for a task step's workspace access (ADR-010 §71). */
+export interface DelegatedWorkspaceAccess {
+  accessMode: WorkspaceAccessMode;
+  /** the task branch the step works on; null when there is no worktree (strategy A). */
+  branch: string | null;
+  /** the worktree path the turn runs in; null → the session's default root. */
+  path: string | null;
+  /** optional path/command bounds (ADR-010); reserved, empty for now. */
+  pathBounds: string[];
+  /** ISO expiry, or null when it lives for the task's duration. */
+  expiresAt: string | null;
+}
+
+/**
+ * The isolated workspace a task's steps execute in (ADR-010 B). `worktree` is
+ * the default (a git worktree/branch owned by the project session); the
+ * `project-primary` fallback runs in the session root when a worktree cannot be
+ * created, so a task still runs rather than failing.
+ */
+export interface TaskWorkspace {
+  strategy: 'worktree' | 'project-primary';
+  /** the task branch; null for the project-primary fallback. */
+  branch: string | null;
+  /** the worktree path (the turn's `workingDir`); null → the session root. */
+  path: string | null;
+}
+
 /** A step of a task, executed by a specialist (ADR-008); its runs link back via `runs.task_step_id`. */
 export interface TaskStep {
   id: string;
@@ -370,6 +411,8 @@ export interface TaskStep {
   seq: number;
   kind: 'implementation' | 'qa';
   specialistId: string;
+  /** the audited workspace grant for this step (ADR-010); null for pre-N5b-2 rows. */
+  workspaceAccess: DelegatedWorkspaceAccess | null;
   createdAt: string;
 }
 
