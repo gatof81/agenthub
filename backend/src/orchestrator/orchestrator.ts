@@ -893,7 +893,7 @@ export class Orchestrator {
     if (task.state !== 'awaiting_human_approval') {
       throw new OrchestratorError(
         'task_not_approvable',
-        `task is ${task.state}, not awaiting_human_approval (409)`,
+        `task is ${task.state}, not awaiting_human_approval`,
       );
     }
     return task;
