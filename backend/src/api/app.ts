@@ -460,10 +460,14 @@ export function buildApp(deps: ApiDeps): express.Express {
 
   app.get('/api/conversations', (req, res) => {
     const includeArchived = req.query['archived'] === 'true';
-    const conversations = store.listConversations({ includeArchived }).map((c) => {
-      const last = store.listMessages(c.id, { limit: 1 }).at(-1) ?? null;
-      return { ...c, lastMessage: last };
-    });
+    const rows = store.listConversations({ includeArchived });
+    // Last message of every conversation in ONE query (not one per row) so the
+    // sidebar list doesn't block the event loop with 1+2N queries.
+    const lastByConversation = store.getLastMessagesByConversationIds(rows.map((c) => c.id));
+    const conversations = rows.map((c) => ({
+      ...c,
+      lastMessage: lastByConversation.get(c.id) ?? null,
+    }));
     res.json({ conversations });
   });
 

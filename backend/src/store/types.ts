@@ -165,6 +165,13 @@ export interface HubStore {
   // — messages —
   getMessage(id: string): Message | undefined;
   listMessages(conversationId: string, opts?: { before?: string; limit?: number }): Message[];
+  /**
+   * Batch variant: the most recent message of each conversation in one query,
+   * keyed by conversationId (a conversation with no messages is absent from
+   * the map). Avoids the N+1 when the conversation list (sidebar) attaches a
+   * preview to every row — one query instead of one per conversation.
+   */
+  getLastMessagesByConversationIds(conversationIds: string[]): Map<string, Message>;
 
   // — run lifecycle (the 09 §3 transactions) —
   /** One tx: insert user message + insert run(queued) (UC-02). */

@@ -570,6 +570,24 @@ export class SqliteHubStore implements HubStore {
     return rows.reverse().map(toMessage);
   }
 
+  getLastMessagesByConversationIds(conversationIds: string[]): Map<string, Message> {
+    const result = new Map<string, Message>();
+    if (conversationIds.length === 0) return result;
+    const placeholders = conversationIds.map(() => '?').join(',');
+    const rows = this.db
+      .prepare(
+        `SELECT m.* FROM messages m
+         JOIN (
+           SELECT conversation_id, MAX(rowid) AS rowid FROM messages
+           WHERE conversation_id IN (${placeholders})
+           GROUP BY conversation_id
+         ) last ON last.conversation_id = m.conversation_id AND last.rowid = m.rowid`,
+      )
+      .all(...conversationIds) as MessageRow[];
+    for (const row of rows) result.set(row.conversation_id, toMessage(row));
+    return result;
+  }
+
   // — run lifecycle —
 
   sendMessage(input: SendMessageInput): { message: Message; run: Run } {

@@ -643,6 +643,61 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       store.close();
     });
 
+    it('getLastMessagesByConversationIds batches the newest message per conversation; empty conversations are absent', () => {
+      const store = makeStore();
+      const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+      const c1 = store.createConversation({ projectId: p.id, title: 't1', agentId: 'dev' });
+      const c2 = store.createConversation({ projectId: p.id, title: 't2', agentId: 'dev' });
+      const empty = store.createConversation({ projectId: p.id, title: 'empty', agentId: 'dev' });
+
+      const c1First = store.sendMessage({
+        conversationId: c1.id,
+        content: 'c1-first',
+        caps: CAPS,
+        policy: POLICY,
+        instructions: INSTRUCTIONS,
+      });
+      store.finalizeRun({
+        runId: c1First.run.id,
+        from: 'queued',
+        to: 'cancelled',
+        usage: { totalCostUsd: null, numTurns: null, usage: null, source: 'cancelled-unknown' },
+        summary: summaryFor(c1First.run.id, 'cancelled'),
+      });
+      const c1Second = store.sendMessage({
+        conversationId: c1.id,
+        content: 'c1-second',
+        caps: CAPS,
+        policy: POLICY,
+        instructions: INSTRUCTIONS,
+      });
+      store.dispatchNextRun(p.id);
+      store.transitionRun(c1Second.run.id, 'starting', 'streaming');
+      store.finalizeRun({
+        runId: c1Second.run.id,
+        from: 'streaming',
+        to: 'completed',
+        assistantContent: 'c1-reply',
+        usage: { totalCostUsd: null, numTurns: null, usage: null, source: 'cancelled-unknown' },
+        summary: summaryFor(c1Second.run.id, 'completed'),
+      });
+      store.sendMessage({
+        conversationId: c2.id,
+        content: 'c2-only',
+        caps: CAPS,
+        policy: POLICY,
+        instructions: INSTRUCTIONS,
+      });
+
+      const byConversation = store.getLastMessagesByConversationIds([c1.id, c2.id, empty.id]);
+      expect(byConversation.get(c1.id)).toMatchObject({ content: 'c1-reply', role: 'assistant' });
+      expect(byConversation.get(c2.id)).toMatchObject({ content: 'c2-only', role: 'user' });
+      expect(byConversation.has(empty.id)).toBe(false);
+
+      expect(store.getLastMessagesByConversationIds([]).size).toBe(0);
+      store.close();
+    });
+
     it('upserts, reads, and lists specialist sessions (N3b-1)', () => {
       const store = makeStore();
       expect(store.getSpecialistSession('claudio')).toBeUndefined();
