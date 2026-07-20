@@ -602,6 +602,36 @@ export function buildApp(deps: ApiDeps): express.Express {
     });
   });
 
+  // Human approval (N6, ADR-009): the owner's verdict on a task awaiting it.
+  // Approve/reject are terminal; request-changes re-enters the dev → QA loop.
+  app.post('/api/tasks/:id/approve', (req, res, next) => {
+    orchestrator
+      .approveTask(req.params.id)
+      .then((task) => res.json({ task }))
+      .catch(next);
+  });
+
+  app.post('/api/tasks/:id/reject', (req, res, next) => {
+    orchestrator
+      .rejectTask(req.params.id)
+      .then((task) => res.json({ task }))
+      .catch(next);
+  });
+
+  app.post('/api/tasks/:id/request-changes', (req, res, next) => {
+    const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
+    if (note === '') {
+      // 422 for validation (doc 08 §6), matching every other validation reject
+      res.status(422).json({ code: 'validation', detail: 'a note describing the requested changes is required' });
+      return;
+    }
+    try {
+      res.json({ task: orchestrator.requestTaskChanges(req.params.id, note) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // — SSE (ADR-004, 08 §3) —
   app.get('/api/conversations/:id/events', (req, res) => {
     const conversation = store.getConversation(req.params.id);

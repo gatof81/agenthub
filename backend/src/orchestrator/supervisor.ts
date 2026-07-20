@@ -23,6 +23,7 @@ import type {
   WorkspaceAccessMode,
 } from '../domain/types.js';
 import type { HubStore } from '../store/types.js';
+import { workspaceFromSteps } from './workspaceManager.js';
 
 /** One specialist turn, executed as a task step, run to a terminal state. */
 export interface StepResult {
@@ -80,21 +81,32 @@ export class Supervisor {
    * or `failed`. `objective` is the task brief; the two specialists implement
    * and QA it. Never throws for a flow outcome — a failure lands the task in
    * `failed` and returns.
+   *
+   * `resume` (N6) re-enters the loop for owner-requested changes: the task is in
+   * `changes_requested_by_user`, its worktree already exists (recovered, never
+   * re-created), and the note is folded into the first developer prompt.
    */
   async supervise(
     task: Task,
     objective: string,
     devSpecialistId: string,
     qaSpecialistId: string,
+    resume?: { feedback: string },
   ): Promise<void> {
-    let fromState = task.state; // 'planning' on entry
+    let fromState: Task['state'] = resume ? 'changes_requested_by_user' : task.state; // 'planning' fresh
     let cycle = 0;
+    // consumed by the first developer prompt: the owner's requested changes on a
+    // resume, or (thereafter, and in the QA loop) the last QA report
+    let pendingFeedback: string | null = resume ? resume.feedback : null;
 
     // Isolate the task's code in a git worktree/branch owned by the project
     // session (ADR-010 B). All steps run inside it; it survives a `failed`
     // cleanup only as a branch (the commits), and survives an approval hand-off
-    // whole (N6 makes the PR from it).
-    const workspace = await this.workspace.createTaskWorkspace(task);
+    // whole (N6 makes the PR from it). On resume the worktree already exists —
+    // recover its descriptor rather than creating it again.
+    const workspace = resume
+      ? workspaceFromSteps(this.store.listTaskSteps(task.id))
+      : await this.workspace.createTaskWorkspace(task);
 
     for (;;) {
       // — implementation —
@@ -105,11 +117,12 @@ export class Supervisor {
         specialistId: devSpecialistId,
         workspaceAccess: accessFor(workspace, 'implementation'),
       });
-      const lastQa = this.lastQaReport(task.id);
-      const devPrompt =
-        cycle === 0
+      const devPrompt = pendingFeedback
+        ? `${objective}\n\nThe owner requested changes — address them:\n${pendingFeedback}`
+        : cycle === 0
           ? objective
-          : `${objective}\n\nQA requested changes — address them:\n${JSON.stringify(lastQa)}`;
+          : `${objective}\n\nQA requested changes — address them:\n${JSON.stringify(this.lastQaReport(task.id))}`;
+      pendingFeedback = null; // consumed by this (first) developer turn
       const dev = await this.runner.runStep({
         taskId: task.id,
         taskStepId: devStep.id,

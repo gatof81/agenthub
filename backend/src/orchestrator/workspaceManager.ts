@@ -14,7 +14,7 @@
 
 import type { SubstrateExecPort, WorkspaceManagerPort } from '../domain/ports.js';
 import { NOOP_LOGGER, type Logger } from '../domain/ports.js';
-import type { Task, TaskWorkspace } from '../domain/types.js';
+import type { Task, TaskStep, TaskWorkspace } from '../domain/types.js';
 import type { HubStore } from '../store/types.js';
 
 /**
@@ -42,6 +42,20 @@ export function taskBranch(taskId: string): string {
  */
 export function taskWorktreePath(taskId: string): string {
   return `${WORKTREE_ROOT}/${taskId}`;
+}
+
+/**
+ * Recover a task's workspace descriptor from its existing steps' audited grants
+ * (N6) — no git op. Used when a task resumes (user-requested changes) or reaches
+ * a human-terminal state (approve/reject cleanup): its worktree already exists
+ * and must not be re-created. Falls back to project-primary when no step recorded
+ * a worktree grant (the strategy-A path, or a pre-N5b-2 task).
+ */
+export function workspaceFromSteps(steps: TaskStep[]): TaskWorkspace {
+  const grant = [...steps].reverse().find((s) => s.workspaceAccess?.branch)?.workspaceAccess;
+  return grant?.branch
+    ? { strategy: 'worktree', branch: grant.branch, path: grant.path }
+    : { strategy: 'project-primary', branch: null, path: null };
 }
 
 interface ExecResult {
