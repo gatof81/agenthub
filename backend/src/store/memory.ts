@@ -245,6 +245,15 @@ export class MemoryHubStore implements HubStore {
     return all.slice(Math.max(0, end - limit), end).map(clone);
   }
 
+  getLastMessagesByConversationIds(conversationIds: string[]): Map<string, Message> {
+    const wanted = new Set(conversationIds);
+    const result = new Map<string, Message>();
+    for (const m of this.messages) {
+      if (wanted.has(m.conversationId)) result.set(m.conversationId, clone(m));
+    }
+    return result;
+  }
+
   // — run lifecycle —
 
   sendMessage(input: SendMessageInput): { message: Message; run: Run } {
