@@ -86,13 +86,26 @@ at shared-terminal `main @ 6291397` (`backend/src/routes/exec.ts`).
   port mirrors this so real-vs-fake adapter streams stay byte-identical
   (B2-04).
 - **`workingDir` (N5b-2, ADR-010 B).** The exec schema's `workingDir` field
-  (part of the seam's request shape from the start; see the delta table) is now
-  used: a task step's turn runs inside its git worktree by setting
-  `workingDir` to the worktree path, and the worktree itself is created/removed
-  with plain `git worktree` execs run BY the project session — no new substrate
-  capability, no cross-session file access. `RealSubstrateExecPort` sends it in
-  the exec body when present; the fake port records it on `execRequests`. Absent
-  → the session's default workspace root (every ordinary turn).
+  (mentioned in the stdin-delivery note above as part of the exec request shape:
+  `cmd`/`env`/`workingDir`/`maxDurationMs`) is now used: a task step's turn runs
+  inside its git worktree by setting `workingDir` to the worktree path, and the
+  worktree itself is created/removed with plain `git worktree` execs run BY the
+  project session — no new substrate capability, no cross-session file access.
+  Verified at `6291397`: the field is accepted
+  (`routes/exec.ts:52`, `workingDir: z.string().min(1).max(4096).optional()`),
+  forwarded to `docker.streamExec` (`routes/exec.ts:240`), and applied as the
+  Docker exec's `WorkingDir` (`dockerManager.ts:1262`,
+  `WorkingDir: opts.workingDir ?? "/home/developer/workspace"`). Because Docker
+  resolves a **relative** `WorkingDir` against the image WORKDIR — not a base we
+  should depend on — the Hub sends an **absolute** worktree path rooted at the
+  container workspace mount `/home/developer/workspace` (the bind-mount target,
+  `dockerManager.ts:418`); the repo lives at that root (#188 repo-clone).
+  `RealSubstrateExecPort` sends the field in the exec body when present; the fake
+  port records it on `execRequests`. Absent → the session's default workspace
+  root (every ordinary turn). Re-verify this handling at the next substrate
+  re-pin (the N1 obligation), since the entire worktree-isolation strategy
+  depends on it — a silently-ignored `workingDir` would run every step in the
+  session root with no observable error.
 
 ### Session provisioning (B2-02, UC-01)
 

@@ -18,6 +18,7 @@ import { MemoryHubStore } from '../src/store/memory.js';
 import { SqliteHubStore } from '../src/store/sqlite.js';
 import type { HubStore } from '../src/store/types.js';
 import { FakeSubstrateExecPort } from '../src/substrate/fake.js';
+import { taskWorktreePath } from '../src/orchestrator/workspaceManager.js';
 import { FIXTURES, fixtureStreamLines } from './fixtures.js';
 
 const DEV: Agent = {
@@ -92,8 +93,8 @@ function suite(name: string, makeStore: () => HubStore): void {
       expect(task.sourceConversationId).toBe(conv.id);
 
       // both step turns ran inside the task's git worktree (ADR-010 B) — the
-      // exec carried its path as workingDir, isolated from the session root
-      const worktree = `.hub-task-worktrees/${task.id}`;
+      // exec carried its absolute path as workingDir, isolated from the session root
+      const worktree = taskWorktreePath(task.id);
       expect(port.execRequests.every((r) => r.req.workingDir === worktree)).toBe(true);
 
       // two steps (implementation, qa), each linked to a real run + an audited grant

@@ -17,8 +17,16 @@ import { NOOP_LOGGER, type Logger } from '../domain/ports.js';
 import type { Task, TaskWorkspace } from '../domain/types.js';
 import type { HubStore } from '../store/types.js';
 
-/** Worktrees live under this dir in the project session's workspace root. */
-const WORKTREE_ROOT = '.hub-task-worktrees';
+/**
+ * The container-side workspace root — the repo lives here (a session's workspace
+ * is bind-mounted at this fixed path, and #188's repo-clone runs at its root).
+ * Verified in the substrate at `6291397`: `dockerManager.ts:418`
+ * (`${WORKSPACE_ROOT}/${sessionId}:/home/developer/workspace`) and the exec cwd
+ * default `dockerManager.ts:1262` (`WorkingDir: opts.workingDir ?? "/home/developer/workspace"`).
+ */
+const WORKSPACE_ROOT = '/home/developer/workspace';
+/** Worktrees live under this dir inside the workspace root. */
+const WORKTREE_ROOT = `${WORKSPACE_ROOT}/.hub-task-worktrees`;
 /** Git plumbing execs are short; bounded well under the seam's 1 h backstop (FR-17). */
 const GIT_EXEC_MS = 60_000;
 
@@ -26,7 +34,12 @@ const GIT_EXEC_MS = 60_000;
 export function taskBranch(taskId: string): string {
   return `hub/task/${taskId}`;
 }
-/** The task's worktree path, relative to the project session's workspace root. */
+/**
+ * The task's worktree path — ABSOLUTE. An absolute path is unambiguous as the
+ * seam's `workingDir` (Docker resolves a relative `WorkingDir` against the image
+ * WORKDIR, not a guarantee we depend on) and as a `git worktree add` target run
+ * from the repo root (ADR-010 B, N5b-2).
+ */
 export function taskWorktreePath(taskId: string): string {
   return `${WORKTREE_ROOT}/${taskId}`;
 }
