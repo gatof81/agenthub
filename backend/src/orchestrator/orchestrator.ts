@@ -1095,6 +1095,8 @@ export class Orchestrator {
     // approval, so nothing would ever advance it. Heal to `failed` and clean up
     // the worktree (best-effort — the session may be down). awaiting_human_approval
     // is a resting state waiting on the owner, never a crash artifact — left alone.
+    // The set is normative (05 UC-06, "Tasks in flight"): a new non-terminal task
+    // state must be classified here — transient (crash-healable) or resting.
     const CRASH_HEALABLE_TASK_STATES: TaskState[] = [
       'planning',
       'implementing',

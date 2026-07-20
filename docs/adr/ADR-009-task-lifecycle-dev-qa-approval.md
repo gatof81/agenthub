@@ -41,7 +41,11 @@ Option 3.
   alone. 05's reserved `awaiting_approval` concept lands at the **task**
   level as `awaiting_human_approval`; the run-level reservation stays for
   autonomy-gated tool approval (a different mechanism: approving a result is
-  not pre-authorizing dangerous commands).
+  not pre-authorizing dangerous commands). Crash recovery: a task caught in a
+  non-terminal state by a restart is healed at boot per **UC-06** — every state
+  is crash-healable (→ `failed` + worktree cleanup) except
+  `awaiting_human_approval`, the one state resting on the owner rather than on
+  the in-memory `supervise()` loop.
 - **TaskStep**: each step is executed by a specialist in a session chosen per
   ADR-008, producing runs (the existing run machinery unchanged underneath).
 - **Work products** (extending the 18 §4 family envelope; `RunSummary` stays
