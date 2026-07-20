@@ -88,8 +88,9 @@ describe('task read API (N5b-2b)', () => {
     expect((await request(app).get('/api/conversations/ghost/tasks').set(AUTH)).status).toBe(404);
   });
 
-  it('requires auth', async () => {
+  it('requires auth on both read endpoints', async () => {
     const { app } = makeApiHarness();
     expect((await request(app).get('/api/tasks/whatever')).status).toBe(401);
+    expect((await request(app).get('/api/conversations/ghost/tasks')).status).toBe(401);
   });
 });
