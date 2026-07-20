@@ -236,7 +236,7 @@ export interface HubStore {
   /** Create a task in `planning` — coordinated work born from a routed message. */
   createTask(input: CreateTaskInput): Task;
   getTask(id: string): Task | undefined;
-  listTasks(opts?: { projectId?: string }): Task[];
+  listTasks(opts?: { projectId?: string; sourceConversationId?: string }): Task[];
   /**
    * Guarded transition (I-13) against the task state machine: asserts legality
    * and that the row is currently in `from` (StaleTaskStateError otherwise),

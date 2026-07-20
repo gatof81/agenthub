@@ -922,10 +922,21 @@ export class SqliteHubStore implements HubStore {
     return r ? toTask(r) : undefined;
   }
 
-  listTasks(opts: { projectId?: string } = {}): Task[] {
-    const rows = opts.projectId
-      ? (this.db.prepare(`SELECT * FROM tasks WHERE project_id = ? ORDER BY rowid`).all(opts.projectId) as TaskRow[])
-      : (this.db.prepare(`SELECT * FROM tasks ORDER BY rowid`).all() as TaskRow[]);
+  listTasks(opts: { projectId?: string; sourceConversationId?: string } = {}): Task[] {
+    const where: string[] = [];
+    const params: string[] = [];
+    if (opts.projectId) {
+      where.push('project_id = ?');
+      params.push(opts.projectId);
+    }
+    if (opts.sourceConversationId) {
+      where.push('source_conversation_id = ?');
+      params.push(opts.sourceConversationId);
+    }
+    const clause = where.length ? ` WHERE ${where.join(' AND ')}` : '';
+    const rows = this.db
+      .prepare(`SELECT * FROM tasks${clause} ORDER BY rowid`)
+      .all(...params) as TaskRow[];
     return rows.map(toTask);
   }
 

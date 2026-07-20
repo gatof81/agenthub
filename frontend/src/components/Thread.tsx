@@ -13,6 +13,7 @@ import {
   type Project,
   type RunDetail,
   type RunState,
+  type Task,
   type TurnSegment,
 } from '../lib/api.js';
 import { subscribeConversation, type SseEvent } from '../lib/sse.js';
@@ -30,6 +31,7 @@ import {
 import type { TextSize } from '../lib/textSize.js';
 import { formatRelativeTime } from '../lib/time.js';
 import { Inspector } from './Inspector.js';
+import { TaskView, taskStateTone } from './TaskView.js';
 import { Markdown } from './Markdown.js';
 import { CopyButton } from './CopyButton.js';
 import { SendIcon, StopIcon } from './icons.js';
@@ -86,6 +88,12 @@ export function Thread({
   registerCommands,
 }: Props): React.JSX.Element {
   const [messages, setMessages] = useState<Message[]>([]);
+  // Tasks this conversation spawned (N5b-2b): a "view task" affordance hangs on
+  // the kickoff turn (matched by sourceMessageId); the open one refetches on
+  // `taskRefresh` so it tracks live progress off the run-state stream.
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const [taskRefresh, setTaskRefresh] = useState(0);
   const [liveRun, setLiveRun] = useState<LiveRun | null>(null);
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -150,6 +158,9 @@ export function Thread({
     const detail = await api.getConversation(conversation.id);
     setMessages(detail.messages);
     setHasMore(detail.hasMore);
+    // pull the conversation's tasks (N5b-2b): drives the kickoff-turn affordance
+    // and, for the open task view, its refetch. Best-effort — never blocks the thread.
+    api.conversationTasks(conversation.id).then((r) => setTasks(r.tasks)).catch(() => {});
     // The backend auto-titles a conversation from its first message; surface
     // that (and any out-of-band rename) once the run's refetch brings it back.
     if (detail.conversation.title !== titleRef.current) onRenamedRef.current(detail.conversation);
@@ -250,6 +261,8 @@ export function Thread({
           // the store's terminal state (→ null); it also settles the case where
           // this very frame was the one a reconnecting client had missed.
           void refetch();
+          // a step run finishing advances the task — nudge the open task view (N5b-2b)
+          setTaskRefresh((n) => n + 1);
         }
       } else if (ev.event === 'message.delta') {
         // fold streamed text into the turn's bubbles (A)
@@ -374,6 +387,12 @@ export function Thread({
   // null while active, so it never competes with the live badge.
   const outcome: RunOutcome | null =
     !active && runDetail ? describeRunOutcome(runDetail.run, runDetail.summary) : null;
+
+  // Map a kickoff message → the task it spawned, so the affordance hangs on the
+  // turn that started it (task.sourceMessageId is the user's task message).
+  const taskByMessage = new Map<string, Task>(
+    tasks.filter((t) => t.sourceMessageId).map((t) => [t.sourceMessageId!, t]),
+  );
 
   // Run-level watchdog (belt to the SSE stall watchdog, which only catches a
   // dead socket). If a run is shown active but its stream has gone quiet past
@@ -515,6 +534,18 @@ export function Thread({
                 {m.role === 'user' && m.runId && queuedRunIds.has(m.runId) && (
                   <span className="queued-pill">queued</span>
                 )}
+                {taskByMessage.has(m.id) && (
+                  <button
+                    type="button"
+                    className="task-affordance"
+                    onClick={() => setOpenTaskId(taskByMessage.get(m.id)!.id)}
+                  >
+                    View task
+                    <span className={`badge task-state ${taskStateTone(taskByMessage.get(m.id)!.state)}`}>
+                      {taskByMessage.get(m.id)!.state.replace(/_/g, ' ')}
+                    </span>
+                  </button>
+                )}
                 <MessageMeta
                   createdAt={m.createdAt}
                   copyText={m.role === 'assistant' ? m.content : undefined}
@@ -607,6 +638,9 @@ export function Thread({
       </main>
 
       <Inspector open={inspectorOpen} detail={runDetail} onClose={() => setInspectorOpen(false)} />
+      {openTaskId && (
+        <TaskView taskId={openTaskId} refreshKey={taskRefresh} onClose={() => setOpenTaskId(null)} />
+      )}
     </>
   );
 }

@@ -575,6 +575,33 @@ export function buildApp(deps: ApiDeps): express.Express {
       .catch(next);
   });
 
+  // — tasks (N5b, ADR-009): read surface for the task view (N5b-2b) —
+  // The tasks a conversation spawned, so the client can hang a "view task"
+  // affordance on the kickoff turn (matched by `sourceMessageId`).
+  app.get('/api/conversations/:id/tasks', (req, res) => {
+    const conversation = store.getConversation(req.params.id);
+    if (!conversation) {
+      res.status(404).json({ code: 'not_found' });
+      return;
+    }
+    res.json({ tasks: store.listTasks({ sourceConversationId: conversation.id }) });
+  });
+
+  // One task in full: its state, ordered steps (with the DelegatedWorkspaceAccess
+  // audit, ADR-010), and work products (ImplementationReport/QaReport, 18 §4).
+  app.get('/api/tasks/:id', (req, res) => {
+    const task = store.getTask(req.params.id);
+    if (!task) {
+      res.status(404).json({ code: 'not_found' });
+      return;
+    }
+    res.json({
+      task,
+      steps: store.listTaskSteps(task.id),
+      workProducts: store.listWorkProducts(task.id),
+    });
+  });
+
   // — SSE (ADR-004, 08 §3) —
   app.get('/api/conversations/:id/events', (req, res) => {
     const conversation = store.getConversation(req.params.id);

@@ -162,6 +162,91 @@ export interface RunDetail {
   summary: RunSummary | null;
 }
 
+// — tasks (N5b, ADR-009): the developer → QA → human-approval lifecycle —
+
+export type TaskState =
+  | 'planning'
+  | 'implementing'
+  | 'qa_pending'
+  | 'qa_running'
+  | 'changes_requested_by_qa'
+  | 'awaiting_human_approval'
+  | 'approved'
+  | 'changes_requested_by_user'
+  | 'rejected'
+  | 'failed';
+
+export interface Task {
+  id: string;
+  projectId: string;
+  sourceConversationId: string | null;
+  sourceMessageId: string | null;
+  state: TaskState;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type WorkspaceAccessMode =
+  | 'read-only'
+  | 'worktree-write'
+  | 'project-workspace-write'
+  | 'test-execution';
+
+/** The audited workspace grant for a step (ADR-010 §71). */
+export interface DelegatedWorkspaceAccess {
+  accessMode: WorkspaceAccessMode;
+  branch: string | null;
+  path: string | null;
+  pathBounds: string[];
+  expiresAt: string | null;
+}
+
+export interface TaskStep {
+  id: string;
+  taskId: string;
+  seq: number;
+  kind: 'implementation' | 'qa';
+  specialistId: string;
+  workspaceAccess: DelegatedWorkspaceAccess | null;
+  createdAt: string;
+}
+
+export interface ImplementationReport {
+  objective: string;
+  summary: string;
+  filesChanged: string[];
+  commandsRun: string[];
+  testsRun: string[];
+  knownRisks: string[];
+  commitOrPatch: string | null;
+}
+
+export interface QaReport {
+  requirementsReviewed: string[];
+  testsRun: string[];
+  passed: string[];
+  failed: string[];
+  regressions: string[];
+  verdict: 'passed' | 'changes_required';
+}
+
+export interface WorkProduct {
+  id: string;
+  taskId: string;
+  taskStepId: string | null;
+  kind: 'implementation_report' | 'qa_report';
+  producerSpecialistId: string;
+  runId: string | null;
+  body: ImplementationReport | QaReport;
+  createdAt: string;
+}
+
+export interface TaskDetail {
+  task: Task;
+  steps: TaskStep[];
+  workProducts: WorkProduct[];
+}
+
 /**
  * A substrate session as discovery sees it (N1, FR-48, ADR-007), annotated
  * with the Hub project bound to it, if any.
@@ -352,4 +437,9 @@ export const api = {
     call<{ project: Project }>('PATCH', `/api/projects/${id}`, { status: 'ready' }),
   restoreConversation: (id: string) =>
     call<{ conversation: Conversation }>('PATCH', `/api/conversations/${id}`, { status: 'active' }),
+  // Tasks (N5b-2b): the ones a conversation spawned (to hang a "view task"
+  // affordance on the kickoff turn), and one task in full for the task view.
+  conversationTasks: (conversationId: string) =>
+    call<{ tasks: Task[] }>('GET', `/api/conversations/${conversationId}/tasks`),
+  getTask: (id: string) => call<TaskDetail>('GET', `/api/tasks/${id}`),
 };
