@@ -1187,7 +1187,29 @@ export class Orchestrator {
   private async executeRun(run: Run): Promise<void> {
     const conversation = this.store.getConversation(run.conversationId)!;
     const message = this.store.getMessage(run.messageId)!;
-    const sessionId = await this.resolveRunSession(run, conversation, message.content);
+    let sessionId: string | null;
+    try {
+      sessionId = await this.resolveRunSession(run, conversation, message.content);
+    } catch (err) {
+      // An UNEXPECTED throw from resolution (e.g. the seam's getSession/
+      // startSession call hits a transient 500/timeout/ECONNRESET) is not one
+      // of resolveRunSession's own fail() paths — those already finalize and
+      // return null. Left uncaught, this would escape executeRun; pump()'s
+      // `.catch(() => {})` would swallow it silently while the run stayed
+      // `starting` forever, wedging the whole workspace queue behind it
+      // (dispatchNextRun treats `starting` as the active run — I-2/FR-04).
+      // Finalizing here — same pattern as resolveRunSession's own fail() —
+      // keeps the queue moving no matter how resolution fails.
+      this.finalize(run, 'starting', 'failed', {
+        usageSource: 'error-partial',
+        errorCode: 'seam_unavailable',
+        errorDetail: err instanceof Error ? err.message : String(err),
+        userMessageContent: message.content,
+        warnings: [],
+        runtimeSessionId: conversation.runtimeSessionId,
+      });
+      return;
+    }
     if (sessionId === null) return; // resolveRunSession finalized the run
 
     const turn: TurnRequest = {
