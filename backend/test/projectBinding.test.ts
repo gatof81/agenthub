@@ -448,4 +448,24 @@ describe('direct specialist conversation (N3b-2, ADR-008)', () => {
     const f2 = store.getRun(r2.id)!;
     expect(f2.state).toBe('completed');
   });
+
+  it('a 409/429 during session resolution is exec_refused, not seam_unavailable (08 §6, FR-33)', async () => {
+    const { store, port, orch } = boundHarness();
+    await orch.bindSpecialistSession('dev', { sessionId: 's_claudio' });
+    const conv = orch.createSpecialistConversation('dev');
+    // A seam 409/429 (container down / at caps) carries retryable context and
+    // is classified exec_refused with the FR-33 session state — the same
+    // duck-typing the mid-turn seam catch uses. An unqualified throw (above)
+    // stays seam_unavailable; this proves resolution honours the distinction.
+    port.getSession = (): ReturnType<FakeSubstrateExecPort['getSession']> =>
+      Promise.reject(Object.assign(new Error('session at capacity'), { status: 429 }));
+    const run = orch.send(conv.id, 'one').run;
+    await orch.idle();
+
+    const finalized = store.getRun(run.id)!;
+    expect(finalized.state).toBe('failed');
+    expect(finalized.errorCode).toBe('exec_refused');
+    expect(finalized.errorDetail).toContain('429');
+    expect(finalized.errorDetail).toContain('FR-33');
+  });
 });

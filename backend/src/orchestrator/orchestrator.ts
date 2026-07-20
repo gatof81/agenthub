@@ -1200,10 +1200,20 @@ export class Orchestrator {
       // (dispatchNextRun treats `starting` as the active run — I-2/FR-04).
       // Finalizing here — same pattern as resolveRunSession's own fail() —
       // keeps the queue moving no matter how resolution fails.
+      //
+      // Classify like the mid-turn seam catch (08 §6): a 409/429 (container
+      // down / caps) is exec_refused with the FR-33 session-state context so a
+      // client can retry; anything else unreachable is seam_unavailable. Duck-
+      // typed on `status` so the orchestrator keeps no substrate import.
+      const status =
+        err && typeof err === 'object' && 'status' in err ? Number((err as { status: unknown }).status) : NaN;
+      const refused = status === 409 || status === 429;
+      const raw = err instanceof Error ? err.message : String(err);
+      const lastKnownState = this.sessionMetaForConversation(conversation).lastKnownState ?? 'unknown';
       this.finalize(run, 'starting', 'failed', {
         usageSource: 'error-partial',
-        errorCode: 'seam_unavailable',
-        errorDetail: err instanceof Error ? err.message : String(err),
+        errorCode: refused ? 'exec_refused' : 'seam_unavailable',
+        errorDetail: refused ? `seam ${status}: ${raw} — session lastKnownState=${lastKnownState} (FR-33)` : raw,
         userMessageContent: message.content,
         warnings: [],
         runtimeSessionId: conversation.runtimeSessionId,
