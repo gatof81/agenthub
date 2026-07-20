@@ -906,3 +906,50 @@ button.retry:hover { background: var(--raised); border-color: var(--accent); }
 .modal-msg { margin: 0 0 16px; line-height: 1.5; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .modal-actions .danger { background: var(--danger); color: #fff; }
+
+/* — task view (N5b-2b): dev → QA → approval progress, opened from the kickoff turn — */
+.task-view { max-width: 620px; max-height: 82vh; overflow-y: auto; }
+.task-loading, .task-error, .task-empty { color: var(--muted); margin: 4px 0; }
+.task-error { color: var(--danger); }
+.task-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 14px;
+}
+.task-title { font-weight: 600; margin-right: 8px; }
+.task-id { font-size: 12px; color: var(--muted); }
+.badge.task-state { text-transform: capitalize; border: 1px solid var(--border); background: var(--panel-2); }
+.badge.task-state.progress { color: var(--accent); border-color: var(--accent); }
+.badge.task-state.attention { color: var(--warn); border-color: var(--warn); }
+.badge.task-state.ok { color: var(--ok); border-color: var(--ok); }
+.badge.task-state.danger { color: var(--danger); border-color: var(--danger); }
+.task-section { margin-top: 14px; }
+.task-section-title { margin: 0 0 8px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.task-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.task-step {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+}
+.step-kind { font-weight: 600; font-size: 13px; }
+.step-kind.qa { color: var(--accent); }
+.step-specialist { color: var(--muted); font-size: 13px; }
+.step-access {
+  margin-left: auto; font-size: 12px; color: var(--muted);
+  font-family: var(--mono, ui-monospace, monospace); border: 1px solid var(--border);
+  border-radius: 6px; padding: 1px 7px; background: var(--bg);
+}
+.wp-card { margin-top: 8px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; }
+.wp-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.wp-kind { font-weight: 600; font-size: 13px; }
+.wp-summary { margin: 4px 0 8px; line-height: 1.45; }
+.wp-field { margin: 6px 0; }
+.wp-field-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.wp-list { margin: 3px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5; }
+
+/* the "view task" affordance hung on the kickoff turn */
+.task-affordance {
+  display: inline-flex; align-items: center; gap: 8px; margin: 4px 0 2px;
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel-2); color: var(--text); cursor: pointer; font-size: 13px;
+}
+.task-affordance:hover { background: var(--raised); border-color: var(--accent); }
+.task-affordance .badge.task-state { font-size: 11px; }

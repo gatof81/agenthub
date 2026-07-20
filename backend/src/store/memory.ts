@@ -537,8 +537,11 @@ export class MemoryHubStore implements HubStore {
     return t ? clone(t) : undefined;
   }
 
-  listTasks(opts: { projectId?: string } = {}): Task[] {
-    return this.tasks.filter((t) => !opts.projectId || t.projectId === opts.projectId).map(clone);
+  listTasks(opts: { projectId?: string; sourceConversationId?: string } = {}): Task[] {
+    return this.tasks
+      .filter((t) => !opts.projectId || t.projectId === opts.projectId)
+      .filter((t) => !opts.sourceConversationId || t.sourceConversationId === opts.sourceConversationId)
+      .map(clone);
   }
 
   transitionTask(taskId: string, from: TaskState, to: TaskState): Task {
