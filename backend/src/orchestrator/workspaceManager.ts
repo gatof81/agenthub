@@ -221,8 +221,14 @@ export class RealWorkspaceManager implements WorkspaceManagerPort {
     // its own repo credential (ADR-010). branch/title/body ride as positional
     // params ($2..$4; $0='hub_pr', $1=WORKSPACE_ROOT), never shell-interpreted;
     // `gh pr create` prints the URL.
+    //
+    // `gh auth setup-git` first (#113): a session can have `gh` authenticated
+    // while its git has no credential helper, so `git push` over HTTPS fails
+    // non-interactively (`could not read Username`, exit 128) and the PR never
+    // opens. Wiring gh as git's credential helper here is idempotent and cheap,
+    // and self-heals both created and bound sessions regardless of provisioning.
     const script =
-      'set -e; git -C "$1" push -u origin "$2" >/dev/null; cd "$1"; gh pr create --head "$2" --title "$3" --body "$4"';
+      'set -e; gh auth setup-git; git -C "$1" push -u origin "$2" >/dev/null; cd "$1"; gh pr create --head "$2" --title "$3" --body "$4"';
     const r = await runExec(this.execPort, sessionId, [
       'bash',
       '-c',
