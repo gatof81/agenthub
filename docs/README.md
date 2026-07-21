@@ -70,7 +70,7 @@ decision and is superseded):
 | [ADR-010](./adr/ADR-010-code-sharing-strategies.md) | **Code-sharing strategy ladder** — specialist runs in the project session / task worktree by default; read-only, diff, artifact for analysis and review; repo authority stays with the project session | **accepted** (owner, 2026-07-17) |
 | [ADR-011](./adr/ADR-011-browser-auth-cloudflare-access.md) | **Browser auth via Cloudflare Access** — the backend verifies the signed `Cf-Access-Jwt-Assertion` (aud + iss + JWKS signature), never the forgeable email header; bearer token retained for localhost/programmatic. Resolves Q-07 for Phase-1 browser auth | **accepted** (owner, 2026-07-17) |
 | [ADR-012](./adr/ADR-012-router-model-call.md) | **Automatic-mode model router calls the Messages API directly** (N4b, Haiku 4.5, forced tool call) reusing `CLAUDE_CODE_OAUTH_TOKEN` — a narrow control-plane carve-out from ADR-001's "all model I/O via the seam"; deterministic fallback on failure; offline suite unaffected | **accepted** (owner, 2026-07-19) |
-| [ADR-013](./adr/ADR-013-orchestrator-decomposition.md) | Decompose the ~1,768-line **Orchestrator** into four intra-module collaborators behind a thin facade (from the architecture review C4); boundaries preserved, incremental migration | **proposed** (2026-07-21) |
+| [ADR-013](./adr/ADR-013-orchestrator-decomposition.md) | Decompose the ~1,667-line **Orchestrator** into four intra-module collaborators behind a thin facade (from the architecture review C4); boundaries preserved, incremental migration | **proposed** (2026-07-21) |
 
 Remaining candidate (deferred, non-blocking): a full Hub-owned user/tenant
 login (ADR-011 Option 4) — Q-07 is resolved for Phase-1 browser auth by
