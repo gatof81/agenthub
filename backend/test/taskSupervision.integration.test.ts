@@ -167,7 +167,7 @@ function suite(name: string, makeStore: () => HubStore): void {
       store.close();
     });
 
-    it('boot reconcile heals a crashed in-flight task to failed and cleans up its worktree, leaving awaiting_human_approval alone (UC-06)', async () => {
+    it('boot reconcile heals a crashed in-flight task to failed and cleans up its worktree, leaving awaiting_human_approval alone (ADR-009 boot reconciliation)', async () => {
       const workspace = new RecordingWorkspaceManager();
       const { store, orch, readyProject } = makeHarness(makeStore(), workspace);
       const project = await readyProject();

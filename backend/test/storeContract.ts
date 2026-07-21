@@ -732,7 +732,7 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       store.close();
     });
 
-    it('lists tasks by state, filtered to the requested states (boot reconcile, UC-06)', () => {
+    it('lists tasks by state, filtered to the requested states (boot reconcile — ADR-009 "Boot reconciliation of tasks")', () => {
       const store = makeStore();
       const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
       const inflight = store.createTask({ projectId: p.id });

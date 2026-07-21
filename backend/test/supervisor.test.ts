@@ -165,7 +165,7 @@ describe('Supervisor dev → QA loop (ADR-009)', () => {
     expect(workspace.calls).toEqual(['create', 'commit', 'commit', 'cleanup']);
   });
 
-  it('an unexpected throw mid-loop fails the task from its current state and cleans up (UC-06)', async () => {
+  it('an unexpected throw mid-loop fails the task from its current state and cleans up (ADR-009 boot reconciliation)', async () => {
     const { store, task, workspace, sup } = setup([okStep('implemented it')]);
     // commitWork throws — an UNEXPECTED failure after the dev step, NOT one of the
     // flow outcomes that return via failTask. Without supervise()'s try/catch this
@@ -182,7 +182,7 @@ describe('Supervisor dev → QA loop (ADR-009)', () => {
     expect(workspace.calls).toEqual(['create', 'commit', 'cleanup']);
   });
 
-  it('a worktree-provisioning failure fails the task with nothing to clean up (UC-06)', async () => {
+  it('a worktree-provisioning failure fails the task with nothing to clean up (ADR-009 boot reconciliation)', async () => {
     const { store, task, workspace, sup } = setup([]);
     // createTaskWorkspace throws — acquisition itself fails, BEFORE any worktree
     // exists. The task must still be failed (from `planning`), and cleanup must
