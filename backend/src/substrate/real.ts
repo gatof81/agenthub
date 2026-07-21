@@ -84,6 +84,16 @@ export class SeamProvisioningError extends Error {
   }
 }
 
+// Transport timeouts (#116). A stalled or half-open seam connection must
+// unwind with a seam error, never wedge the per-workspace run queue behind it.
+// - Non-streaming calls (status/kill/session/bootstrap polls) get a per-request
+//   deadline: their responses are tiny, so a stall means the socket is dead.
+// - The exec NDJSON stream instead gets an IDLE timeout reset on every chunk —
+//   a long, actively-streaming turn is legitimate, so a fixed total deadline
+//   would be wrong; only a stream that goes silent (half-open) may trip it.
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+
 // seam limits (EXEC_API.md; env rules = session-config rules)
 const CMD_BYTES_MAX = 32 * 1024;
 const MAX_DURATION_MS_MAX = 60 * 60 * 1000;
@@ -139,6 +149,21 @@ function validateEnv(env: Record<string, string> | undefined): void {
   if (total > ENV_MAX_TOTAL_BYTES) {
     throw new SeamValidationError(`env totals ${total} bytes, max ${ENV_MAX_TOTAL_BYTES}`);
   }
+}
+
+/**
+ * Map an aborted/timed-out fetch onto a seam error so a stalled connection
+ * surfaces instead of a raw DOMException (#116). A streaming idle-abort already
+ * carries a SeamProtocolError as its abort reason — pass it through untouched;
+ * a per-request `AbortSignal.timeout` rejects with a `TimeoutError`, which
+ * becomes a SeamProtocolError so callers see one seam-error taxonomy.
+ */
+function asTransportError(err: unknown, context: string): unknown {
+  if (err instanceof SeamProtocolError) return err;
+  if (err instanceof Error && err.name === 'TimeoutError') {
+    return new SeamProtocolError(`${context}: no seam response within the request timeout`);
+  }
+  return err;
 }
 
 /** Parse one wire line into a SeamEvent; null = unknown type, ignored. */
@@ -206,8 +231,15 @@ function toSessionInfo(row: Record<string, unknown>, fallbackOwner: string | nul
   };
 }
 
-/** Reassemble NDJSON lines from chunks that need not be line-aligned. */
-async function* ndjsonLines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
+/**
+ * Reassemble NDJSON lines from chunks that need not be line-aligned.
+ * `onChunk` fires on every received chunk so the caller can reset its idle
+ * timeout (#116) — an actively-streaming turn keeps the deadline at bay.
+ */
+async function* ndjsonLines(
+  body: ReadableStream<Uint8Array>,
+  onChunk: () => void,
+): AsyncGenerator<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buf = '';
@@ -215,6 +247,7 @@ async function* ndjsonLines(body: ReadableStream<Uint8Array>): AsyncGenerator<st
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
+      onChunk();
       buf += decoder.decode(value, { stream: true });
       let idx: number;
       while ((idx = buf.indexOf('\n')) >= 0) {
@@ -250,6 +283,17 @@ export interface RealExecPortOptions {
    * (shared-terminal#420) and returns it. Absent → self-owned create.
    */
   ownerUserId?: string;
+  /**
+   * Transport-level timeouts (#116) so a stalled/half-open seam connection
+   * unwinds with a seam error instead of hanging the run queue behind it.
+   * - `requestTimeoutMs`: per-request deadline for the non-streaming calls
+   *   (status/kill/session/bootstrap polls); default 30 s. NOT applied to the
+   *   exec stream, whose legitimate turns run long.
+   * - `streamIdleTimeoutMs`: idle timeout for the exec NDJSON stream, reset on
+   *   every received chunk; default 5 min. Distinct from the server-side
+   *   `maxDurationMs`, which bounds the child process, not the wire.
+   */
+  transport?: { requestTimeoutMs?: number; streamIdleTimeoutMs?: number };
 }
 
 /** Cap the bootstrap-log tail carried on a provisioning error. */
@@ -259,9 +303,14 @@ const AGENT_SEED_MAX_BYTES = 256 * 1024;
 
 export class RealSubstrateExecPort implements SubstrateExecPort {
   private readonly fetchImpl: typeof fetch;
+  private readonly requestTimeoutMs: number;
+  private readonly streamIdleTimeoutMs: number;
 
   constructor(private readonly opts: RealExecPortOptions) {
     this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.requestTimeoutMs = opts.transport?.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    this.streamIdleTimeoutMs =
+      opts.transport?.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS;
   }
 
   /**
@@ -517,17 +566,53 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
         `maxDurationMs ${req.maxDurationMs} outside the seam's 1..${MAX_DURATION_MS_MAX} range`,
       );
     }
-    const res = await this.request('POST', `/api/sessions/${sessionId}/exec`, {
-      cmd,
-      ...(req.env !== undefined ? { env: req.env } : {}),
-      ...(req.workingDir !== undefined ? { workingDir: req.workingDir } : {}),
-      maxDurationMs: req.maxDurationMs,
-    });
-    if (!res.ok) throw await SeamHttpError.from(res, 'exec');
-    if (res.body === null) throw new SeamProtocolError('exec: seam returned 200 with no body');
-    for await (const line of ndjsonLines(res.body)) {
-      const event = parseSeamEvent(line);
-      if (event !== null) yield event;
+    // Idle-timeout guard (#116): abort the stream if it goes silent for
+    // `streamIdleTimeoutMs`. Armed before the POST so a stream that never even
+    // sends headers also unwinds; reset on every chunk so a long, actively-
+    // streaming turn never trips it. The abort reason IS a SeamProtocolError,
+    // so the read rejects with the seam-error taxonomy already in hand.
+    const controller = new AbortController();
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    const resetIdle = (): void => {
+      if (idleTimer !== undefined) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        controller.abort(
+          new SeamProtocolError(
+            `exec stream idle for ${this.streamIdleTimeoutMs} ms with no data — seam unresponsive`,
+          ),
+        );
+      }, this.streamIdleTimeoutMs);
+      idleTimer.unref();
+    };
+    const clearIdle = (): void => {
+      if (idleTimer !== undefined) clearTimeout(idleTimer);
+      idleTimer = undefined;
+    };
+
+    resetIdle();
+    try {
+      const res = await this.request(
+        'POST',
+        `/api/sessions/${sessionId}/exec`,
+        {
+          cmd,
+          ...(req.env !== undefined ? { env: req.env } : {}),
+          ...(req.workingDir !== undefined ? { workingDir: req.workingDir } : {}),
+          maxDurationMs: req.maxDurationMs,
+        },
+        { signal: controller.signal },
+      );
+      if (!res.ok) throw await SeamHttpError.from(res, 'exec');
+      if (res.body === null) throw new SeamProtocolError('exec: seam returned 200 with no body');
+      for await (const line of ndjsonLines(res.body, resetIdle)) {
+        const event = parseSeamEvent(line);
+        if (event !== null) yield event;
+      }
+    } finally {
+      clearIdle();
+      // Close the socket when we stop consuming — normal end, error, or an
+      // early break by the orchestrator. Harmless if already aborted.
+      controller.abort();
     }
   }
 
@@ -556,17 +641,34 @@ export class RealSubstrateExecPort implements SubstrateExecPort {
     return { outcome: body.outcome };
   }
 
-  /** Attach the auth cookie; on 401, re-login once and retry (nothing ran yet). */
-  private async request(method: string, path: string, body?: unknown): Promise<Response> {
-    const doFetch = async (): Promise<Response> =>
-      this.fetchImpl(`${this.opts.baseUrl}${path}`, {
-        method,
-        headers: {
-          cookie: await this.opts.auth.cookieHeader(),
-          ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
-        },
-        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      });
+  /**
+   * Attach the auth cookie; on 401, re-login once and retry (nothing ran yet).
+   * Non-streaming calls get a fresh per-request `AbortSignal.timeout` per
+   * attempt (#116); the exec stream passes its own idle-reset `signal` via
+   * `opts` instead, since its legitimate turns outlast any fixed deadline.
+   */
+  private async request(
+    method: string,
+    path: string,
+    body?: unknown,
+    opts?: { signal?: AbortSignal },
+  ): Promise<Response> {
+    const doFetch = async (): Promise<Response> => {
+      const signal = opts?.signal ?? AbortSignal.timeout(this.requestTimeoutMs);
+      try {
+        return await this.fetchImpl(`${this.opts.baseUrl}${path}`, {
+          method,
+          headers: {
+            cookie: await this.opts.auth.cookieHeader(),
+            ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+          },
+          ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+          signal,
+        });
+      } catch (err) {
+        throw asTransportError(err, `${method} ${path}`);
+      }
+    };
     let res = await doFetch();
     if (res.status === 401) {
       this.opts.auth.invalidate();
