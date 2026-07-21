@@ -182,6 +182,8 @@ export interface Task {
   sourceConversationId: string | null;
   sourceMessageId: string | null;
   state: TaskState;
+  /** the PR opened on approval (N6b); null until approved, or if it could not be opened. */
+  pullRequestUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }

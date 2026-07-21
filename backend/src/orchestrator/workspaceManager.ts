@@ -12,7 +12,11 @@
  * unit-tested against a recording exec stub.
  */
 
-import type { SubstrateExecPort, WorkspaceManagerPort } from '../domain/ports.js';
+import type {
+  PullRequestContent,
+  SubstrateExecPort,
+  WorkspaceManagerPort,
+} from '../domain/ports.js';
 import { NOOP_LOGGER, type Logger } from '../domain/ports.js';
 import type { Task, TaskStep, TaskWorkspace } from '../domain/types.js';
 import type { HubStore } from '../store/types.js';
@@ -109,6 +113,10 @@ export class FakeWorkspaceManager implements WorkspaceManagerPort {
   cleanup(): Promise<void> {
     return Promise.resolve();
   }
+  openPullRequest(): Promise<{ url: string | null }> {
+    // offline: no git, no gh, no real PR — the flow records "no URL"
+    return Promise.resolve({ url: null });
+  }
 }
 
 export interface RealWorkspaceManagerDeps {
@@ -199,5 +207,47 @@ export class RealWorkspaceManager implements WorkspaceManagerPort {
       workspace.path,
     ]);
     if (r.error) this.logger.warn('task.cleanup_failed', { taskId: task.id, error: r.error });
+  }
+
+  async openPullRequest(
+    task: Task,
+    workspace: TaskWorkspace,
+    content: PullRequestContent,
+  ): Promise<{ url: string | null }> {
+    if (workspace.strategy !== 'worktree' || !workspace.branch) return { url: null }; // nothing to publish
+    const sessionId = this.sessionFor(task);
+    if (!sessionId) return { url: null };
+    // push the task branch, then open the PR — both FROM the project session with
+    // its own repo credential (ADR-010). branch/title/body ride as positional
+    // params ($2..$4; $0='hub_pr', $1=WORKSPACE_ROOT), never shell-interpreted;
+    // `gh pr create` prints the URL.
+    const script =
+      'set -e; git -C "$1" push -u origin "$2" >/dev/null; cd "$1"; gh pr create --head "$2" --title "$3" --body "$4"';
+    const r = await runExec(this.execPort, sessionId, [
+      'bash',
+      '-c',
+      script,
+      'hub_pr',
+      WORKSPACE_ROOT,
+      workspace.branch,
+      content.title,
+      content.body,
+    ]);
+    if (r.error || r.exitCode !== 0) {
+      // best-effort: a PR failure must NOT un-approve the task — record no URL
+      this.logger.warn('task.pr_failed', {
+        taskId: task.id,
+        exitCode: r.exitCode,
+        error: r.error ?? null,
+      });
+      return { url: null };
+    }
+    const url =
+      r.stdout
+        .split('\n')
+        .map((l) => l.trim())
+        .reverse()
+        .find((l) => /^https?:\/\/\S+$/.test(l)) ?? null;
+    return { url };
   }
 }

@@ -34,6 +34,7 @@ function detail(over: Partial<TaskDetail> = {}): TaskDetail {
       sourceConversationId: 'c1',
       sourceMessageId: 'm1',
       state: 'awaiting_human_approval',
+      pullRequestUrl: null,
       createdAt: 't',
       updatedAt: 't',
     },
@@ -150,6 +151,21 @@ describe('TaskView (N5b-2b)', () => {
     await userEvent.click(screen.getByText('Approve'));
     expect(mockedApi.approveTask).toHaveBeenCalledWith('task_1');
     await waitFor(() => expect(mockedApi.getTask.mock.calls.length).toBeGreaterThan(before));
+  });
+
+  it('shows the pull-request link once approved with a URL (N6b)', async () => {
+    mockedApi.getTask.mockResolvedValue(
+      detail({
+        task: {
+          ...detail().task,
+          state: 'approved',
+          pullRequestUrl: 'https://github.com/o/r/pull/9',
+        },
+      }),
+    );
+    render(<TaskView taskId="task_1" onClose={() => {}} />);
+    const link = await screen.findByText('View pull request ↗');
+    expect(link).toHaveAttribute('href', 'https://github.com/o/r/pull/9');
   });
 
   it('request changes reveals a note field and sends it', async () => {

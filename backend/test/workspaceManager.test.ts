@@ -12,13 +12,17 @@ import type { Task } from '../src/domain/types.js';
 import type { HubStore } from '../src/store/types.js';
 import { RealWorkspaceManager, taskBranch, taskWorktreePath } from '../src/orchestrator/workspaceManager.js';
 
-/** Records every exec and replays a scripted exit code. */
+/** Records every exec and replays a scripted exit code + stdout. */
 class RecordingExec {
   requests: Array<{ sessionId: string; req: ExecRequest }> = [];
-  constructor(public exitCode: number | null = 0) {}
+  constructor(
+    public exitCode: number | null = 0,
+    public stdout = '',
+  ) {}
   async *exec(sessionId: string, req: ExecRequest): AsyncIterable<SeamEvent> {
     this.requests.push({ sessionId, req });
     yield { v: 1, type: 'started', execId: 'e1', pgid: 1, requestId: 'r1' };
+    if (this.stdout) yield { v: 1, type: 'output', stream: 'stdout', data: this.stdout };
     yield { v: 1, type: 'exit', exitCode: this.exitCode, reason: 'exited' };
   }
 }
@@ -29,6 +33,7 @@ const TASK: Task = {
   sourceConversationId: 'c1',
   sourceMessageId: 'm1',
   state: 'planning',
+  pullRequestUrl: null,
   createdAt: 't',
   updatedAt: 't',
 };
@@ -40,14 +45,17 @@ function storeWithSession(sessionId: string | null): HubStore {
   } as unknown as HubStore;
 }
 
-function make(sessionId: string | null, exitCode: number | null = 0) {
-  const execPort = new RecordingExec(exitCode);
+function make(sessionId: string | null, exitCode: number | null = 0, stdout = '') {
+  const execPort = new RecordingExec(exitCode, stdout);
   const mgr = new RealWorkspaceManager({
     store: storeWithSession(sessionId),
     execPort: execPort as unknown as SubstrateExecPort,
   });
   return { execPort, mgr };
 }
+
+const WORKTREE = { strategy: 'worktree' as const, branch: 'hub/task/task_1', path: '/x/task_1' };
+const PRIMARY = { strategy: 'project-primary' as const, branch: null, path: null };
 
 describe('RealWorkspaceManager (ADR-010 B, offline)', () => {
   it('createTaskWorkspace runs `git worktree add <path> -b <branch> HEAD`', async () => {
@@ -112,9 +120,33 @@ describe('RealWorkspaceManager (ADR-010 B, offline)', () => {
 
   it('commit and cleanup are no-ops on the project-primary fallback', async () => {
     const { execPort, mgr } = make('s1');
-    const ws = { strategy: 'project-primary' as const, branch: null, path: null };
-    await mgr.commitWork(TASK, ws, 'x');
-    await mgr.cleanup(TASK, ws);
+    await mgr.commitWork(TASK, PRIMARY, 'x');
+    await mgr.cleanup(TASK, PRIMARY);
     expect(execPort.requests).toHaveLength(0);
+  });
+
+  it('openPullRequest pushes the branch, runs gh pr create, and returns the printed URL', async () => {
+    const { execPort, mgr } = make('s1', 0, 'https://github.com/o/r/pull/42\n');
+    const res = await mgr.openPullRequest(TASK, WORKTREE, { title: 'T', body: 'B' });
+
+    expect(res.url).toBe('https://github.com/o/r/pull/42');
+    const argv = execPort.requests[0]!.req.argv;
+    expect(argv[2]).toContain('git -C "$1" push -u origin "$2"');
+    expect(argv[2]).toContain('gh pr create --head "$2" --title "$3" --body "$4"');
+    // branch/title/body ride as positional params (never shell-interpreted)
+    expect(argv.slice(-3)).toEqual(['hub/task/task_1', 'T', 'B']);
+  });
+
+  it('openPullRequest returns url:null on the project-primary fallback (no branch), no exec', async () => {
+    const { execPort, mgr } = make('s1');
+    const res = await mgr.openPullRequest(TASK, PRIMARY, { title: 'T', body: 'B' });
+    expect(res.url).toBeNull();
+    expect(execPort.requests).toHaveLength(0);
+  });
+
+  it('openPullRequest returns url:null when push/gh fails (best-effort)', async () => {
+    const { mgr } = make('s1', 1); // gh/git error exit
+    const res = await mgr.openPullRequest(TASK, WORKTREE, { title: 'T', body: 'B' });
+    expect(res.url).toBeNull();
   });
 });

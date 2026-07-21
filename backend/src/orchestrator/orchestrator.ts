@@ -22,6 +22,7 @@ import {
   type HubNotifier,
   type Logger,
   type Metrics,
+  type PullRequestContent,
   type ReportExtractorPort,
   type RouterPort,
   type RuntimeAdapter,
@@ -50,9 +51,11 @@ import type {
   Conversation,
   ConversationMode,
   ExecutionTargetDecision,
+  ImplementationReport,
   KillOutcome,
   Message,
   Project,
+  QaReport,
   Run,
   RunErrorCode,
   SessionOwnership,
@@ -808,22 +811,48 @@ export class Orchestrator {
 
   // — N6 (ADR-009): human approval of a task awaiting_human_approval —
 
-  /** The owner approves the work: terminal success. The worktree is cleaned up;
-   *  its branch (the commits) survives for the PR (N6b creates it here). */
-  approveTask(taskId: string): Promise<Task> {
-    return this.finalizeApproval(taskId, 'approved');
+  /**
+   * The owner approves the work: terminal success. The project session pushes
+   * the task branch and opens a PR (N6b, ADR-010) — best-effort, so a PR failure
+   * never un-approves the task — then the worktree is cleaned up (its branch, on
+   * the remote via the push, survives).
+   */
+  async approveTask(taskId: string): Promise<Task> {
+    const task = this.approvableTask(taskId);
+    const workspace = workspaceFromSteps(this.store.listTaskSteps(taskId));
+    this.store.transitionTask(taskId, 'awaiting_human_approval', 'approved');
+    const pr = await this.workspaceManager.openPullRequest(task, workspace, this.prContent(task));
+    if (pr.url) this.store.setTaskPullRequestUrl(taskId, pr.url);
+    await this.workspaceManager.cleanup(task, workspace);
+    return this.store.getTask(taskId)!;
   }
 
   /** The owner rejects the work: terminal. The worktree is cleaned up; the branch survives. */
-  rejectTask(taskId: string): Promise<Task> {
-    return this.finalizeApproval(taskId, 'rejected');
+  async rejectTask(taskId: string): Promise<Task> {
+    const task = this.approvableTask(taskId);
+    await this.workspaceManager.cleanup(task, workspaceFromSteps(this.store.listTaskSteps(taskId)));
+    return this.store.transitionTask(taskId, 'awaiting_human_approval', 'rejected');
   }
 
-  private async finalizeApproval(taskId: string, to: 'approved' | 'rejected'): Promise<Task> {
-    const task = this.approvableTask(taskId);
-    // terminal task state → clean up the worktree (ADR-010), branch survives
-    await this.workspaceManager.cleanup(task, workspaceFromSteps(this.store.listTaskSteps(taskId)));
-    return this.store.transitionTask(taskId, 'awaiting_human_approval', to);
+  /** Title + body for the approval PR (N6b): the objective, plus the reports' gist. */
+  private prContent(task: Task): PullRequestContent {
+    const objective = this.taskObjective(task);
+    const products = this.store.listWorkProducts(task.id);
+    const impl = products.find((w) => w.kind === 'implementation_report')?.body as
+      | ImplementationReport
+      | undefined;
+    const qa = products.findLast((w) => w.kind === 'qa_report')?.body as QaReport | undefined;
+    const title = `[Agent Hub] ${(objective.split('\n')[0] ?? '').slice(0, 72) || `task ${task.id}`}`;
+    const body = [
+      objective ? `## Objective\n\n${objective}` : '',
+      impl?.summary ? `## Implementation\n\n${impl.summary}` : '',
+      impl?.filesChanged.length ? `Files changed: ${impl.filesChanged.join(', ')}` : '',
+      qa ? `## QA\n\nVerdict: **${qa.verdict}**` : '',
+      `_Opened by Agent Hub after QA passed and owner approval (task ${task.id})._`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    return { title, body };
   }
 
   /**
@@ -864,7 +893,7 @@ export class Orchestrator {
     if (task.state !== 'awaiting_human_approval') {
       throw new OrchestratorError(
         'task_not_approvable',
-        `task is ${task.state}, not awaiting_human_approval (409)`,
+        `task is ${task.state}, not awaiting_human_approval`,
       );
     }
     return task;

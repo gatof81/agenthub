@@ -8,8 +8,12 @@
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { AUTH, DEV_AGENT, makeApiHarness } from './apiHarness.js';
-import type { Orchestrator } from '../src/orchestrator/orchestrator.js';
+import { Orchestrator } from '../src/orchestrator/orchestrator.js';
+import type { WorkspaceManagerPort } from '../src/domain/ports.js';
+import { FakeRuntimeAdapter } from '../src/runtime/fakeAdapter.js';
+import { MemoryHubStore } from '../src/store/memory.js';
 import type { HubStore } from '../src/store/types.js';
+import { FakeSubstrateExecPort } from '../src/substrate/fake.js';
 import { FIXTURES, fixtureStreamLines } from './fixtures.js';
 
 /**
@@ -114,6 +118,32 @@ describe('human approval API (N6)', () => {
     // a second dev + QA round was appended
     expect(store.listTaskSteps(task.id)).toHaveLength(4);
     expect(port.execRequests).toHaveLength(2);
+  });
+
+  it('approve records the PR URL the workspace manager returns (N6b)', async () => {
+    const store = new MemoryHubStore();
+    const port = new FakeSubstrateExecPort();
+    const prUrl = 'https://github.com/o/r/pull/7';
+    const workspaceManager: WorkspaceManagerPort = {
+      createTaskWorkspace: (t) =>
+        Promise.resolve({ strategy: 'worktree', branch: `hub/task/${t.id}`, path: `/x/${t.id}` }),
+      commitWork: () => Promise.resolve(),
+      cleanup: () => Promise.resolve(),
+      openPullRequest: () => Promise.resolve({ url: prUrl }),
+    };
+    const orch = new Orchestrator({
+      store,
+      adapter: new FakeRuntimeAdapter(port),
+      execPort: port,
+      agents: new Map([[DEV_AGENT.id, DEV_AGENT]]),
+      workspaceManager,
+    });
+    const { task } = await seedApprovable(orch, store);
+
+    const approved = await orch.approveTask(task.id);
+    expect(approved.state).toBe('approved');
+    expect(approved.pullRequestUrl).toBe(prUrl);
+    expect(store.getTask(task.id)!.pullRequestUrl).toBe(prUrl);
   });
 
   it('requires auth', async () => {

@@ -966,3 +966,8 @@ button.retry:hover { background: var(--raised); border-color: var(--accent); }
   color: var(--text); font: inherit;
 }
 .task-note:focus { outline: none; border-color: var(--accent); }
+.task-pr-link {
+  display: inline-block; margin: -6px 0 4px; font-size: 13px;
+  color: var(--accent); text-decoration: none;
+}
+.task-pr-link:hover { text-decoration: underline; }

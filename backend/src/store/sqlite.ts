@@ -255,6 +255,7 @@ interface TaskRow {
   source_conversation_id: string | null;
   source_message_id: string | null;
   state: TaskState;
+  pull_request_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -265,6 +266,7 @@ function toTask(r: TaskRow): Task {
     sourceConversationId: r.source_conversation_id,
     sourceMessageId: r.source_message_id,
     state: r.state,
+    pullRequestUrl: r.pull_request_url,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -973,6 +975,14 @@ export class SqliteHubStore implements HubStore {
       .prepare(`UPDATE tasks SET state = ?, updated_at = ? WHERE id = ? AND state = ?`)
       .run(to, this.now(), taskId, from);
     if (res.changes !== 1) throw new StaleTaskStateError(taskId, from);
+    return this.getTask(taskId)!;
+  }
+
+  setTaskPullRequestUrl(taskId: string, url: string): Task {
+    const res = this.db
+      .prepare(`UPDATE tasks SET pull_request_url = ?, updated_at = ? WHERE id = ?`)
+      .run(url, this.now(), taskId);
+    if (res.changes !== 1) throw new NotFoundError('task', taskId);
     return this.getTask(taskId)!;
   }
 

@@ -133,6 +133,7 @@ inspector (ADR-009).
 | 007 | run execution target (N4a) | `runs` += `target_session_id?` (NULL = derived: project primary or the pinned specialist's), `target_decision?` — makes the routing decision persist so the inspector shows it on reload, not only for an in-flight run. Split out of the original 007 (tasks) so N4a lands its own audit surface ahead of N5 |
 | 008 | tasks (N5a) | new `tasks`, `task_steps`, `work_products`; `runs` += `task_step_id?` |
 | 009 | task step workspace access (N5b-2) | `task_steps` += `workspace_access?` — the `DelegatedWorkspaceAccess` audit snapshot (ADR-010 §71: access mode, task branch, worktree path, expiry), JSON like the other snapshot columns; NULL for a strategy-A step |
+| 010 | task pull request (N6b) | `tasks` += `pull_request_url?` — the PR opened on approval (project session pushes + `gh pr create`, ADR-010); NULL until approved, or if it could not be opened / the project-primary fallback had no branch |
 
 Projects, conversations, runs, messages, and events are preserved untouched;
 each migration ships with contract-suite updates for both store
