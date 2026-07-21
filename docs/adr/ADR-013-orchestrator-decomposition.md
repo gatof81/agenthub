@@ -9,52 +9,52 @@ Date: 2026-07-21
 
 ## Context
 
-`src/orchestrator/orchestrator.ts` is a single class of **~1,768 lines**
-(`orchestrator.ts:176-1768`) that has accreted one responsibility per
+`src/orchestrator/orchestrator.ts` is a single class of **~1,667 lines**
+(`orchestrator.ts:180-1847`) that has accreted one responsibility per
 increment without ever shedding an old one. It now owns, in one type:
 
-- **Session discovery** — `listSessions` (`orchestrator.ts:252`).
+- **Session discovery** — `listSessions` (`orchestrator.ts:256`).
 - **Project/session provisioning & lifecycle** — `createProject`
-  (`:298`), `bindExisting` (`:355`), `provision` (`:458`), `archiveProject`
-  (`:542`), `restoreProject` (`:574`), `restoreConversation` (`:632`).
-- **Specialist sessions** — `bindSpecialistSession` (`:402`),
-  `ensureSpecialistSessionRunnable` (`:1256`).
-- **Conversations** — `createConversation` (`:651`),
-  `createSpecialistConversation` (`:681`).
-- **Send / dispatch / pump** — `send` (`:699`), `pump` (`:746`),
-  `idle` (`:762`).
-- **The run loop** — `resolveRunSession` (`:1121`),
-  `resolveAutomaticTarget` (`:1176`), `executeRun` (`:1281`, ~340 lines
-  on its own), `finalize` (`:1627`), `sweep` (`:1715`).
-- **Cancellation** — `cancelRun` (`:968`).
-- **Boot reconciliation** — `reconcile` (`:1007`, ~90 lines).
-- **Task supervision plumbing** — `startTask` (`:778`), `approveTask`/
-  `rejectTask`/`finalizeApproval` (`:812`), `requestTaskChanges` (`:836`),
-  `runTaskStep` (`:895`), `awaitRunTerminal` (`:936`),
-  `finalizeTaskKickoff` (`:948`).
+  (`:302`), `bindExisting` (`:359`), `provision` (`:479`), `archiveProject`
+  (`:563`), `restoreProject` (`:595`), `restoreConversation` (`:653`).
+- **Specialist sessions** — `bindSpecialistSession` (`:418`),
+  `ensureSpecialistSessionRunnable` (`:1335`).
+- **Conversations** — `createConversation` (`:672`),
+  `createSpecialistConversation` (`:702`).
+- **Send / dispatch / pump** — `send` (`:720`), `pump` (`:767`),
+  `idle` (`:783`).
+- **The run loop** — `resolveRunSession` (`:1200`),
+  `resolveAutomaticTarget` (`:1255`), `executeRun` (`:1360`, ~346 lines
+  on its own), `finalize` (`:1706`), `sweep` (`:1794`).
+- **Cancellation** — `cancelRun` (`:1015`).
+- **Boot reconciliation** — `reconcile` (`:1054`, ~133 lines).
+- **Task supervision plumbing** — `startTask` (`:799`), `approveTask`
+  (`:837`)/`rejectTask` (`:848`)/`prContent` (`:855`), `requestTaskChanges`
+  (`:883`), `runTaskStep` (`:942`), `awaitRunTerminal` (`:983`),
+  `finalizeTaskKickoff` (`:995`).
 
 Those zones share nothing but the class instance. The cohesion cost is
-concrete: eight mutable maps of run/task state are declared as private
-fields (`orchestrator.ts:190-214` — `inFlight`, `cancelRequested`,
-`timedOut`, `budgetTripped`, `pendingKills`, `runCompletions`,
-`taskDriving`) and mutated from unrelated zones — `cancelRun` writes
-`cancelRequested`/`pendingKills`, `executeRun` reads and clears them,
+concrete: seven mutable collections of run/task state are declared as private
+fields (`orchestrator.ts:194-217` — three `Map` (`inFlight`, `pendingKills`,
+`runCompletions`) and four `Set` (`cancelRequested`, `timedOut`,
+`budgetTripped`, `taskDriving`)) and mutated from unrelated zones — `cancelRun`
+writes `cancelRequested`/`pendingKills`, `executeRun` reads and clears them,
 `runTaskStep` registers `runCompletions` awaiters that `finalize` wakes
-(`orchestrator.ts:1700-1704`). Any change to one zone is made against the
+(`orchestrator.ts:1779-1782`). Any change to one zone is made against the
 whole surface.
 
 The testability cost is the load-bearing one. **There is no way to exercise
 the run loop, cancellation, or reconciliation without constructing the entire
 Orchestrator** — every collaborator it holds must be supplied
-(`OrchestratorDeps`, `orchestrator.ts:87-133`: store, adapter, execPort,
+(`OrchestratorDeps`, `orchestrator.ts:91-137`: store, adapter, execPort,
 agents, router, reportExtractor, workspaceManager, notifier, logger,
 metrics, prices, timeouts). A test that wants to assert one
-`executeRun` terminal-classification branch (`orchestrator.ts:1520-1622`)
+`executeRun` terminal-classification branch (`orchestrator.ts:1521-1678`)
 must stand up provisioning, task supervision, and session resolution it does
 not care about. The contrast is already in the tree: the **Supervisor** was
 extracted as a separate collaborator (`supervisor.ts`) precisely so its loop
 is "unit-tested with a fake runner and a fake extractor — no substrate, no
-model" (`supervisor.ts:7-12`). That extraction is the proof this works here.
+model" (`supervisor.ts:8-11`). That extraction is the proof this works here.
 
 The module-boundary arrows enforced by `eslint-plugin-boundaries` operate at
 **module granularity** — `src/orchestrator` is one element
@@ -62,14 +62,14 @@ The module-boundary arrows enforced by `eslint-plugin-boundaries` operate at
 `orchestrator → {orchestrator, domain, store, runtime, config}`
 (`eslint.config.js:47-55`). New files under `src/orchestrator/` are all type
 `orchestrator` and may import one another (`{ type: 'orchestrator' }` is in
-its own allow-list, `eslint.config.js:50`). The module already contains
+its own allow-list, `eslint.config.js:49`). The module already contains
 sibling collaborators that import each other — `router.ts`, `selector.ts`,
 `reportExtractor.ts`, `workspaceManager.ts`, `supervisor.ts`
-(`orchestrator.ts:34-38`). So **an intra-module split is invisible to the
+(`orchestrator.ts:35-39`). So **an intra-module split is invisible to the
 07 §2 arrows** and cannot violate them by construction, provided each new
 collaborator stays inside that allow-list (none needs `api` or the
 `substrate` HTTP internals — they use the `SubstrateExecPort`/`RuntimeAdapter`
-domain ports, `orchestrator.ts:28-31`).
+domain ports, `orchestrator.ts:28-30`).
 
 ## Options
 
@@ -82,9 +82,9 @@ domain ports, `orchestrator.ts:28-31`).
 
 2. **Big-bang rewrite** into a set of services in one PR. Rejected: the run
    loop carries hard-won, live-verified invariants — the kill-outcome race
-   (`orchestrator.ts:200-203`, B3-01), the FR-21 sweep ordering inside the
-   terminal transaction (`:1541-1558`), the `resolveRunSession`-outside-catch
-   wedge fix (`executeRun`'s catch, `:1287-1316`, PR #103). A single large
+   (`orchestrator.ts:200-207`, B3-01), the FR-21 sweep ordering inside the
+   terminal transaction (`:1621-1632`), the `resolveRunSession`-outside-catch
+   wedge fix (`executeRun`'s catch, `:1362-1396`, PR #103). A single large
    diff moving all of that at once maximizes the chance of silently dropping
    one, and the offline suite (doc 13 §6) would have to be rewritten wholesale
    in the same PR — no incremental safety net.
@@ -107,52 +107,54 @@ intra-module.
 ### Collaborators
 
 - **`ProvisioningService`** — project and specialist-session lifecycle that
-  never touches the run loop. Takes `listSessions` (`:252`), `createProject`
-  (`:298`), `provision` (`:458`), `bindExisting` (`:355`),
-  `bindSpecialistSession` (`:402`), `archiveProject` (`:542`),
-  `restoreProject` (`:574`), `restoreConversation` (`:632`). Depends on
+  never touches the run loop. Takes `listSessions` (`:256`), `createProject`
+  (`:302`), `provision` (`:479`), `bindExisting` (`:359`),
+  `bindSpecialistSession` (`:418`), `archiveProject` (`:563`),
+  `restoreProject` (`:595`), `restoreConversation` (`:653`). Depends on
   `store`, `execPort`, `adapter.awaitReady`, `notify`, `logger`. Owns the
-  `provision_*` entries currently in `inFlight` (`:335-343`) as its own map.
+  `provision_*` entries currently in `inFlight` (`:339-347`) as its own map.
   Testable against a fake `execPort` with no run-loop machinery present.
 
 - **`SessionResolver`** — decides *where* a run executes, and only that.
-  Takes `sessionMetaForConversation` (`:1109`), `resolveRunSession` (`:1121`),
-  `resolveAutomaticTarget` (`:1176`), `ensureSpecialistSessionRunnable`
-  (`:1256`), and the `selectExecutionTarget` integration (`:1225`). Depends on
+  Takes `sessionMetaForConversation` (`:1188`), `resolveRunSession` (`:1200`),
+  `resolveAutomaticTarget` (`:1255`), `ensureSpecialistSessionRunnable`
+  (`:1335`), and the `selectExecutionTarget` integration (`:1304`). Depends on
   `store`, `execPort`, `router`, the selector. Returns a resolved `sessionId`,
   a fail signal, or a **"spawn a task" signal** — it must *not* own task
   spawning (today `resolveAutomaticTarget` calls `startTask` +
-  `finalizeTaskKickoff` inline, `:1205-1213`); it returns the envelope
+  `finalizeTaskKickoff` inline, `:1284-1292`); it returns the envelope
   decision and the facade routes it to `TaskCoordinator`. Testable with a fake
   router + store, asserting the ADR-008 decision persisted on the run
-  (`:1239`) without executing a turn.
+  (`:1318`) without executing a turn.
 
 - **`RunLoop`** — the dispatch → execute → terminal engine, and the sole owner
-  of `finalize`. Takes `pump` (`:746`), `executeRun` (`:1281`), `finalize`
-  (`:1627`), `sweep` (`:1715`), `cancelRun` (`:968`), `excerpts` (`:1754`),
-  and the run-healing half of `reconcile` (`:1018-1090`). Owns the run-state
+  of `finalize`. Takes `pump` (`:767`), `executeRun` (`:1360`), `finalize`
+  (`:1706`), `sweep` (`:1794`), `cancelRun` (`:1015`), `excerpts` (`:1833`),
+  and the run-healing half of `reconcile` (`:1066-1139`). Owns the run-state
   maps: the run half of `inFlight`, `cancelRequested`, `timedOut`,
-  `budgetTripped`, `pendingKills` (`:190-203`). Depends on `adapter`,
+  `budgetTripped`, `pendingKills` (`:194-207`). Depends on `adapter`,
   `execPort` (sweep only), `store`, `notify`, `logger`, `metrics`, prices,
   timeout grace. `finalize` stays the single terminal choke point
-  (`:1627-1705`) and exposes a hook so it can wake a `TaskCoordinator` awaiter
-  (the `runCompletions` wake, `:1700-1704`, becomes an injected callback).
+  (`:1706-1784`) and exposes a hook so it can wake a `TaskCoordinator` awaiter
+  (the `runCompletions` wake, `:1779-1782`, becomes an injected callback).
   Testable with a fake `adapter` alone.
 
 - **`TaskCoordinator`** — wraps the existing `Supervisor` and owns everything
-  task-shaped. Takes `startTask` (`:778`), `approveTask`/`rejectTask`/
-  `finalizeApproval` (`:812`), `requestTaskChanges` (`:836`), `approvableTask`
-  (`:860`), `taskObjective` (`:873`), `taskSpecialists` (`:882`),
-  `runTaskStep` (`:895`), `awaitRunTerminal` (`:936`), `finalizeTaskKickoff`
-  (`:948`). Owns `taskDriving` and `runCompletions` (`:212-213`). Its
-  `StepRunner` impl (`:234`) drives one step through `RunLoop.pump` +
-  `finalize`'s wake hook — the same seam the `Supervisor` is already tested
-  against. Testable with the existing fake `StepRunner`/`extractor` pattern.
+  task-shaped. Takes `startTask` (`:799`), `approveTask`/`rejectTask`/
+  `prContent` (`:837`/`:848`/`:855`), `requestTaskChanges` (`:883`),
+  `approvableTask` (`:907`), `taskObjective` (`:920`), `taskSpecialists`
+  (`:929`), `runTaskStep` (`:942`), `awaitRunTerminal` (`:983`),
+  `finalizeTaskKickoff` (`:995`). Owns `taskDriving` and `runCompletions`
+  (`:216-217`). Its `StepRunner` impl (`:238`) drives one step through
+  `RunLoop.pump` + `finalize`'s wake hook — the same seam the `Supervisor` is
+  already tested against. Testable with the existing fake
+  `StepRunner`/`extractor` pattern.
 
-`reconcile` (`:1007`) is **not** a fifth collaborator: its provisioning-heal
-loop (`:1012-1017`) belongs to `ProvisioningService`, its run-heal loop
-(`:1018-1090`) to `RunLoop`, and its queue-rebuild (`:1091-1098`) to
-`RunLoop.pump`. The facade sequences the three in boot order.
+`reconcile` (`:1054`) is **not** a fifth collaborator: its provisioning-heal
+loop (`:1055-1064`) belongs to `ProvisioningService`, its run-heal loop
+(`:1066-1139`) to `RunLoop`, and its queue-rebuild (`:1170-1178`) to
+`RunLoop.pump`. The facade sequences the three in boot order. (Its task-heal
+loop, added by #109, `:1154-1169`, goes to `TaskCoordinator`.)
 
 ### The facade
 
@@ -161,7 +163,7 @@ them, 07 §2) and becomes ~150 lines of construction + delegation. It holds the
 one genuinely shared reference — the terminal `finalize` choke point — and
 wires the cross-collaborator callbacks: `SessionResolver`'s task signal →
 `TaskCoordinator`; `RunLoop.finalize` wake → `TaskCoordinator`;
-`TaskCoordinator`'s step runs → `RunLoop.pump`. `idle()` (`:762`) sums the two
+`TaskCoordinator`'s step runs → `RunLoop.pump`. `idle()` (`:783`) sums the two
 in-flight sets across `RunLoop` and `TaskCoordinator`.
 
 ### Migration approach — extract at the hilt, not big-bang
@@ -188,10 +190,10 @@ leaves the offline suite green and the facade's public surface unchanged.
 
 - **Testability win (the point).** After each extraction the corresponding
   loop is unit-testable against narrow fakes, matching what `Supervisor`
-  already demonstrates (`supervisor.ts:7-12`): `RunLoop` against a fake
+  already demonstrates (`supervisor.ts:8-11`): `RunLoop` against a fake
   `adapter`, `SessionResolver` against a fake `router`, `ProvisioningService`
   against a fake `execPort` — none requiring the full `OrchestratorDeps`
-  surface (`:87-133`).
+  surface (`:91-137`).
 - **Boundaries preserved by construction.** The split is intra-`orchestrator`
   (`eslint.config.js:25,47-55`); the arrows are module-granular and cannot be
   crossed by adding sibling files. No `eslint.config.js` change is needed. The
@@ -201,20 +203,20 @@ leaves the offline suite green and the facade's public surface unchanged.
   maps and the same single `finalize` transaction (09 §3) move to owners. The
   offline, credential-free suite (doc 13 §6) stays offline.
 - **Risk — the `finalize` seam.** `finalize` is reached from `executeRun`,
-  `cancelRun`, `reconcile`, `SessionResolver`'s fail paths (`:1127`), and the
-  task kickoff (`:957`), and it wakes task awaiters (`:1700`). It must live in
+  `cancelRun`, `reconcile`, `SessionResolver`'s fail paths (`:1206`), and the
+  task kickoff (`:1004`), and it wakes task awaiters (`:1779`). It must live in
   exactly one owner (`RunLoop`) and be injected into the others as a callback;
   getting this wrong reintroduces the coupling under a new name. This is the
   single most important seam to get right and the reason `RunLoop` is
   extracted last.
 - **Risk — shared mutable state leaks.** If map ownership is split imprecisely
   (e.g. `pendingKills` written by both `cancelRun` and `executeRun`,
-  `:994,:1356`), a collaborator ends up reaching into another's state and the
+  `:1041,:1435`), a collaborator ends up reaching into another's state and the
   refactor buys nothing. Each map must have exactly one owning collaborator,
   with cross-access only through explicit methods.
 - **Risk — invariant regression during a cut.** The live-verified fixes in the
-  run loop (B3-01 kill race `:200-203`; FR-21 sweep-in-transaction
-  `:1541-1558`; the #103 wedge fix `:1287-1316`) must survive extraction. The
+  run loop (B3-01 kill race `:200-207`; FR-21 sweep-in-transaction
+  `:1621-1632`; the #103 wedge fix `:1362-1396`) must survive extraction. The
   incremental approach bounds this: each PR moves one zone with the suite green,
   never all at once.
 - **No behavior change.** This ADR changes structure only; the public API,
