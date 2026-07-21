@@ -24,11 +24,19 @@ export interface ExecScript {
   /** non-200: respond with this status + errorBody instead of a stream */
   status?: number;
   errorBody?: unknown;
+  /**
+   * Open the stream (200 headers) then never write a line and never end it —
+   * a half-open connection the client must time out on (#116), not await
+   * forever. `emitStarted`/`lines` are ignored when set.
+   */
+  hang?: boolean;
 }
 
 export interface ScriptedResponse {
   status?: number;
   body?: unknown;
+  /** Never respond at all — a stalled non-streaming call the client must time out (#116). */
+  hang?: boolean;
 }
 
 interface RecordedCall {
@@ -290,6 +298,7 @@ export class SeamDouble {
     if (req.method === 'GET' && status) {
       this.statusCalls.push({ sessionId: status[1]!, execId: status[2]!, body, cookie });
       const scripted = this.statusResponses.shift() ?? { body: { state: 'unknown' } };
+      if (scripted.hang === true) return; // never respond — the client must time out (#116)
       res.writeHead(scripted.status ?? 200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(scripted.body ?? {}));
       return;
@@ -315,6 +324,11 @@ export class SeamDouble {
       return;
     }
     const requestId = script.requestId ?? 'a1b2c3d4e5f60718';
+    if (script.hang === true) {
+      // Open the stream and then go silent forever — never a line, never .end().
+      res.writeHead(200, { 'content-type': 'application/x-ndjson', 'x-request-id': requestId });
+      return;
+    }
     const lines: string[] = [];
     if (script.emitStarted !== false) {
       lines.push(

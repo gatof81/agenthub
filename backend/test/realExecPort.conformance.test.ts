@@ -123,6 +123,54 @@ describe('exec stream', () => {
   });
 });
 
+describe('transport timeouts (#116: a stalled seam must not wedge the queue)', () => {
+  const timeoutPort = (transport: {
+    requestTimeoutMs?: number;
+    streamIdleTimeoutMs?: number;
+  }): RealSubstrateExecPort =>
+    new RealSubstrateExecPort({
+      baseUrl: double.baseUrl,
+      auth: new CookieSeamAuth({
+        baseUrl: double.baseUrl,
+        username: double.username,
+        password: double.password,
+      }),
+      transport,
+    });
+
+  it('unwinds a half-open exec stream as SeamProtocolError instead of hanging', async () => {
+    // The seam opens the NDJSON stream (200 headers) then never yields a line
+    // and never closes it — the exact wedge from #116.
+    double.execScripts.push({ hang: true });
+    const port = timeoutPort({ streamIdleTimeoutMs: 40 });
+    const err = await collect(port.exec('sess1', REQ)).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SeamProtocolError);
+    expect((err as Error).message).toMatch(/idle/);
+  });
+
+  it('resets the idle deadline on each chunk — a slow-but-live stream completes', async () => {
+    // Chunks land ~1 ms apart (split-mid-line), comfortably under the 200 ms
+    // idle window, so an actively-streaming turn is never falsely timed out.
+    double.execScripts.push({
+      chunkMode: 'split-mid-line',
+      lines: [
+        JSON.stringify({ v: 1, type: 'output', stream: 'stdout', data: 'streaming-payload-1\n' }),
+        JSON.stringify({ v: 1, type: 'output', stream: 'stdout', data: 'streaming-payload-2\n' }),
+        JSON.stringify({ v: 1, type: 'exit', exitCode: 0, reason: 'exited' }),
+      ],
+    });
+    const port = timeoutPort({ streamIdleTimeoutMs: 200 });
+    const events = await collect(port.exec('sess1', REQ));
+    expect(events.map((e) => e.type)).toEqual(['started', 'output', 'output', 'exit']);
+  });
+
+  it('unwinds a stalled non-streaming call (status) as SeamProtocolError', async () => {
+    double.statusResponses.push({ hang: true });
+    const port = timeoutPort({ requestTimeoutMs: 40 });
+    await expect(port.status('sess1', 'e_x')).rejects.toBeInstanceOf(SeamProtocolError);
+  });
+});
+
 describe('stdin delivery (ADR-003 prompts over a stdin-less seam)', () => {
   it('wraps argv so the payload rides as its own argv element into a pipe', async () => {
     double.execScripts.push({
