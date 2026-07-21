@@ -70,3 +70,29 @@ Option 3.
   machinery (SEC-01/02) — two mechanisms, deliberately not merged.
 - Doc 18 §8's "Task, ahead of its phase" is realized; 06 §5's
   deliberately-not-modeled list shrinks accordingly.
+
+## Boot reconciliation of tasks (amended, N6)
+
+UC-06 (doc 05) heals in-flight **runs** at boot. The same obligation extends to
+**tasks**: a task's progress is driven by the supervisor's `supervise()` loop,
+which lives in process memory — a crash kills it, and the Task row would
+otherwise sit non-terminal **forever** (the kickoff already told the owner to
+expect a result, but nothing remains to advance it). So on boot the reconciler
+heals every task in a **transient** non-terminal state to `failed`, cleaning up
+its worktree best-effort (ADR-010), after healing its runs.
+
+The distinction that governs the healable set is **transient vs. resting**:
+
+- **Transient** states are mid-flight and only make progress while the
+  supervisor loop runs — `planning`, `implementing`, `qa_pending`, `qa_running`,
+  `changes_requested_by_qa`, `changes_requested_by_user`. A crash strands them;
+  boot heals them to `failed`.
+- **Resting** states are waiting on input from outside the process and are **not**
+  crash artifacts — they must survive a restart untouched. Today the only one is
+  `awaiting_human_approval` (waiting on the owner's verdict). The reconciler
+  leaves resting states alone.
+
+Forward constraint: **any new non-terminal task state must be classified
+transient or resting when it is added**, and the reconciler's healable set
+updated accordingly — a state that is neither healed nor deliberately excluded
+is a reconciliation gap.

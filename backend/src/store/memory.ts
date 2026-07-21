@@ -553,6 +553,10 @@ export class MemoryHubStore implements HubStore {
       .map(clone);
   }
 
+  listTasksByState(states: TaskState[]): Task[] {
+    return this.tasks.filter((t) => states.includes(t.state)).map(clone);
+  }
+
   transitionTask(taskId: string, from: TaskState, to: TaskState): Task {
     assertLegalTaskTransition(taskId, from, to);
     const task = this.tasks.find((x) => x.id === taskId);

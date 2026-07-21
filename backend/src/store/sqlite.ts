@@ -958,6 +958,15 @@ export class SqliteHubStore implements HubStore {
     return rows.map(toTask);
   }
 
+  listTasksByState(states: TaskState[]): Task[] {
+    if (states.length === 0) return [];
+    const placeholders = states.map(() => '?').join(',');
+    const rows = this.db
+      .prepare(`SELECT * FROM tasks WHERE state IN (${placeholders}) ORDER BY rowid`)
+      .all(...states) as TaskRow[];
+    return rows.map(toTask);
+  }
+
   transitionTask(taskId: string, from: TaskState, to: TaskState): Task {
     assertLegalTaskTransition(taskId, from, to);
     const res = this.db

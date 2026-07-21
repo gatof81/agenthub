@@ -244,6 +244,8 @@ export interface HubStore {
   createTask(input: CreateTaskInput): Task;
   getTask(id: string): Task | undefined;
   listTasks(opts?: { projectId?: string; sourceConversationId?: string }): Task[];
+  /** Tasks currently in any of `states` (boot reconcile — ADR-009 "Boot reconciliation of tasks"; UC-06 covers runs). Empty `states` → []. */
+  listTasksByState(states: TaskState[]): Task[];
   /**
    * Guarded transition (I-13) against the task state machine: asserts legality
    * and that the row is currently in `from` (StaleTaskStateError otherwise),
