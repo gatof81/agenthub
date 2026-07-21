@@ -18,6 +18,10 @@ interface SseFrame {
 class SseClient {
   private controller = new AbortController();
   readonly frames: SseFrame[] = [];
+  /** set once the server's `: connected` comment is seen — the marker it writes
+   * before replay, so waiting on it proves the connection is past the handshake
+   * (deterministic signal, not a fixed sleep). */
+  connected = false;
   private done: Promise<void>;
 
   constructor(url: string, lastEventId?: number) {
@@ -44,7 +48,10 @@ class SseClient {
         while ((sep = buffer.indexOf('\n\n')) !== -1) {
           const raw = buffer.slice(0, sep);
           buffer = buffer.slice(sep + 2);
-          if (raw.startsWith(':')) continue; // comment/heartbeat
+          if (raw.startsWith(':')) {
+            if (raw.includes('connected')) this.connected = true;
+            continue; // comment/heartbeat
+          }
           const frame: Partial<SseFrame> = {};
           for (const line of raw.split('\n')) {
             if (line.startsWith('id: ')) frame.id = Number(line.slice(4));
@@ -66,6 +73,27 @@ class SseClient {
       if (Date.now() - start > ms) throw new Error(`SSE wait timed out; got ${JSON.stringify(this.frames)}`);
       await new Promise((r) => setTimeout(r, 5));
     }
+  }
+
+  /** waits (bounded) until the server's `: connected` marker has arrived. The
+   * server writes it before replay, and the synchronous replay writes ride the
+   * same flush — so once this resolves, any replayed frames are already in
+   * `frames`. Replaces a fixed sleep in negative-assertion tests. */
+  async untilConnected(ms = 5000): Promise<void> {
+    const start = Date.now();
+    while (!this.connected) {
+      if (Date.now() - start > ms) throw new Error('SSE never connected');
+      await new Promise((r) => setTimeout(r, 5));
+    }
+  }
+
+  /** resolves when the server ends the stream (e.g. it threw after headers were
+   * sent). A deterministic signal that the request was fully processed. */
+  async waitClosed(ms = 5000): Promise<void> {
+    await Promise.race([
+      this.done,
+      new Promise<void>((_, reject) => setTimeout(() => reject(new Error('stream did not close')), ms)),
+    ]);
   }
 
   async close(): Promise<void> {
@@ -265,7 +293,10 @@ describe('SSE stream (ADR-004)', () => {
     // ... yet "-1" clamps to 0 and replays only index > 0, so index 0 (all the
     // baseline fixture has) is withheld: nothing is re-streamed.
     const client = new SseClient(`${base}/api/conversations/${conv.id}/events`, -1);
-    await new Promise((r) => setTimeout(r, 400));
+    // wait for the `: connected` marker the server writes *before* replay; the
+    // synchronous replay rides the same flush, so if the clamp regressed and
+    // index 0 were re-streamed, its frame would already be here.
+    await client.untilConnected();
     expect(client.frames.filter((f) => f.id !== undefined)).toHaveLength(0);
     expect(client.frames.filter((f) => f.event === 'message.delta')).toHaveLength(0);
     await client.close();
@@ -329,7 +360,10 @@ describe('SSE stream (ADR-004)', () => {
       .byConversation;
 
     const client = new SseClient(`${base}/api/conversations/${conv.id}/events`, 5);
-    await new Promise((r) => setTimeout(r, 300));
+    // the replay throw unwinds to Express after headers are sent, so the server
+    // ends the stream; waiting for that close is a deterministic signal the
+    // catch (and its cleanup) has run — no fixed sleep.
+    await client.waitClosed();
     // cleanup ran in the catch: the subscriber Set was emptied and dropped (#117)
     expect(byConversation.has(conv.id)).toBe(false);
     await client.close();
