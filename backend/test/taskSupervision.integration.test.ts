@@ -55,6 +55,9 @@ class RecordingWorkspaceManager implements WorkspaceManagerPort {
     this.cleanupCalls.push(workspace);
     return Promise.resolve();
   }
+  openPullRequest(): Promise<{ url: string | null }> {
+    return Promise.resolve({ url: null });
+  }
 }
 
 function makeHarness(store: HubStore, workspaceManager?: WorkspaceManagerPort) {
