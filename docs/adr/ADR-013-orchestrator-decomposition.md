@@ -27,7 +27,7 @@ increment without ever shedding an old one. It now owns, in one type:
   `resolveAutomaticTarget` (`:1255`), `executeRun` (`:1360`, ~346 lines
   on its own), `finalize` (`:1706`), `sweep` (`:1794`).
 - **Cancellation** — `cancelRun` (`:1015`).
-- **Boot reconciliation** — `reconcile` (`:1054`, ~133 lines).
+- **Boot reconciliation** — `reconcile` (`:1054`, ~125 lines).
 - **Task supervision plumbing** — `startTask` (`:799`), `approveTask`
   (`:837`)/`rejectTask` (`:848`)/`prContent` (`:855`), `requestTaskChanges`
   (`:883`), `runTaskStep` (`:942`), `awaitRunTerminal` (`:983`),
