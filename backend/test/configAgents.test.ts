@@ -99,7 +99,7 @@ agents:
       AgentConfigError,
     );
     const doc = parseAgentsYaml(EXAMPLE);
-    expect(doc.size).toBe(2); // dev + qa specialists (N3)
+    expect(doc.size).toBe(3); // dev + qa + architect specialists (N3)
     const dup = `${EXAMPLE}\n  - id: dev\n    name: Dup\n    instructions: x\n    allowedTools: [Read]\n    runtime: claude-cli\n    defaultCaps: { maxTurns: 1, budgetUsd: 1, timeoutMs: 1000 }\n`;
     expect(() => parseAgentsYaml(dup)).toThrow(/duplicate/);
   });
