@@ -96,6 +96,25 @@ function suite(name: string, makeStore: () => HubStore): void {
       expect(port.seededSessions).toHaveLength(0);
     });
 
+    it('binding a RUNNING session probes claude readiness — not-ready → error, not marked ready (#112)', async () => {
+      const store = makeStore();
+      const port = new FakeSubstrateExecPort();
+      port.seedSession({ ...OWNED_SESSION, sessionId: 's_broken' }); // running
+      const adapter = new FakeRuntimeAdapter(port);
+      adapter.awaitReady = () => Promise.reject(new Error('claude not on PATH'));
+      const orch = new Orchestrator({ store, adapter, execPort: port, agents: new Map([[DEV.id, DEV]]) });
+      const created = orch.createProject({
+        name: 'p',
+        defaultAgentId: 'dev',
+        sessionTemplateId: null,
+        existingSessionId: 's_broken',
+      });
+      await settle();
+      // the CLI probe failed, so the project is NOT marked ready with a broken session
+      expect(store.getProject(created.id)!.status).toBe('error');
+      store.close();
+    });
+
     it('a stopped session binds fine — state is surfaced, not judged (FR-33)', async () => {
       const store = makeStore();
       const { port, orch } = makeHarness(store);
@@ -327,24 +346,6 @@ describe('specialist session binding (N3b-1, ADR-008)', () => {
     await expect(
       orch.bindSpecialistSession('ghost', { sessionTemplateId: 'tpl' }),
     ).rejects.toBeTruthy();
-  });
-
-  it('binding a RUNNING project session probes claude readiness — not-ready → error, not ready (#112)', async () => {
-    const store = new MemoryHubStore();
-    const port = new FakeSubstrateExecPort();
-    port.seedSession({ ...OWNED_SESSION, sessionId: 's_broken' }); // running
-    const adapter = new FakeRuntimeAdapter(port);
-    adapter.awaitReady = () => Promise.reject(new Error('claude not on PATH'));
-    const orch = new Orchestrator({ store, adapter, execPort: port, agents: new Map([[DEV.id, DEV]]) });
-    const created = orch.createProject({
-      name: 'p',
-      defaultAgentId: 'dev',
-      sessionTemplateId: null,
-      existingSessionId: 's_broken',
-    });
-    await settle();
-    // the CLI probe failed, so the project is NOT marked ready with a broken session
-    expect(store.getProject(created.id)!.status).toBe('error');
   });
 
   it('binding a RUNNING specialist session probes claude readiness — not-ready → the bind rejects (#112)', async () => {
