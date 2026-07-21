@@ -667,50 +667,68 @@ export function buildApp(deps: ApiDeps): express.Express {
       else write(e);
     });
 
-    // Last-Event-ID replay from the store — replayable events only (08 §3).
-    //
-    // Replay is for RESUMING: it hands back what a dropped connection missed.
-    // A cold connect (no header) missed nothing — the client just loaded the
-    // conversation over REST, history included — so there is nothing to
-    // recover and replaying is actively harmful. It used to: an absent header
-    // parsed to NaN and fell through to `afterIndex = -1`, i.e. "replay from
-    // the beginning". Every page load re-streamed every past run's deltas on
-    // top of the messages REST had already delivered, so answers appeared
-    // twice and, because state events are deliberately NOT replayed (11 §5),
-    // the client saw live deltas with no terminal `run.state` and sat on
-    // "working" forever, for a run that had finished. Reloading did not help:
-    // the server reproduced it on every fresh connection.
-    //
-    // Absent (or unparseable) header ⇒ start from now. Only an explicit,
-    // numeric Last-Event-ID replays.
-    const rawLastEventId = req.headers['last-event-id'];
-    const parsed =
-      rawLastEventId === undefined ? Number.NaN : Number.parseInt(String(rawLastEventId), 10);
-    const afterIndex = Number.isFinite(parsed) ? parsed : null;
-    const messageIdByRun = new Map<string, string>();
-    for (const row of afterIndex === null ? [] : store.getReplayableEvents(conversation.id, afterIndex)) {
-      let messageId = messageIdByRun.get(row.event.runId);
-      if (messageId === undefined) {
-        messageId = store.getRun(row.event.runId)?.messageId ?? '';
-        messageIdByRun.set(row.event.runId, messageId);
-      }
-      for (const wire of sseFromRunEvent(messageId, row.event)) {
-        write({ ...wire, id: row.index });
-      }
-      maxReplayedId = row.index;
-    }
-    replaying = false;
-    for (const e of buffered) {
-      if (e.id !== undefined && e.id <= maxReplayedId) continue; // already replayed
-      write(e);
-    }
-    buffered.length = 0;
-
+    // Cleanup is registered BEFORE replay so a throw mid-replay (headers are
+    // already sent, so it cannot become a clean HTTP error) still tears down
+    // the heartbeat and, crucially, the broadcaster subscription — otherwise
+    // the closure leaks and the Broadcaster's per-conversation Set grows
+    // unbounded (#117).
     const heartbeat = setInterval(() => res.write(': hb\n\n'), heartbeatMs);
-    req.on('close', () => {
+    let cleaned = false;
+    const cleanup = (): void => {
+      if (cleaned) return;
+      cleaned = true;
       clearInterval(heartbeat);
       unsubscribe();
-    });
+    };
+    req.on('close', cleanup);
+
+    try {
+      // Last-Event-ID replay from the store — replayable events only (08 §3).
+      //
+      // Replay is for RESUMING: it hands back what a dropped connection missed.
+      // A cold connect (no header) missed nothing — the client just loaded the
+      // conversation over REST, history included — so there is nothing to
+      // recover and replaying is actively harmful. It used to: an absent header
+      // parsed to NaN and fell through to `afterIndex = -1`, i.e. "replay from
+      // the beginning". Every page load re-streamed every past run's deltas on
+      // top of the messages REST had already delivered, so answers appeared
+      // twice and, because state events are deliberately NOT replayed (11 §5),
+      // the client saw live deltas with no terminal `run.state` and sat on
+      // "working" forever, for a run that had finished. Reloading did not help:
+      // the server reproduced it on every fresh connection.
+      //
+      // Absent (or unparseable) header ⇒ start from now. Only an explicit,
+      // numeric Last-Event-ID replays — and it is clamped to >= 0 so a client
+      // can never reach the internal "-1 = from the beginning" sentinel and
+      // force a full-history re-stream with a negative/zero id (#117). The
+      // smallest legitimate cursor is 0 ("I have index 0"), which resumes from
+      // index 1; index 0 is therefore never re-narrated.
+      const rawLastEventId = req.headers['last-event-id'];
+      const parsed =
+        rawLastEventId === undefined ? Number.NaN : Number.parseInt(String(rawLastEventId), 10);
+      const afterIndex = Number.isFinite(parsed) ? Math.max(0, parsed) : null;
+      const messageIdByRun = new Map<string, string>();
+      for (const row of afterIndex === null ? [] : store.getReplayableEvents(conversation.id, afterIndex)) {
+        let messageId = messageIdByRun.get(row.event.runId);
+        if (messageId === undefined) {
+          messageId = store.getRun(row.event.runId)?.messageId ?? '';
+          messageIdByRun.set(row.event.runId, messageId);
+        }
+        for (const wire of sseFromRunEvent(messageId, row.event)) {
+          write({ ...wire, id: row.index });
+        }
+        maxReplayedId = row.index;
+      }
+      replaying = false;
+      for (const e of buffered) {
+        if (e.id !== undefined && e.id <= maxReplayedId) continue; // already replayed
+        write(e);
+      }
+      buffered.length = 0;
+    } catch (err) {
+      cleanup();
+      throw err;
+    }
   });
 
   // — static SPA (ADR-002 single-origin) — registered AFTER every /api route

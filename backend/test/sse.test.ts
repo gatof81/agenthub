@@ -18,6 +18,10 @@ interface SseFrame {
 class SseClient {
   private controller = new AbortController();
   readonly frames: SseFrame[] = [];
+  /** set once the server's `: connected` comment is seen — the marker it writes
+   * before replay, so waiting on it proves the connection is past the handshake
+   * (deterministic signal, not a fixed sleep). */
+  connected = false;
   private done: Promise<void>;
 
   constructor(url: string, lastEventId?: number) {
@@ -44,7 +48,10 @@ class SseClient {
         while ((sep = buffer.indexOf('\n\n')) !== -1) {
           const raw = buffer.slice(0, sep);
           buffer = buffer.slice(sep + 2);
-          if (raw.startsWith(':')) continue; // comment/heartbeat
+          if (raw.startsWith(':')) {
+            if (raw.includes('connected')) this.connected = true;
+            continue; // comment/heartbeat
+          }
           const frame: Partial<SseFrame> = {};
           for (const line of raw.split('\n')) {
             if (line.startsWith('id: ')) frame.id = Number(line.slice(4));
@@ -66,6 +73,27 @@ class SseClient {
       if (Date.now() - start > ms) throw new Error(`SSE wait timed out; got ${JSON.stringify(this.frames)}`);
       await new Promise((r) => setTimeout(r, 5));
     }
+  }
+
+  /** waits (bounded) until the server's `: connected` marker has arrived. The
+   * server writes it before replay, and the synchronous replay writes ride the
+   * same flush — so once this resolves, any replayed frames are already in
+   * `frames`. Replaces a fixed sleep in negative-assertion tests. */
+  async untilConnected(ms = 5000): Promise<void> {
+    const start = Date.now();
+    while (!this.connected) {
+      if (Date.now() - start > ms) throw new Error('SSE never connected');
+      await new Promise((r) => setTimeout(r, 5));
+    }
+  }
+
+  /** resolves when the server ends the stream (e.g. it threw after headers were
+   * sent). A deterministic signal that the request was fully processed. */
+  async waitClosed(ms = 5000): Promise<void> {
+    await Promise.race([
+      this.done,
+      new Promise<void>((_, reject) => setTimeout(() => reject(new Error('stream did not close')), ms)),
+    ]);
   }
 
   async close(): Promise<void> {
@@ -238,7 +266,16 @@ describe('SSE stream (ADR-004)', () => {
     await client.close();
   });
 
-  it('an explicit Last-Event-ID still replays what came after it (resume)', async () => {
+  /**
+   * #117: replay used to accept ANY finite Last-Event-ID, so a client could
+   * send "-1" (or "0") and reach the internal "from the beginning" sentinel,
+   * forcing a full-history re-stream — the exact double-stream the cold-connect
+   * guard exists to prevent, just via an explicit header instead of an absent
+   * one. The parsed cursor is now clamped to >= 0: the smallest legitimate
+   * cursor is 0 ("I already have index 0"), which resumes from index 1. Index 0
+   * is therefore never re-narrated.
+   */
+  it('clamps a negative Last-Event-ID so it cannot force a full-history re-stream (#117)', async () => {
     const h = makeApiHarness();
     const { server, base } = await listen(h);
     servers.push(server);
@@ -249,15 +286,86 @@ describe('SSE stream (ADR-004)', () => {
     h.port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
     h.orch.send(conv.id, 'hello');
     await h.orch.idle();
+    // the whole conversation's replayable history IS in the store (index 0) ...
     expect(h.store.getReplayableEvents(conv.id).length).toBeGreaterThan(0);
+    expect(h.store.getReplayableEvents(conv.id).some((r) => r.index === 0)).toBe(true);
 
-    // "-1" = I have nothing; give me everything. The resume path is unchanged.
+    // ... yet "-1" clamps to 0 and replays only index > 0, so index 0 (all the
+    // baseline fixture has) is withheld: nothing is re-streamed.
     const client = new SseClient(`${base}/api/conversations/${conv.id}/events`, -1);
-    await client.until(
-      (f) => f.filter((x) => x.id !== undefined).length >= 1 && f.some((x) => x.event === 'message.delta'),
-    );
-    const ids = client.frames.filter((f) => f.id !== undefined).map((f) => f.id as number);
-    expect(Math.min(...ids)).toBe(0);
+    // wait for the `: connected` marker the server writes *before* replay; the
+    // synchronous replay rides the same flush, so if the clamp regressed and
+    // index 0 were re-streamed, its frame would already be here.
+    await client.untilConnected();
+    expect(client.frames.filter((f) => f.id !== undefined)).toHaveLength(0);
+    expect(client.frames.filter((f) => f.event === 'message.delta')).toHaveLength(0);
+    await client.close();
+  });
+
+  it('an explicit cursor still resumes everything after it, never re-narrating index 0 (#117)', async () => {
+    const h = makeApiHarness();
+    const { server, base } = await listen(h);
+    servers.push(server);
+    h.orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+    await h.orch.idle();
+    const project = h.store.listProjects()[0]!;
+    const conv = h.orch.createConversation({ projectId: project.id });
+    h.port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.toolshape) });
+    const { run } = h.orch.send(conv.id, 'work please');
+    await h.orch.idle();
+
+    const { sseFromRunEvent } = await import('../src/domain/projections.js');
+    // index 0 always exists (0-based contiguous cursor) — the row we withhold
+    expect(h.store.getReplayableEvents(conv.id).some((r) => r.index === 0)).toBe(true);
+    // exactly what a cursor of 0 must resume: emitting rows with index > 0
+    const expected = h.store
+      .getReplayableEvents(conv.id, 0)
+      .filter((r) => sseFromRunEvent(run.messageId, r.event).length > 0)
+      .map((r) => r.index);
+    expect(expected.length).toBeGreaterThan(0);
+
+    // cursor 0 = "I already have index 0"; clamp is a no-op, resume from 1
+    const client = new SseClient(`${base}/api/conversations/${conv.id}/events`, 0);
+    await client.until((f) => {
+      const seen = new Set(f.filter((x) => x.id !== undefined).map((x) => x.id as number));
+      return expected.every((i) => seen.has(i));
+    });
+    const seen = new Set(client.frames.filter((f) => f.id !== undefined).map((f) => f.id as number));
+    expect(seen.has(0)).toBe(false); // index 0 withheld
+    expect([...seen].sort((a, b) => a - b)).toEqual([...new Set(expected)].sort((a, b) => a - b));
+    await client.close();
+  });
+
+  /**
+   * #117: replay runs AFTER the SSE headers (and `: connected`) are written, so
+   * a throw there cannot become a clean HTTP error — it unwinds to Express with
+   * headers already sent. Cleanup is registered before the replay loop, so the
+   * broadcaster subscription is still torn down; otherwise the closure leaks and
+   * the per-conversation Set grows for the life of the process.
+   */
+  it('a throw during replay still unsubscribes — no leaked subscriber (#117)', async () => {
+    const h = makeApiHarness();
+    const { server, base } = await listen(h);
+    servers.push(server);
+    h.orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+    await h.orch.idle();
+    const project = h.store.listProjects()[0]!;
+    const conv = h.orch.createConversation({ projectId: project.id });
+
+    // force replay to blow up (an id: header takes the replay path)
+    h.store.getReplayableEvents = () => {
+      throw new Error('boom mid-replay');
+    };
+    const byConversation = (h.broadcaster as unknown as { byConversation: Map<string, Set<unknown>> })
+      .byConversation;
+
+    const client = new SseClient(`${base}/api/conversations/${conv.id}/events`, 5);
+    // the replay throw unwinds to Express after headers are sent, so the server
+    // ends the stream; waiting for that close is a deterministic signal the
+    // catch (and its cleanup) has run — no fixed sleep.
+    await client.waitClosed();
+    // cleanup ran in the catch: the subscriber Set was emptied and dropped (#117)
+    expect(byConversation.has(conv.id)).toBe(false);
     await client.close();
   });
 });
