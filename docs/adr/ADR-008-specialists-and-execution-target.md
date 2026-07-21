@@ -20,9 +20,9 @@ Two Phase-1 simplifications block the corrected model (owner directive,
   it forward as a first-class, deterministic function.
 
 The directive also introduces standing, owner-visible **specialist sessions**
-("Claudio — Software Developer", "Claudia — QA Specialist") in the owner's
-admin account: reusable environments for general conversations and
-non-project work. ADR-006 declared that an agent owns no session; doc 18 §10
+("Claudio — Software Developer", "Claudia — QA Specialist", and — added later —
+"Enrique — Software Architect") in the owner's admin account: reusable
+environments for general conversations and non-project work. ADR-006 declared that an agent owns no session; doc 18 §10
 rejected "permanent role × project session combinations". Both need a
 carve-out that does not reintroduce what they rightly killed.
 

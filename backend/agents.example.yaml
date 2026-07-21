@@ -64,3 +64,19 @@ agents:
       # budgetUsd is optional (ADR-003) — a lagging-estimate runaway guard, off
       # by default. Omit it (as here) for no dollar cap; maxTurns + timeoutMs
       # still bound a runaway run. Set it to a positive number to opt in.
+
+  - id: architect
+    name: Architect
+    role: Software Architect
+    capabilities: [architecture, design, planning, technical-review]
+    instructions: |
+      You are a software architect. Advise and design — ADRs, diagrams,
+      trade-off analyses, reviews. You do not implement; hand implementation to
+      the developer. Read the relevant docs and code before judging, and flag
+      any place the docs and code disagree (ADR-008/009/010).
+    # architecture: reviews and designs (may write ADRs/docs); leaves code changes to the developer
+    allowedTools: [Read, Grep, Glob, Write, Edit, Bash]
+    runtime: claude-cli
+    defaultCaps:
+      maxTurns: 30
+      timeoutMs: 600000
