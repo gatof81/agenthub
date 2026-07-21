@@ -34,7 +34,8 @@ One file per role:
 ## Note on persistence
 
 An append made inside a project session is a working-tree change there; it
-becomes durable repo memory only when it flows back as a commit/PR (ADR-010 — the
-project session is the source of truth for its workspace). Until that lands, a
-finding lives only in that session. Keep entries small and PR them promptly so
-the log stays the shared memory it is meant to be.
+becomes durable repo memory only when it flows back as a commit/PR (ADR-010
+defines the code-sharing strategy ladder; the project session being the
+authoritative source of truth for its workspace is its stated premise). Until
+that lands, a finding lives only in that session. Keep entries small and PR them
+promptly so the log stays the shared memory it is meant to be.
