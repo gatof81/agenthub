@@ -364,6 +364,12 @@ export class Orchestrator {
         // conjure (FR-44's principle at bind time)
         throw new Error(`session ${sessionId} not found upstream`);
       }
+      // Verify the runtime is actually usable before marking the project ready
+      // (#112): the create path probes `command -v claude` (B3-08); a bound
+      // session must too, or the Hub binds a session whose CLI is missing/broken
+      // and only finds out at first-turn. Only meaningful while running — a
+      // stopped session is probed when it is started on use (ensureRunnable).
+      if (info.status === 'running') await this.adapter.awaitReady(sessionId);
       this.store.setProjectSession(projectId, {
         sessionId,
         lastKnownState: info.status,
@@ -382,11 +388,17 @@ export class Orchestrator {
       this.store.updateProject(projectId, { status: 'ready' });
       this.notify.projectState(projectId, 'ready');
       this.logger.info('project.bound', { projectId, sessionId });
-    } catch {
+    } catch (err) {
       // The status change is observable via SSE/GET, but not the cause; log
       // it so the failing step is diagnosable, matching this method's own
       // success/inner-catch logging (and `project.restored` in restoreProject).
-      this.logger.warn('project.bind_failed', { projectId, sessionId });
+      // Includes the reason so a readiness failure (#112) reads as such, not a
+      // bare status flip.
+      this.logger.warn('project.bind_failed', {
+        projectId,
+        sessionId,
+        reason: err instanceof Error ? err.message : 'unknown',
+      });
       this.store.updateProject(projectId, { status: 'error' });
       this.notify.projectState(projectId, 'error');
     }
@@ -421,6 +433,11 @@ export class Orchestrator {
       if (info === null) {
         throw new OrchestratorError('session_gone', `session ${bindTo} not found upstream`);
       }
+      // Same readiness check as create (#112, B3-08): a running session must
+      // have the CLI usable before we bind it as the specialist's; the throw
+      // surfaces at bind time instead of the specialist's first turn. A stopped
+      // session is probed when it is started on use (ensureSpecialistSessionRunnable).
+      if (info.status === 'running') await this.adapter.awaitReady(bindTo);
       try {
         await this.execPort.setSessionExternalRef(bindTo, externalRef);
       } catch {

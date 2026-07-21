@@ -328,6 +328,35 @@ describe('specialist session binding (N3b-1, ADR-008)', () => {
       orch.bindSpecialistSession('ghost', { sessionTemplateId: 'tpl' }),
     ).rejects.toBeTruthy();
   });
+
+  it('binding a RUNNING project session probes claude readiness — not-ready → error, not ready (#112)', async () => {
+    const store = new MemoryHubStore();
+    const port = new FakeSubstrateExecPort();
+    port.seedSession({ ...OWNED_SESSION, sessionId: 's_broken' }); // running
+    const adapter = new FakeRuntimeAdapter(port);
+    adapter.awaitReady = () => Promise.reject(new Error('claude not on PATH'));
+    const orch = new Orchestrator({ store, adapter, execPort: port, agents: new Map([[DEV.id, DEV]]) });
+    const created = orch.createProject({
+      name: 'p',
+      defaultAgentId: 'dev',
+      sessionTemplateId: null,
+      existingSessionId: 's_broken',
+    });
+    await settle();
+    // the CLI probe failed, so the project is NOT marked ready with a broken session
+    expect(store.getProject(created.id)!.status).toBe('error');
+  });
+
+  it('binding a RUNNING specialist session probes claude readiness — not-ready → the bind rejects (#112)', async () => {
+    const store = new MemoryHubStore();
+    const port = new FakeSubstrateExecPort();
+    port.seedSession({ ...OWNED_SESSION, sessionId: 's_broken' }); // running
+    const adapter = new FakeRuntimeAdapter(port);
+    adapter.awaitReady = () => Promise.reject(new Error('claude not on PATH'));
+    const orch = new Orchestrator({ store, adapter, execPort: port, agents: new Map([[DEV.id, DEV]]) });
+    await expect(orch.bindSpecialistSession('dev', { sessionId: 's_broken' })).rejects.toThrow(/claude/);
+    expect(store.getSpecialistSession('dev')).toBeUndefined(); // no binding recorded
+  });
 });
 
 describe('direct specialist conversation (N3b-2, ADR-008)', () => {

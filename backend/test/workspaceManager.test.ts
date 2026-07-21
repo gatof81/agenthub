@@ -131,6 +131,9 @@ describe('RealWorkspaceManager (ADR-010 B, offline)', () => {
 
     expect(res.url).toBe('https://github.com/o/r/pull/42');
     const argv = execPort.requests[0]!.req.argv;
+    // #113: wire gh as git's credential helper before pushing, else `git push`
+    // over HTTPS fails non-interactively on a session that never ran setup-git
+    expect(argv[2]).toContain('gh auth setup-git');
     expect(argv[2]).toContain('git -C "$1" push -u origin "$2"');
     expect(argv[2]).toContain('gh pr create --head "$2" --title "$3" --body "$4"');
     // branch/title/body ride as positional params (never shell-interpreted)
