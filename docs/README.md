@@ -35,6 +35,7 @@ its PR state. The work plan below tracks per-PR/build progress separately.
 | [18-agent-collaboration-model.md](./18-agent-collaboration-model.md) | approved — vision, non-normative (not gate-relevant) | 01, 03 |
 | [19-model-correction-plan.md](./19-model-correction-plan.md) | approved (owner, 2026-07-17) — diagnosis, migration plan, N1–N6 backlog | ADR-007..010 |
 | [adr/](./adr/README.md) | ADR-001..012 all accepted | see adr/README.md |
+| [logs/](./logs/README.md) | living — in-repo memory for the stateless specialist roles (architecture / developer / QA) | ADR-008, 18 §2 |
 
 **Specification complete and approved.** Suggested full read-through order: 01 → 02 → 03 → 18 → 15 → 16 → ADR-001..012 → spike results → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 17 → 19.
 
