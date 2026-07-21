@@ -35,8 +35,15 @@ export class Broadcaster implements HubNotifier {
       this.byProject.set(projectId!, proj);
     }
     return () => {
+      // Drop the Set key once empty so the maps do not grow unbounded as
+      // conversations churn — a leaked/never-collected entry per conversation
+      // would otherwise accumulate for the life of the process (#117).
       conv.delete(cb);
-      if (proj) proj.delete(cb);
+      if (conv.size === 0) this.byConversation.delete(conversationId);
+      if (proj) {
+        proj.delete(cb);
+        if (proj.size === 0) this.byProject.delete(projectId!);
+      }
     };
   }
 
