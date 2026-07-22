@@ -107,9 +107,13 @@ back as an empty workspace wearing the old project's name.
   running / cancelled / interrupted / failed / completed-with-denials states
   visually distinct (UX-03); cancel available whenever a run is active
   (UX-04), showing the real kill outcome (FR-20).
-- **Activity inspector** (side panel, expandable): per-run commands, files
-  touched, denials, errors, duration, cost (UX-02); the RunSummary at top
-  (FR-42) — objective, outcome, continuation.
+- **Activity panel** (side panel, expandable): the conversation's **run
+  history, newest first** — the running turn on top with a live state, the
+  already-executed ones below with their outcome (including failed/cancelled,
+  clearly toned). Each entry expands to the full detail (UX-02): the RunSummary
+  (FR-42) — objective, outcome, continuation — plus the ordered step timeline,
+  denials, routing decision, error, duration, cost. This panel is where the
+  turn's tool work lives; the thread keeps only the words (see §6, A).
 - **Terminal panel** (secondary): the project's session terminal (FR-31),
   with an "agent working" indicator while a run is active (FR-32).
 - **Command palette**: create project/conversation, send, cancel, jump,
@@ -178,7 +182,7 @@ back as an empty workspace wearing the old project's name.
 | Run state | Presentation |
 | --- | --- |
 | `queued` | pending indicator; cancelable |
-| `starting` / `streaming` | live spinner + a running **elapsed clock** (`Working 0:42`) so a long turn reads as progressing, not hung, with the turn's tool steps streamed **inline** in order (Bash/Edit/Grep/… and blocked tools) so a multi-step turn is a visible sequence, not one opaque "Working…"; cancel visible, and a follow-up can be queued |
+| `starting` / `streaming` | live spinner + a running **elapsed clock** (`Working 0:42`) so a long turn reads as progressing, not hung, with the turn's **current tool step** shown as a single replaced line (plus a folded step count — the full ordered sequence streams in the activity panel, not the thread) so the turn reads as progressing without an accumulating list; cancel visible, and a follow-up can be queued |
 | `completed` | normal answer |
 | `completed_with_denials` | answer marked partial; denials listed in activity (FR-15) |
 | `cancelled` | cancelled marker + what was killed/swept (FR-20/21); cost `unknown` (UX-06) |
@@ -196,14 +200,21 @@ detail (error detail, denials, cost). A plain `completed` chip is minimal (an
 optional cost); while a run is active the live spinner owns the display and the
 chip is absent.
 
-**A turn renders as ordered bubbles, not one growing blob (A).** The agent
-already "speaks" in several messages per turn, separated by its tool calls; the
-thread shows that shape — a run of text is its own bubble, the tool steps
-between runs render as a labelled step list, so a multi-step turn reads as
-`text → tool → text`. Built live by folding `message.delta` and `activity.item`
-into ordered segments, and rebuilt identically on reload from the assistant
-message's `segments` (08 §1) — a projection over the run's events, so live and
-history match. A turn with no tools stays a single bubble.
+**A turn renders as ordered bubbles, not one growing blob (A) — and the thread
+keeps the words, not the tool noise.** The agent already "speaks" in several
+messages per turn, separated by its tool calls; the thread shows that shape —
+a run of text is its own bubble. The tool steps between runs do **not** render
+as a list in the conversation (they duplicated the activity panel and drowned
+the words): each contiguous group folds into a compact **"N steps" chip** that
+opens the activity panel focused on that run, so a multi-step turn reads as
+`text → [N steps] → text`. Two exceptions stay in the thread, because the
+reader may need to see or act on them: **denials** (⛔ blocked tools) render
+individually, and the **live** turn's trailing group shows its current step as
+one replaced line ("what is it doing right now"). Built live by folding
+`message.delta` and `activity.item` into ordered segments, and rebuilt
+identically on reload from the assistant message's `segments` (08 §1) — a
+projection over the run's events, so live and history match. A turn with no
+tools stays a single bubble.
 
 **A partial answer is never discarded.** Whatever the agent streamed before a
 non-completed end — a `budget_exceeded` or `run_timeout` kill, a user `cancel`,

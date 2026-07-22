@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   appendDelta,
+  collapseSegments,
   describeRunOutcome,
   describeStep,
   formatElapsed,
@@ -216,5 +217,53 @@ describe('appendDelta (A: building the turn as bubbles)', () => {
 
   it('opens the first bubble on an empty turn', () => {
     expect(appendDelta([], 'hi')).toEqual([{ kind: 'text', text: 'hi' }]);
+  });
+});
+
+describe('collapseSegments (conversation declutter)', () => {
+  it('keeps text bubbles and folds a contiguous tool group into its count + current step', () => {
+    const segs: TurnSegment[] = [
+      { kind: 'text', text: 'looking' },
+      { kind: 'command', detail: 'ls', tool: 'Bash' },
+      { kind: 'file', detail: 'a.ts', tool: 'Edit' },
+      { kind: 'text', text: 'done' },
+    ];
+    expect(collapseSegments(segs)).toEqual([
+      { kind: 'text', text: 'looking' },
+      { kind: 'steps', count: 2, denials: [], current: { kind: 'file', detail: 'a.ts', tool: 'Edit' } },
+      { kind: 'text', text: 'done' },
+    ]);
+  });
+
+  it('keeps denials individually visible inside the fold', () => {
+    const segs: TurnSegment[] = [
+      { kind: 'command', detail: 'ls', tool: 'Bash' },
+      { kind: 'denial', detail: 'WebFetch', tool: 'WebFetch' },
+      { kind: 'command', detail: 'pwd', tool: 'Bash' },
+    ];
+    expect(collapseSegments(segs)).toEqual([
+      {
+        kind: 'steps',
+        count: 3,
+        denials: [{ kind: 'denial', detail: 'WebFetch', tool: 'WebFetch' }],
+        current: { kind: 'command', detail: 'pwd', tool: 'Bash' },
+      },
+    ]);
+  });
+
+  it('separate groups (text between them) stay separate folds', () => {
+    const segs: TurnSegment[] = [
+      { kind: 'command', detail: 'a', tool: 'Bash' },
+      { kind: 'text', text: 'mid' },
+      { kind: 'command', detail: 'b', tool: 'Bash' },
+    ];
+    const out = collapseSegments(segs);
+    expect(out).toHaveLength(3);
+    expect(out[0]).toMatchObject({ kind: 'steps', count: 1 });
+    expect(out[2]).toMatchObject({ kind: 'steps', count: 1, current: { detail: 'b' } });
+  });
+
+  it('empty in, empty out', () => {
+    expect(collapseSegments([])).toEqual([]);
   });
 });

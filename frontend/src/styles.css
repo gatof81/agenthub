@@ -646,6 +646,25 @@ button.retry:hover { background: var(--raised); border-color: var(--accent); }
 .load-earlier:hover { background: var(--raised); color: var(--text); border-color: var(--accent); }
 
 /* Inline tool steps (L4): the visible sequence of a multi-step turn. */
+/* — conversation declutter: a turn's tool work folds into a chip; denials and
+     the live current step are the only steps that stay in the thread — */
+.steps-fold { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; margin: 4px 0 2px; }
+.steps-chip {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.steps-chip:hover { color: var(--text); border-color: var(--accent); }
+.steps-fold .step { display: flex; gap: 8px; align-items: baseline; font-size: 12px; color: var(--muted); min-width: 0; }
+.steps-fold .step-icon { color: var(--accent); flex: none; width: 1em; text-align: center; }
+.steps-fold .step-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.steps-fold .step-denial .step-icon { color: var(--danger); }
+.steps-fold .step-current .step-label { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
 .run-steps { list-style: none; margin: 4px 0 2px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .run-steps .step { display: flex; gap: 8px; align-items: baseline; font-size: 12px; color: var(--muted); min-width: 0; }
 .run-steps .step-icon { color: var(--accent); flex: none; width: 1em; text-align: center; }
@@ -719,6 +738,37 @@ button.retry:hover { background: var(--raised); border-color: var(--accent); }
 .inspector code { font-size: 12px; word-break: break-all; }
 .inspector .denials { color: var(--warn); }
 .summary, .routing { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+
+/* — the run-history list: newest (running) on top, executed below — */
+.run-history { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.run-entry { border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+.run-entry-live { border-color: var(--accent); }
+.run-entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: 0;
+  color: var(--text);
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.run-entry-objective {
+  flex: 1 1 100%;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.run-entry-meta { display: flex; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: 11px; }
+.run-entry-meta time { margin-left: auto; }
+.run-entry-task { color: var(--accent); }
+.run-entry-denials { color: var(--warn); }
+.run-entry-detail { padding: 0 10px 10px; border-top: 1px solid var(--border); }
 
 .muted { color: var(--muted); }
 .error { color: var(--danger); }

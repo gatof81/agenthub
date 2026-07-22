@@ -162,6 +162,42 @@ export interface RunDetail {
   summary: RunSummary | null;
 }
 
+// — run history (the activity panel's list, 08 §1) —
+
+/** A lean run row: lifecycle + outcome, never the per-run snapshots. */
+export interface RunHistoryRun {
+  id: string;
+  conversationId: string;
+  messageId: string;
+  state: RunState;
+  model: string | null;
+  killOutcome: string | null;
+  errorCode: string | null;
+  errorDetail: string | null;
+  targetDecision: ExecutionTargetDecision | null;
+  /** non-null marks a task-step run (dev → QA flow, ADR-009) */
+  taskStepId: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+
+/** The light outcome for a list row; the full summary rides `getRun`. */
+export interface RunHistorySummary {
+  objective: string;
+  outcome: RunState;
+  costUsd: number | null;
+  numTurns: number | null;
+  durationMs: number | null;
+  denialCount: number;
+}
+
+export interface RunHistoryEntry {
+  run: RunHistoryRun;
+  /** null while the run is not terminal yet */
+  summary: RunHistorySummary | null;
+}
+
 // — tasks (N5b, ADR-009): the developer → QA → human-approval lifecycle —
 
 export type TaskState =
@@ -415,6 +451,13 @@ export const api = {
       { content },
     ),
   getRun: (id: string) => call<RunDetail>('GET', `/api/runs/${id}`),
+  // The conversation's run history, newest first (running → executed) — the
+  // activity panel's list. Detail per entry still comes from getRun.
+  conversationRuns: (conversationId: string, opts?: { limit?: number }) =>
+    call<{ runs: RunHistoryEntry[]; hasMore: boolean }>(
+      'GET',
+      `/api/conversations/${conversationId}/runs${opts?.limit ? `?limit=${opts.limit}` : ''}`,
+    ),
   cancelRun: (id: string) => call<{ accepted: boolean }>('POST', `/api/runs/${id}/cancel`),
   // Archive is the product's "delete" and is REVERSIBLE (FR-43): archiving a
   // project stops its substrate session, restoring restarts it. The workspace

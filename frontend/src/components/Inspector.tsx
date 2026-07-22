@@ -1,33 +1,99 @@
 /**
- * Activity inspector (UX-02, 11 §4): the RunSummary at the top (FR-42) —
- * objective, outcome, continuation — then commands, files, denials, usage.
- * Never imposed: a side panel on Mac, a sheet on iPhone (UX-01).
+ * Activity panel (UX-01/02, 11 §4): the conversation's RUN HISTORY, newest
+ * first — the running turn on top with a live state, the already-executed ones
+ * below with their outcome. Each entry expands to the full detail (summary,
+ * the ordered step timeline, denials, routing, error) fetched on demand from
+ * `GET /api/runs/:id`. This is where the tool noise lives now — the thread
+ * keeps only the words (conversation-declutter). Never imposed: a side panel
+ * on Mac, a sheet on iPhone (UX-01).
  */
 
-import type { RunDetail } from '../lib/api.js';
+import { useEffect, useRef, useState } from 'react';
+import { api, type RunDetail, type RunHistoryEntry } from '../lib/api.js';
+import {
+  describeRunOutcome,
+  describeStep,
+  isTerminalRun,
+  type LiveRun,
+} from '../lib/runStatus.js';
+import { formatRelativeTime } from '../lib/time.js';
 
 interface Props {
   open: boolean;
-  detail: RunDetail | null;
+  conversationId: string;
+  /** bumped by the thread on run SSE frames, so the list tracks live progress */
+  refreshKey: number;
+  /** the in-flight run, so the top entry can show it is the one working */
+  liveRun: LiveRun | null;
+  /** entry to auto-expand — set when opened from a turn's steps chip */
+  focusRunId: string | null;
   onClose: () => void;
 }
 
-export function Inspector({ open, detail, onClose }: Props): React.JSX.Element | null {
+export function Inspector({
+  open,
+  conversationId,
+  refreshKey,
+  liveRun,
+  focusRunId,
+  onClose,
+}: Props): React.JSX.Element | null {
+  const [entries, setEntries] = useState<RunHistoryEntry[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<RunDetail | null>(null);
+  // out-of-order guards, same discipline as the thread's fetchRunDetail
+  const listSeqRef = useRef(0);
+  const detailSeqRef = useRef(0);
+  // auto-expand happens once per open — after that the reader's collapse wins
+  const autoExpandedRef = useRef(false);
+  const detailRef = useRef<RunDetail | null>(null);
+  detailRef.current = detail;
+
+  useEffect(() => {
+    if (!open) autoExpandedRef.current = false;
+  }, [open]);
+
+  // Follow the chip that opened the panel; re-focus if a different chip is
+  // clicked while already open.
+  useEffect(() => {
+    if (open && focusRunId) {
+      setExpandedId(focusRunId);
+      autoExpandedRef.current = true;
+    }
+  }, [open, focusRunId]);
+
+  useEffect(() => {
+    if (!open) return;
+    const seq = (listSeqRef.current += 1);
+    void api.conversationRuns(conversationId).then((r) => {
+      if (seq !== listSeqRef.current) return;
+      setEntries(r.runs);
+      setHasMore(r.hasMore);
+      // nothing focused yet → the newest entry is the interesting one, once
+      if (!autoExpandedRef.current) {
+        autoExpandedRef.current = true;
+        setExpandedId((cur) => cur ?? r.runs[0]?.run.id ?? null);
+      }
+    });
+  }, [open, conversationId, refreshKey]);
+
+  useEffect(() => {
+    if (!open || !expandedId) {
+      setDetail(null);
+      return;
+    }
+    // an already-loaded terminal run cannot change — skip the refetch churn
+    const cached = detailRef.current;
+    if (cached && cached.run.id === expandedId && isTerminalRun(cached.run.state)) return;
+    const seq = (detailSeqRef.current += 1);
+    void api.getRun(expandedId).then((d) => {
+      if (seq === detailSeqRef.current) setDetail(d);
+    });
+  }, [open, expandedId, refreshKey]);
+
   if (!open) return null;
-  if (!detail) {
-    return (
-      <aside className="inspector">
-        <header>
-          <h3>Activity</h3>
-          <button className="mini" onClick={onClose} aria-label="Close activity">
-            ×
-          </button>
-        </header>
-        <p className="muted">No run yet.</p>
-      </aside>
-    );
-  }
-  const { run, activity, usage, summary } = detail;
+
   return (
     <aside className="inspector">
       <header>
@@ -36,10 +102,79 @@ export function Inspector({ open, detail, onClose }: Props): React.JSX.Element |
           ×
         </button>
       </header>
+      {entries.length === 0 && <p className="muted">No runs yet.</p>}
+      <ol className="run-history">
+        {entries.map((e) => (
+          <RunHistoryRow
+            key={e.run.id}
+            entry={e}
+            live={liveRun !== null && liveRun.runId === e.run.id && !isTerminalRun(liveRun.state)}
+            expanded={expandedId === e.run.id}
+            onToggle={() => setExpandedId((cur) => (cur === e.run.id ? null : e.run.id))}
+            detail={detail && detail.run.id === e.run.id ? detail : null}
+          />
+        ))}
+      </ol>
+      {hasMore && <p className="muted">Showing the latest {entries.length} runs.</p>}
+    </aside>
+  );
+}
 
+function RunHistoryRow({
+  entry,
+  live,
+  expanded,
+  onToggle,
+  detail,
+}: {
+  entry: RunHistoryEntry;
+  live: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  detail: RunDetail | null;
+}): React.JSX.Element {
+  const { run, summary } = entry;
+  const outcome = describeRunOutcome(run, summary);
+  const who = run.targetDecision?.specialistId ?? null;
+  return (
+    <li className={`run-entry${live ? ' run-entry-live' : ''}`}>
+      <button
+        type="button"
+        className="run-entry-head"
+        onClick={onToggle}
+        aria-expanded={expanded}
+      >
+        <span className={`badge state-${run.state}`}>
+          {live && <span className="spinner" />}
+          {outcome ? outcome.label : run.state === 'queued' ? 'Queued' : 'Working…'}
+        </span>
+        <span className="run-entry-objective">{summary?.objective ?? ''}</span>
+        <span className="run-entry-meta">
+          {who && <span>@{who}</span>}
+          {run.taskStepId && <span className="run-entry-task">task step</span>}
+          {summary?.durationMs != null && <span>{(summary.durationMs / 1000).toFixed(1)}s</span>}
+          {summary?.costUsd != null && <span>${summary.costUsd.toFixed(4)}</span>}
+          {summary != null && summary.denialCount > 0 && (
+            <span className="run-entry-denials">⛔ {summary.denialCount}</span>
+          )}
+          <time dateTime={run.createdAt} title={new Date(run.createdAt).toLocaleString()}>
+            {formatRelativeTime(run.createdAt, Date.now())}
+          </time>
+        </span>
+      </button>
+      {expanded &&
+        (detail ? <RunDetailSections detail={detail} /> : <p className="muted">Loading…</p>)}
+    </li>
+  );
+}
+
+/** One run in full: summary, the ordered step timeline, denials, routing, error. */
+function RunDetailSections({ detail }: { detail: RunDetail }): React.JSX.Element {
+  const { run, activity, usage, summary } = detail;
+  return (
+    <div className="run-entry-detail">
       {summary && (
         <section className="summary">
-          <h4>Run summary</h4>
           <dl>
             <dt>Objective</dt>
             <dd>{summary.objective}</dd>
@@ -59,12 +194,6 @@ export function Inspector({ open, detail, onClose }: Props): React.JSX.Element |
                 <dd>{(summary.durationMs / 1000).toFixed(1)}s</dd>
               </>
             )}
-            {summary.denialCount > 0 && (
-              <>
-                <dt>Denials</dt>
-                <dd>{summary.denialCount}</dd>
-              </>
-            )}
           </dl>
           {summary.warnings.length > 0 && (
             <details>
@@ -81,27 +210,24 @@ export function Inspector({ open, detail, onClose }: Props): React.JSX.Element |
         </section>
       )}
 
-      <section>
-        <h4>Commands ({activity.commands.length})</h4>
-        <ul className="mono">
-          {activity.commands.map((c, i) => (
-            <li key={i}>
-              <code>{c}</code>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section>
-        <h4>Files touched ({activity.files.length})</h4>
-        <ul className="mono">
-          {activity.files.map((f, i) => (
-            <li key={i}>
-              <code>{f}</code>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {activity.items.length > 0 && (
+        <section>
+          <h4>Steps ({activity.items.length})</h4>
+          <ul className="run-steps">
+            {activity.items.map((s, i) => {
+              const { icon, label } = describeStep(s);
+              return (
+                <li key={i} className={`step step-${s.kind}`}>
+                  <span className="step-icon" aria-hidden="true">
+                    {icon}
+                  </span>
+                  <span className="step-label">{label}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {activity.denials.length > 0 && (
         <section className="denials">
@@ -162,6 +288,6 @@ export function Inspector({ open, detail, onClose }: Props): React.JSX.Element |
       {usage && usage.source !== 'result-event' && (
         <p className="muted">usage source: {usage.source}</p>
       )}
-    </aside>
+    </div>
   );
 }

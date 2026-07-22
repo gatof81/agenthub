@@ -19,6 +19,7 @@ import {
 import { subscribeConversation, type SseEvent } from '../lib/sse.js';
 import {
   appendDelta,
+  collapseSegments,
   describeRunOutcome,
   describeStep,
   formatElapsed,
@@ -97,6 +98,10 @@ export function Thread({
   const [liveRun, setLiveRun] = useState<LiveRun | null>(null);
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  // The run a steps chip asked the activity panel to focus; null = just open.
+  const [focusRunId, setFocusRunId] = useState<string | null>(null);
+  // Bumped on run SSE frames so the activity panel refetches its history list.
+  const [activityRefresh, setActivityRefresh] = useState(0);
   const [draft, setDraft] = useState('');
   // `restored` is true only when the failing path put the draft back (send), so
   // the banner never claims a restore that did not happen (retry restores nothing).
@@ -264,6 +269,8 @@ export function Thread({
           // a step run finishing advances the task — nudge the open task view (N5b-2b)
           setTaskRefresh((n) => n + 1);
         }
+        // any state change reorders/relabels the activity panel's history
+        setActivityRefresh((n) => n + 1);
       } else if (ev.event === 'message.delta') {
         // fold streamed text into the turn's bubbles (A)
         const d = ev.data;
@@ -288,9 +295,11 @@ export function Thread({
             : prev,
         );
         fetchRunDetail(d.runId);
+        setActivityRefresh((n) => n + 1);
       } else if (ev.event === 'run.summary' || ev.event === 'run.usage') {
         const d = ev.data;
         fetchRunDetail(d.runId);
+        setActivityRefresh((n) => n + 1);
       }
     };
     const handle = subscribeConversation(conversation.id, onEvent, () => void refetch());
@@ -521,11 +530,19 @@ export function Thread({
           )}
           {messages.map((m) =>
             m.role === 'assistant' && m.segments ? (
-              // a tool-using turn: ordered bubbles (text → tool → text), A. The
-              // group is wrapped so its footer has a container to anchor to,
-              // rather than floating as a bare sibling in the scroll region.
+              // a tool-using turn: its words as bubbles, its tool work folded
+              // into a steps chip that opens the activity panel on this run
+              // (conversation-declutter). The group is wrapped so its footer
+              // has a container to anchor to, rather than floating as a bare
+              // sibling in the scroll region.
               <div key={m.id} className="msg-turn">
-                <Segments segments={m.segments} />
+                <Segments
+                  segments={m.segments}
+                  onOpenActivity={() => {
+                    setFocusRunId(m.runId);
+                    setInspectorOpen(true);
+                  }}
+                />
                 <MessageMeta createdAt={m.createdAt} copyText={m.content} />
               </div>
             ) : (
@@ -555,7 +572,14 @@ export function Thread({
           )}
           {liveRun && (
             <>
-              <Segments segments={liveRun.segments} live />
+              <Segments
+                segments={liveRun.segments}
+                live={!isTerminalRun(liveRun.state)}
+                onOpenActivity={() => {
+                  setFocusRunId(liveRun.runId);
+                  setInspectorOpen(true);
+                }}
+              />
               <div className="live-badge">
                 <RunStateBadge run={liveRun} now={clock} />
               </div>
@@ -563,7 +587,13 @@ export function Thread({
           )}
           {outcome && (
             <div className="run-outcome-row">
-              <RunOutcomeChip outcome={outcome} onOpenActivity={() => setInspectorOpen(true)} />
+              <RunOutcomeChip
+                outcome={outcome}
+                onOpenActivity={() => {
+                  setFocusRunId(runDetail?.run.id ?? null);
+                  setInspectorOpen(true);
+                }}
+              />
               {outcome.tone !== 'ok' && (
                 <button
                   type="button"
@@ -637,7 +667,17 @@ export function Thread({
         </footer>
       </main>
 
-      <Inspector open={inspectorOpen} detail={runDetail} onClose={() => setInspectorOpen(false)} />
+      <Inspector
+        open={inspectorOpen}
+        conversationId={conversation.id}
+        refreshKey={activityRefresh}
+        liveRun={liveRun}
+        focusRunId={focusRunId}
+        onClose={() => {
+          setInspectorOpen(false);
+          setFocusRunId(null);
+        }}
+      />
       {openTaskId && (
         <TaskView taskId={openTaskId} refreshKey={taskRefresh} onClose={() => setOpenTaskId(null)} />
       )}
@@ -716,47 +756,72 @@ function RunOutcomeChip({
 }
 
 /**
- * A turn as ordered bubbles (A, 11 §6): each run of assistant text is its own
- * Markdown bubble; the tool steps between them (L4 — Bash/Edit/Grep/… and
- * blocked tools) render as a grouped step list. So a multi-step turn reads as a
- * visible sequence — text → tool → text — instead of one growing blob. The same
- * component renders the live turn and a reloaded turn's persisted segments, so
- * they look identical. (An interactive approval pause is N6's job, not here.)
+ * A turn as ordered bubbles (A, 11 §6), DECLUTTERED: each run of assistant
+ * text is its own Markdown bubble, but the tool steps between them fold into a
+ * compact "N steps" chip that opens the activity panel on this run — the full
+ * ordered timeline lives there now, not in the thread. Two exceptions stay in
+ * the conversation because the reader may need them:
+ *
+ * - denials (⛔) render individually — a blocked tool can require the owner
+ *   to act (allowlist change), so it must not hide behind a count;
+ * - on the LIVE turn, the trailing group also shows its current step as a
+ *   single replaced line — "what is it doing right now", without the noise
+ *   of an accumulating list.
  */
-function Segments({ segments, live }: { segments: TurnSegment[]; live?: boolean }): React.JSX.Element {
-  const out: React.JSX.Element[] = [];
-  for (let i = 0; i < segments.length; ) {
-    const seg = segments[i]!;
-    if (seg.kind === 'text') {
-      out.push(
-        <div key={i} className={`msg msg-assistant${live ? ' msg-live' : ''}`}>
-          <Markdown>{seg.text}</Markdown>
-        </div>,
-      );
-      i += 1;
-    } else {
-      const start = i;
-      const steps: Exclude<TurnSegment, { kind: 'text' }>[] = [];
-      while (i < segments.length && segments[i]!.kind !== 'text') {
-        steps.push(segments[i] as Exclude<TurnSegment, { kind: 'text' }>);
-        i += 1;
-      }
-      out.push(
-        <ul key={`s${start}`} className="run-steps">
-          {steps.map((s, j) => {
-            const { icon, label } = describeStep(s);
-            return (
-              <li key={j} className={`step step-${s.kind}`}>
-                <span className="step-icon" aria-hidden="true">
-                  {icon}
+function Segments({
+  segments,
+  live,
+  onOpenActivity,
+}: {
+  segments: TurnSegment[];
+  live?: boolean;
+  onOpenActivity: () => void;
+}): React.JSX.Element {
+  const collapsed = collapseSegments(segments);
+  return (
+    <>
+      {collapsed.map((seg, i) => {
+        if (seg.kind === 'text') {
+          return (
+            <div key={i} className={`msg msg-assistant${live ? ' msg-live' : ''}`}>
+              <Markdown>{seg.text}</Markdown>
+            </div>
+          );
+        }
+        const isTrailing = i === collapsed.length - 1;
+        const current = live && isTrailing ? describeStep(seg.current) : null;
+        return (
+          <div key={i} className="steps-fold">
+            {seg.denials.map((d, j) => {
+              const { icon, label } = describeStep(d);
+              return (
+                <span key={j} className="step step-denial">
+                  <span className="step-icon" aria-hidden="true">
+                    {icon}
+                  </span>
+                  <span className="step-label">{label}</span>
                 </span>
-                <span className="step-label">{label}</span>
-              </li>
-            );
-          })}
-        </ul>,
-      );
-    }
-  }
-  return <>{out}</>;
+              );
+            })}
+            <button
+              type="button"
+              className="steps-chip"
+              onClick={onOpenActivity}
+              title="Open activity"
+            >
+              ⚙ {seg.count} step{seg.count === 1 ? '' : 's'}
+            </button>
+            {current && (
+              <span className={`step step-current step-${seg.current.kind}`}>
+                <span className="step-icon" aria-hidden="true">
+                  {current.icon}
+                </span>
+                <span className="step-label">{current.label}</span>
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
 }
