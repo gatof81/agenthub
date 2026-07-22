@@ -272,6 +272,12 @@ export interface HubStore {
   createTaskStep(input: CreateTaskStepInput): TaskStep;
   getTaskStep(id: string): TaskStep | undefined;
   listTaskSteps(taskId: string): TaskStep[];
+  /**
+   * Record the CLI continuation handle a step's run reported (#123) — the
+   * step-chain counterpart of setRuntimeSessionId, which step runs never call.
+   * Overwrites (drift is captured, same policy as FR-24 on conversations).
+   */
+  setTaskStepRuntimeSessionId(taskStepId: string, runtimeSessionId: string): void;
   /** Record a work product (ImplementationReport/QaReport, 18 §4 envelope). */
   addWorkProduct(input: NewWorkProduct): WorkProduct;
   listWorkProducts(taskId: string): WorkProduct[];

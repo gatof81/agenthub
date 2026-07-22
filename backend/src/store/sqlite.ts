@@ -279,6 +279,7 @@ interface TaskStepRow {
   kind: TaskStep['kind'];
   specialist_id: string;
   workspace_access: string | null;
+  runtime_session_id: string | null;
   created_at: string;
 }
 function toTaskStep(r: TaskStepRow): TaskStep {
@@ -291,6 +292,7 @@ function toTaskStep(r: TaskStepRow): TaskStep {
     workspaceAccess: r.workspace_access
       ? (JSON.parse(r.workspace_access) as DelegatedWorkspaceAccess)
       : null,
+    runtimeSessionId: r.runtime_session_id,
     createdAt: r.created_at,
   };
 }
@@ -1043,6 +1045,13 @@ export class SqliteHubStore implements HubStore {
       .prepare(`SELECT * FROM task_steps WHERE task_id = ? ORDER BY seq`)
       .all(taskId) as TaskStepRow[];
     return rows.map(toTaskStep);
+  }
+
+  setTaskStepRuntimeSessionId(taskStepId: string, runtimeSessionId: string): void {
+    const res = this.db
+      .prepare(`UPDATE task_steps SET runtime_session_id = ? WHERE id = ?`)
+      .run(runtimeSessionId, taskStepId);
+    if (res.changes !== 1) throw new NotFoundError('task step', taskStepId);
   }
 
   addWorkProduct(input: NewWorkProduct): WorkProduct {

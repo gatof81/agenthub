@@ -698,6 +698,29 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       store.close();
     });
 
+    it('records a task step runtime handle on the STEP, round-tripped, never touching the conversation (#123)', () => {
+      const store = makeStore();
+      const { project, conv } = seedRun(store);
+      const task = store.createTask({ projectId: project.id, sourceConversationId: conv.id });
+      const step = store.createTaskStep({ taskId: task.id, kind: 'implementation', specialistId: 'dev' });
+      expect(step.runtimeSessionId).toBeNull();
+
+      store.setTaskStepRuntimeSessionId(step.id, 'cli-step-1');
+      // read back through BOTH read paths: on SQLite this is the only cover
+      // for the runtime_session_id → runtimeSessionId column mapping
+      expect(store.getTaskStep(step.id)!.runtimeSessionId).toBe('cli-step-1');
+      expect(store.listTaskSteps(task.id)[0]!.runtimeSessionId).toBe('cli-step-1');
+      // the conversation's continuation handle is untouched
+      expect(store.getConversation(conv.id)!.runtimeSessionId).toBeNull();
+
+      // overwrite is allowed — drift is captured (FR-24 policy)
+      store.setTaskStepRuntimeSessionId(step.id, 'cli-step-2');
+      expect(store.getTaskStep(step.id)!.runtimeSessionId).toBe('cli-step-2');
+
+      expect(() => store.setTaskStepRuntimeSessionId('step_missing', 'x')).toThrow(NotFoundError);
+      store.close();
+    });
+
     // — run history (activity panel) —
 
     it('listRunsByConversation returns the conversation runs newest-first, scoped and limited', () => {
