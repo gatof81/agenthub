@@ -96,6 +96,46 @@ export function describeStep(step: LiveStep): { icon: string; label: string } {
   }
 }
 
+/**
+ * A turn's segments with the tool noise folded away (the conversation-declutter
+ * pass): text bubbles stay as they are; each contiguous group of tool steps
+ * collapses to its COUNT — the full ordered list lives in the activity panel,
+ * not the thread. Two exceptions ride along per group, because they are the
+ * steps the reader may need to act on or watch:
+ *
+ * - `denials` — blocked tool calls stay individually visible (a denial can
+ *   mean the owner has to change an allowlist);
+ * - `current` — the group's latest step, which the live turn shows as a
+ *   one-line "what is it doing right now" (replaced, not accumulated).
+ */
+export type CollapsedSegment =
+  | { kind: 'text'; text: string }
+  | { kind: 'steps'; count: number; denials: LiveStep[]; current: LiveStep };
+
+export function collapseSegments(segments: TurnSegment[]): CollapsedSegment[] {
+  const out: CollapsedSegment[] = [];
+  for (const seg of segments) {
+    if (seg.kind === 'text') {
+      out.push(seg);
+      continue;
+    }
+    const last = out[out.length - 1];
+    if (last && last.kind === 'steps') {
+      last.count += 1;
+      if (seg.kind === 'denial') last.denials.push(seg);
+      last.current = seg;
+    } else {
+      out.push({
+        kind: 'steps',
+        count: 1,
+        denials: seg.kind === 'denial' ? [seg] : [],
+        current: seg,
+      });
+    }
+  }
+  return out;
+}
+
 /** The authoritative fields the reconcile needs from a REST `GET /api/runs/:id`. */
 export interface AuthoritativeRun {
   id: string;
