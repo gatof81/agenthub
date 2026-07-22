@@ -698,6 +698,80 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       store.close();
     });
 
+    // — run history (activity panel) —
+
+    it('listRunsByConversation returns the conversation runs newest-first, scoped and limited', () => {
+      const store = makeStore();
+      const { project, conv, run: r1 } = seedRun(store);
+      // r1 must be terminal before a second run can matter for ordering; a
+      // queued pile-up is also legal, but finalize exercises more of the row
+      store.finalizeRun({
+        runId: r1.id,
+        from: 'queued',
+        to: 'cancelled',
+        usage: { totalCostUsd: null, numTurns: null, usage: null, source: 'cancelled-unknown' },
+        summary: summaryFor(r1.id, 'cancelled'),
+      });
+      const r2 = store.sendMessage({
+        conversationId: conv.id,
+        content: 'second',
+        caps: CAPS,
+        policy: POLICY,
+        instructions: INSTRUCTIONS,
+      }).run;
+      const r3 = store.sendMessage({
+        conversationId: conv.id,
+        content: 'third',
+        caps: CAPS,
+        policy: POLICY,
+        instructions: INSTRUCTIONS,
+      }).run;
+      // a run in a DIFFERENT conversation must not leak in
+      const otherConv = store.createConversation({ projectId: project.id, title: 'o', agentId: 'dev' });
+      store.sendMessage({
+        conversationId: otherConv.id,
+        content: 'other',
+        caps: CAPS,
+        policy: POLICY,
+        instructions: INSTRUCTIONS,
+      });
+
+      expect(store.listRunsByConversation(conv.id).map((r) => r.id)).toEqual([r3.id, r2.id, r1.id]);
+      // limit keeps the NEWEST entries
+      expect(store.listRunsByConversation(conv.id, { limit: 2 }).map((r) => r.id)).toEqual([
+        r3.id,
+        r2.id,
+      ]);
+      expect(() => store.listRunsByConversation('conv_missing')).toThrow(NotFoundError);
+      store.close();
+    });
+
+    it('getSummariesByRunIds batches summaries; runs without one are absent', () => {
+      const store = makeStore();
+      const { conv, run: r1 } = seedRun(store);
+      store.finalizeRun({
+        runId: r1.id,
+        from: 'queued',
+        to: 'cancelled',
+        usage: { totalCostUsd: null, numTurns: null, usage: null, source: 'cancelled-unknown' },
+        summary: summaryFor(r1.id, 'cancelled'),
+      });
+      // still queued — non-terminal, so it has no summary yet
+      const r2 = store.sendMessage({
+        conversationId: conv.id,
+        content: 'second',
+        caps: CAPS,
+        policy: POLICY,
+        instructions: INSTRUCTIONS,
+      }).run;
+
+      const byRun = store.getSummariesByRunIds([r1.id, r2.id]);
+      expect(byRun.get(r1.id)).toMatchObject({ runId: r1.id, outcome: 'cancelled' });
+      expect(byRun.has(r2.id)).toBe(false);
+      expect(store.getSummariesByRunIds([]).size).toBe(0);
+      store.close();
+    });
+
     it('upserts, reads, and lists specialist sessions (N3b-1)', () => {
       const store = makeStore();
       expect(store.getSpecialistSession('claudio')).toBeUndefined();

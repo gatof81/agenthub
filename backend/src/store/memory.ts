@@ -397,6 +397,13 @@ export class MemoryHubStore implements HubStore {
     return r ? clone(r) : undefined;
   }
 
+  listRunsByConversation(conversationId: string, opts: { limit?: number } = {}): Run[] {
+    this.mustConversationRef(conversationId);
+    const limit = opts.limit ?? 100;
+    const all = this.runs.filter((r) => r.conversationId === conversationId);
+    return all.slice(Math.max(0, all.length - limit)).reverse().map(clone);
+  }
+
   listRunsByState(states: RunState[]): Run[] {
     return this.runs.filter((r) => states.includes(r.state)).map(clone);
   }
@@ -521,6 +528,15 @@ export class MemoryHubStore implements HubStore {
   getSummary(runId: string): RunSummary | undefined {
     const s = this.summaries.get(runId);
     return s ? clone(s) : undefined;
+  }
+
+  getSummariesByRunIds(runIds: string[]): Map<string, RunSummary> {
+    const result = new Map<string, RunSummary>();
+    for (const id of runIds) {
+      const s = this.summaries.get(id);
+      if (s) result.set(id, clone(s));
+    }
+    return result;
   }
 
   // — tasks (N5a, ADR-009/010) —
