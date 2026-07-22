@@ -211,6 +211,12 @@ export interface HubStore {
   recordRunTarget(runId: string, targetSessionId: string, decision: ExecutionTargetDecision): void;
   getRun(id: string): Run | undefined;
   getRunByMessage(messageId: string): Run | undefined;
+  /**
+   * A conversation's run history, NEWEST first (the activity panel reads it
+   * top-down: running → already executed). `limit` caps the page (default 100);
+   * unknown conversation → NotFoundError, matching listMessages.
+   */
+  listRunsByConversation(conversationId: string, opts?: { limit?: number }): Run[];
   /** Reconciler + queue rebuild (09 §2 partial index). */
   listRunsByState(states: RunState[]): Run[];
   getQueuedRuns(projectId: string): Run[];
@@ -238,6 +244,13 @@ export interface HubStore {
   // — usage & summary —
   getUsage(runId: string): UsageRecord | undefined;
   getSummary(runId: string): RunSummary | undefined;
+  /**
+   * Batch variant of getSummary: the summaries for many runs in one query,
+   * keyed by runId (a run without a summary — non-terminal — is absent from
+   * the map). Avoids the N+1 when the run-history list attaches an outcome to
+   * every entry — one query instead of one per run.
+   */
+  getSummariesByRunIds(runIds: string[]): Map<string, RunSummary>;
 
   // — tasks: developer → QA → human-approval lifecycle (N5a, ADR-009/010) —
   /** Create a task in `planning` — coordinated work born from a routed message. */

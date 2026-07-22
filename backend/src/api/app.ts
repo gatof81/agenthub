@@ -554,6 +554,60 @@ export function buildApp(deps: ApiDeps): express.Express {
   });
 
   // — runs —
+  // A conversation's run history, NEWEST first — the activity panel's list
+  // (running on top, executed below). Entries are LEAN on purpose: lifecycle +
+  // outcome + the light summary, never the per-run snapshots (caps/policy/
+  // instructions) or seam handles that ride `GET /api/runs/:id` — the client
+  // expands an entry with that route.
+  app.get('/api/conversations/:id/runs', (req, res) => {
+    const conversation = store.getConversation(req.params.id);
+    if (!conversation) {
+      res.status(404).json({ code: 'not_found' });
+      return;
+    }
+    const rawLimit = Number(req.query['limit'] ?? 50);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : 50;
+    // one past the page, so `hasMore` needs no second query (same trick as the
+    // messages page); the extra row is the oldest fetched — drop it
+    const fetched = store.listRunsByConversation(conversation.id, { limit: limit + 1 });
+    const hasMore = fetched.length > limit;
+    const rows = hasMore ? fetched.slice(0, limit) : fetched;
+    const summaries = store.getSummariesByRunIds(rows.map((r) => r.id));
+    const runs = rows.map((run) => {
+      const summary = summaries.get(run.id);
+      return {
+        run: {
+          id: run.id,
+          conversationId: run.conversationId,
+          messageId: run.messageId,
+          state: run.state,
+          model: run.model,
+          killOutcome: run.killOutcome,
+          errorCode: run.errorCode,
+          errorDetail: run.errorDetail,
+          targetDecision: run.targetDecision,
+          taskStepId: run.taskStepId,
+          createdAt: run.createdAt,
+          startedAt: run.startedAt,
+          endedAt: run.endedAt,
+        },
+        // the light outcome for the list row; the full summary (files, commands,
+        // warnings) stays on the detail route
+        summary: summary
+          ? {
+              objective: summary.objective,
+              outcome: summary.outcome,
+              costUsd: summary.costUsd,
+              numTurns: summary.numTurns,
+              durationMs: summary.durationMs,
+              denialCount: summary.denialCount,
+            }
+          : null,
+      };
+    });
+    res.json({ runs, hasMore });
+  });
+
   app.get('/api/runs/:id', (req, res) => {
     const run = store.getRun(req.params.id);
     if (!run) {

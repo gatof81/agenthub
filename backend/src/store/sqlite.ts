@@ -774,6 +774,18 @@ export class SqliteHubStore implements HubStore {
     return row ? toRun(row) : undefined;
   }
 
+  listRunsByConversation(conversationId: string, opts: { limit?: number } = {}): Run[] {
+    this.mustConversation(conversationId);
+    const limit = opts.limit ?? 100;
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM runs WHERE conversation_id = ?
+         ORDER BY rowid DESC LIMIT ?`,
+      )
+      .all(conversationId, limit) as RunRow[];
+    return rows.map(toRun);
+  }
+
   listRunsByState(states: RunState[]): Run[] {
     if (states.length === 0) return [];
     const placeholders = states.map(() => '?').join(',');
@@ -920,6 +932,17 @@ export class SqliteHubStore implements HubStore {
       | { summary: string }
       | undefined;
     return row ? (JSON.parse(row.summary) as RunSummary) : undefined;
+  }
+
+  getSummariesByRunIds(runIds: string[]): Map<string, RunSummary> {
+    const result = new Map<string, RunSummary>();
+    if (runIds.length === 0) return result;
+    const placeholders = runIds.map(() => '?').join(',');
+    const rows = this.db
+      .prepare(`SELECT run_id, summary FROM run_summaries WHERE run_id IN (${placeholders})`)
+      .all(...runIds) as Array<{ run_id: string; summary: string }>;
+    for (const row of rows) result.set(row.run_id, JSON.parse(row.summary) as RunSummary);
+    return result;
   }
 
   // — tasks (N5a, ADR-009/010) —
