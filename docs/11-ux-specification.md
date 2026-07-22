@@ -46,7 +46,7 @@ Two first-class web experiences, one backend. No native apps in Phase 1.
 | | Mac (productivity) | iPhone (conversational) |
 | --- | --- | --- |
 | Primary use | deep work: drive projects, inspect runs, manual terminal | check in, steer, approve, read results |
-| Layout | multi-panel (projects · conversation · activity inspector) | single-column, conversation-first |
+| Layout | multi-panel (projects · conversation · activity panel) | single-column, conversation-first |
 | Terminal | secondary panel available (FR-31) | **never required** — no terminal surface at all |
 | Input | keyboard-first: command palette, shortcuts, drag & drop | touch, dictation, share-sheet in |
 | Notifications | in-app | push (Phase 2+, when approvals/long tasks land) |
@@ -72,7 +72,7 @@ Project (the workspace unit — ADR-005)
 
 Navigation entry point is the **project**, matching the mental model
 (ADR-005). A conversation is always viewed inside its project; the activity
-inspector is a peel-back detail (UX-01/02), never imposed.
+panel is a peel-back detail (UX-01/02), never imposed.
 
 The projects home also lists, read-only, the owner's **Sessions** (N1,
 FR-48 — name, owner, state, bound project) and **Specialists** (N3a,
@@ -195,7 +195,7 @@ authoritative run and renders a human label: the error taxonomy code becomes
 prose (`budget_exceeded` → "Budget exceeded", `run_timeout` → "Timed out"; an
 unmapped code falls through to itself, never swallowed), `completed_with_denials`
 names how many tool calls were blocked, `cancelled` names what was killed and
-marks cost `unknown`. The chip links to the activity inspector for the full
+marks cost `unknown`. The chip links to the activity panel for the full
 detail (error detail, denials, cost). A plain `completed` chip is minimal (an
 optional cost); while a run is active the live spinner owns the display and the
 chip is absent.
