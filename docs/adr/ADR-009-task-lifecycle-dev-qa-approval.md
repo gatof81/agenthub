@@ -121,3 +121,14 @@ its cycles to a generic `failed`. Two guards close that class:
 
 The router still *proposes*; these guards are the orchestrator/supervisor
 *disposing* (01 §3) — a model never places itself in the implementation seat.
+
+## Seat precedence (amended, ADR-015)
+
+ADR-015 supersedes the #124 amendment's precedence rule above. The
+implementation seat is no longer "the router's pick, rerouted only when it
+cannot implement" — the **conversation's own agent takes the seat first**
+whenever it is implementation-capable (the entity that already holds the
+context implements by default), then the router's proposal when capable, then
+the first capable specialist by stable id order. The QA specialist is never
+eligible, and "no capable specialist → normal turn" is unchanged. Rationale
+and trade-offs in ADR-015.
