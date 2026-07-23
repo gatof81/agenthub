@@ -159,12 +159,22 @@ export class Supervisor {
         specialistId: devSpecialistId,
         workspaceAccess: accessFor(workspace, 'implementation'),
       });
-      const devPrompt = pendingFeedback
+      const base = pendingFeedback
         ? `${objective}\n\nThe owner requested changes — address them:\n${pendingFeedback}`
         : cycle === 0
           ? objective
           : `${objective}\n\nQA requested changes — address them:\n${JSON.stringify(this.lastQaReport(task.id))}`;
       pendingFeedback = null; // consumed by this (first) developer turn
+      // Owner steering queued while the task ran (ADR-014, I-14): drained
+      // read-and-clear at this — the developer — boundary, so each note lands
+      // in exactly one prompt. Steering that arrives after the LAST developer
+      // turn (e.g. mid-QA) survives in the queue and folds into the next
+      // resume's first developer prompt rather than being lost.
+      const steering = this.store.drainTaskFeedback(task.id);
+      const devPrompt =
+        steering.length > 0
+          ? `${base}\n\nThe owner added while the task was running — take it into account:\n- ${steering.join('\n- ')}`
+          : base;
       const dev = await this.runner.runStep({
         taskId: task.id,
         taskStepId: devStep.id,

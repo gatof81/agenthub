@@ -551,6 +551,7 @@ export class MemoryHubStore implements HubStore {
       sourceMessageId: input.sourceMessageId ?? null,
       state: 'planning',
       pullRequestUrl: null,
+      pendingFeedback: [],
       createdAt: now,
       updatedAt: now,
     };
@@ -589,6 +590,22 @@ export class MemoryHubStore implements HubStore {
     task.pullRequestUrl = url;
     task.updatedAt = this.now();
     return clone(task);
+  }
+
+  appendTaskFeedback(taskId: string, note: string): Task {
+    const task = this.tasks.find((t) => t.id === taskId);
+    if (!task) throw new NotFoundError('task', taskId);
+    task.pendingFeedback.push(note);
+    task.updatedAt = this.now();
+    return clone(task);
+  }
+
+  drainTaskFeedback(taskId: string): string[] {
+    const task = this.tasks.find((t) => t.id === taskId);
+    if (!task) throw new NotFoundError('task', taskId);
+    const drained = task.pendingFeedback;
+    task.pendingFeedback = [];
+    return drained;
   }
 
   createTaskStep(input: CreateTaskStepInput): TaskStep {

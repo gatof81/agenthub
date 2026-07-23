@@ -82,6 +82,10 @@ Reversible: this is orchestration policy over existing state — no migration
 (`tasks.source_conversation_id` already exists; enforcement is the envelope
 gate plus a supervisor feedback fold).
 
+Amendment (2026-07-23): the "no migration" note above covers the I-14 gate
+only. The steering-queue storage requires migration 012
+(`tasks += pending_feedback`), added in the implementation increment.
+
 ## Consequences
 
 - **Kills the spawn storm class.** Retries and follow-ups converge on the one
@@ -101,5 +105,5 @@ gate plus a supervisor feedback fold).
   conversation waits for the active task (or the user splits explicitly).
   That friction is chosen over the system guessing topic boundaries.
 - Follow-ups: implementation increment (envelope gate + steer fold + UI
-  affordance); ADR-012 §Decision amendment; doc 04 gains I-14; doc 05 UC
+  affordance); ADR-012 §Decision amendment; doc 06 gains I-14; doc 05 UC
   update for the steering flow.

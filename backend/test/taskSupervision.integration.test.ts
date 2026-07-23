@@ -213,6 +213,66 @@ function suite(name: string, makeStore: () => HubStore): void {
       store.close();
     });
 
+    it('a work-shaped message during an active task steers it — never a sibling (I-14, ADR-014)', async () => {
+      const { store, port, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject();
+      const conv = orch.createConversation({ projectId: project.id, mode: 'automatic' });
+
+      // an active (mid-flight) task on the conversation, seeded directly — the
+      // gate reads the store, not the supervisor's in-memory loop
+      const active = store.createTask({
+        projectId: project.id,
+        sourceConversationId: conv.id,
+        sourceMessageId: 'msg_kickoff',
+      });
+      store.transitionTask(active.id, 'planning', 'implementing');
+
+      const { run } = orch.send(conv.id, 'also update the docs');
+      await orch.idle();
+
+      // no sibling task, no substrate turn — the message queued as steering
+      expect(store.listTasks({ projectId: project.id })).toHaveLength(1);
+      expect(port.execRequests).toHaveLength(0);
+      expect(store.getTask(active.id)!.pendingFeedback).toEqual(['also update the docs']);
+      expect(store.getRun(run.id)!.state).toBe('completed');
+      const reply = store.listMessages(conv.id).at(-1)!;
+      expect(reply.role).toBe('assistant');
+      expect(reply.content).toContain('folded into its next developer step');
+      store.close();
+    });
+
+    it('steering a task awaiting approval re-enters the loop through changes_requested_by_user (ADR-014)', async () => {
+      const { store, port, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject();
+      const conv = orch.createConversation({ projectId: project.id, mode: 'automatic' });
+
+      // round 1: a full dev → QA pass to awaiting_human_approval
+      port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+      port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+      orch.send(conv.id, 'implement feature X');
+      await orch.idle();
+      const task = store.listTasks({ projectId: project.id })[0]!;
+      expect(task.state).toBe('awaiting_human_approval');
+
+      // the owner answers in CHAT instead of using the approve/reject buttons
+      port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+      port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+      orch.send(conv.id, 'please also add tests');
+      await orch.idle();
+
+      // still ONE task — re-entered and completed another dev → QA round
+      expect(store.listTasks({ projectId: project.id })).toHaveLength(1);
+      expect(store.getTask(task.id)!.state).toBe('awaiting_human_approval');
+      expect(store.listTaskSteps(task.id)).toHaveLength(4);
+      // the resume's developer prompt carried the chat note as the change request
+      const devPrompt = store
+        .listMessages(conv.id)
+        .find((m) => m.role === 'user' && m.content.includes('owner requested changes'));
+      expect(devPrompt).toBeDefined();
+      expect(devPrompt!.content).toContain('please also add tests');
+      store.close();
+    });
+
     it('a task routed to a non-implementing specialist reroutes the dev step to a capable one (#124)', async () => {
       const { store, port, orch, readyProject } = makeHarness(makeStore());
       const project = await readyProject();

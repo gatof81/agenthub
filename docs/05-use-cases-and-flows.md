@@ -1,6 +1,6 @@
 # 05 — Use Cases and Flows (Phase 1)
 
-**Status:** approved (owner, 2026-07-15; UC-01 amended per ADR-007, owner 2026-07-17) · **Last updated:** 2026-07-17
+**Status:** approved (owner, 2026-07-15; UC-01 amended per ADR-007, owner 2026-07-17; UC-12/UC-13 amended per ADR-014, owner 2026-07-23) · **Last updated:** 2026-07-23
 
 Flows for the Phase-1 MVP, traceable to [04-requirements.md](./04-requirements.md).
 Participants: **UI** (frontend) · **Hub** (backend: API, run orchestrator,
@@ -277,8 +277,11 @@ writes what they need without naming a specialist:
    the project's primary session by default (it has the repo, local changes,
    credentials), a specialist session only for a recorded reason (ADR-008/010).
 4. The **orchestrator disposes**: validates the proposal against the real
-   specialist set, permissions, caps, queues, and the per-workspace lock (I-2),
-   then runs the turn in the chosen session. The `ExecutionTargetDecision`
+   specialist set, permissions, caps, queues, and the per-workspace lock (I-2).
+   Before dispatch it enforces **I-14** (ADR-014): a `task` proposal while the
+   conversation already has a non-terminal task **steers** that task instead of
+   running a new turn or spawning a sibling (see UC-13). Otherwise the turn
+   runs in the chosen session. The `ExecutionTargetDecision`
    (who ran, where, why, alternatives) persists on the run (migration 007).
 5. The chat surfaces the routed specialist; the run inspector shows the full
    decision (surfaced there, not necessarily the main chat, ADR-008).
@@ -287,6 +290,32 @@ writes what they need without naming a specialist:
    deterministic router (the conversation's own specialist). Automatic mode
    never breaks a turn; the recorded reason names the fallback. `direct` mode
    interposes no model call.
+
+## UC-13 — Message during an active task (steering, I-14)
+
+A conversation holds at most one non-terminal task (I-14, ADR-014). The owner
+keeps talking while it runs:
+
+1. A message arrives on the conversation. The router classifies it as usual
+   (UC-12 step 2).
+2. `question` → a normal turn: the conversation's specialist answers with
+   task context (status, reasoning). Read-only with respect to the task.
+3. `task` (work-shaped) → the envelope gate finds the active task and
+   **steers** it — never a sibling:
+   - task mid-flight (`planning`…`changes_requested_by_qa`) → the message is
+     queued as pending feedback (migration 012) and the supervisor folds it
+     into the **next developer prompt**; a running step is never interrupted
+     (cancel remains the explicit interrupt). Feedback that lands after the
+     last developer turn survives for the next resume — never lost.
+   - task `awaiting_human_approval` → the message is the owner's change
+     request: the task re-enters the loop through `changes_requested_by_user`
+     with the message as the note (the N6 approve/reject affordances remain
+     the formal verdict).
+4. Either way the message's run completes as a light envelope run (no
+   substrate turn) whose answer says what happened to the steering.
+5. After the task reaches a terminal state, the conversation is free: the
+   next work-shaped message starts the next task in the same thread. The only
+   earlier split is an explicit user affordance (#128) — never inferred.
 
 ## Coverage map
 
@@ -303,7 +332,8 @@ writes what they need without naming a specialist:
 | UC-09 | FR-19/31/32, UX-05 |
 | UC-10 | OPS-01/02/03 |
 | UC-11 | FR-40/43/44, I-12, UX-08 |
-| UC-12 | ADR-008/010/012, SEC-01, I-2/I-8 |
+| UC-12 | ADR-008/010/012, SEC-01, I-2/I-8/I-14 |
+| UC-13 | ADR-014, I-14 (steering; migration 012) |
 
 Not flow-shaped (hence absent above): SEC-01/02/04/05/08/10/11 (enforcement and
 cross-cutting security properties, asserted in code review and tests, not in

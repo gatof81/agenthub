@@ -268,6 +268,18 @@ export interface HubStore {
   transitionTask(taskId: string, from: TaskState, to: TaskState): Task;
   /** Record the PR opened on approval (N6b). */
   setTaskPullRequestUrl(taskId: string, url: string): Task;
+  /**
+   * Queue an owner steering note on a running task (ADR-014, I-14) — appended,
+   * one tx, updatedAt stamped. The supervisor drains the queue at the next
+   * developer boundary.
+   */
+  appendTaskFeedback(taskId: string, note: string): Task;
+  /**
+   * Read-and-clear the queued steering atomically: returns the notes in
+   * arrival order and empties the queue in the same tx, so a note is folded
+   * into exactly one developer prompt.
+   */
+  drainTaskFeedback(taskId: string): string[];
   /** Append a step; its `seq` is the next in the task's order. */
   createTaskStep(input: CreateTaskStepInput): TaskStep;
   getTaskStep(id: string): TaskStep | undefined;

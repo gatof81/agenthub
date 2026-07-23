@@ -32,6 +32,7 @@ import {
   type WorkspaceManagerPort,
 } from '../domain/ports.js';
 import { isTerminal } from '../domain/runStateMachine.js';
+import { isTerminalTask } from '../domain/taskStateMachine.js';
 import { DeterministicRouter } from './router.js';
 import { DeterministicReportExtractor } from './reportExtractor.js';
 import { FakeWorkspaceManager, workspaceFromSteps } from './workspaceManager.js';
@@ -1057,9 +1058,52 @@ export class Orchestrator {
     userMessageContent: string,
     task: Task,
   ): void {
+    this.finalizeEnvelopeRun(
+      run,
+      conversation,
+      userMessageContent,
+      `Started task ${task.id}. Routing to the developer, then QA; you'll be asked to approve the result.`,
+    );
+  }
+
+  /**
+   * Steer the conversation's active task with a work-shaped message (ADR-014):
+   * from `awaiting_human_approval` the message is the owner's change request —
+   * re-enter the loop through the existing N6 path; from any other live state
+   * it queues as pending feedback, drained into the next developer prompt (a
+   * running step is one CLI turn and is never interrupted — cancel is the
+   * explicit interrupt).
+   */
+  private steerTask(run: Run, conversation: Conversation, task: Task, note: string): void {
+    if (task.state === 'awaiting_human_approval') {
+      this.requestTaskChanges(task.id, note);
+      this.finalizeEnvelopeRun(
+        run,
+        conversation,
+        note,
+        `Changes requested on task ${task.id} — re-entering the developer → QA loop.`,
+      );
+    } else {
+      this.store.appendTaskFeedback(task.id, note);
+      this.finalizeEnvelopeRun(
+        run,
+        conversation,
+        note,
+        `Noted — task ${task.id} is running; your message will be folded into its next developer step.`,
+      );
+    }
+    this.logger.info('task.steered', { taskId: task.id, runId: run.id, taskState: task.state });
+  }
+
+  /** Seal a light envelope run (kickoff or steer): no substrate turn, a short note as the answer. */
+  private finalizeEnvelopeRun(
+    run: Run,
+    conversation: Conversation,
+    userMessageContent: string,
+    note: string,
+  ): void {
     this.store.transitionRun(run.id, 'starting', 'streaming');
     this.notify.runState(conversation.id, { runId: run.id, state: 'streaming' });
-    const note = `Started task ${task.id}. Routing to the developer, then QA; you'll be asked to approve the result.`;
     this.finalize(run, 'streaming', 'completed', {
       usageSource: 'result-event',
       assistantContent: note,
@@ -1339,6 +1383,18 @@ export class Orchestrator {
       conversation.projectId !== null &&
       this.qaSpecialistId !== null
     ) {
+      // I-14 (ADR-014): a conversation has at most ONE active task. A
+      // work-shaped message while one runs STEERS it — folded at the next
+      // step boundary, or re-entering the loop from awaiting_human_approval —
+      // never a sibling task. Questions fall through to a normal turn above
+      // (workType 'question' never reaches this branch).
+      const activeTask = this.store
+        .listTasks({ sourceConversationId: conversation.id })
+        .find((t) => !isTerminalTask(t.state));
+      if (activeTask) {
+        this.steerTask(run, conversation, activeTask, userMessageContent);
+        return null; // the steer run executes no turn
+      }
       const devSpecialistId = this.resolveDevSpecialist(proposal, conversation);
       if (devSpecialistId !== null) {
         if (devSpecialistId !== proposal.specialistId) {

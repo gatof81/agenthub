@@ -100,3 +100,14 @@ Option 3.
   cheap and sub-second. Direct mode interposes no model call.
 - ADR-008's "default `automatic` once N4b lands" takes effect here; ADR-001's
   Status records this single control-plane carve-out (amended 2026-07-19).
+
+## Amendment — `task` under an active task means *steer* (ADR-014, 2026-07-23)
+
+The router's contract is unchanged — it still proposes
+`{workType: question | task, specialistId, reason}` per message. What changed
+is the **orchestrator's interpretation** under I-14 (ADR-014): while the
+conversation has a non-terminal task, a `task` classification is read as
+*steer the running task* (queued feedback, or the `changes_requested_by_user`
+re-entry from `awaiting_human_approval`) and **never** spawns a sibling. The
+router remains a proposer; the envelope gate is the deterministic authority
+that enforces I-14 (01 §3 — a model never mints a task).
