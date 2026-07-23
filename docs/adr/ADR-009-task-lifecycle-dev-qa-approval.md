@@ -132,3 +132,15 @@ context implements by default), then the router's proposal when capable, then
 the first capable specialist by stable id order. The QA specialist is never
 eligible, and "no capable specialist → normal turn" is unchanged. Rationale
 and trade-offs in ADR-015.
+
+## The design consult (amended, ADR-015)
+
+The loop gains one optional, bounded step kind: **`design`** — the architect
+consult ADR-015 decided. When a developer step's output carries the
+`NEEDS_DESIGN: <question>` marker, the supervisor runs one read-only step by
+the configured design specialist (declared `architecture`/`design`
+capability), records its **DesignBrief** work product, and re-runs the
+developer with the brief folded into the prompt — the same fold QA feedback
+uses. At most one consult per QA cycle; no design specialist configured or a
+failed consult run → a logged no-op, the loop proceeds. The consult advises;
+it never gates: QA and owner approval remain the only gates.
