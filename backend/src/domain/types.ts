@@ -418,7 +418,7 @@ export interface TaskStep {
   id: string;
   taskId: string;
   seq: number;
-  kind: 'implementation' | 'qa';
+  kind: 'implementation' | 'qa' | 'design';
   specialistId: string;
   /** the audited workspace grant for this step (ADR-010); null for pre-N5b-2 rows. */
   workspaceAccess: DelegatedWorkspaceAccess | null;
@@ -460,6 +460,19 @@ export interface QaReport {
  * body). `RunSummary` is the first member (ADR-009); these extend it with the
  * task-level reports. The body is a discriminated union on `kind`.
  */
+/**
+ * The architect consult's product (ADR-015): a bounded, read-only design step
+ * requested on demand (NEEDS_DESIGN marker, QA flag, or the owner). Folded
+ * into the next developer prompt like QA feedback; never a gate.
+ */
+export interface DesignBrief {
+  objective: string;
+  constraints: string[];
+  approach: string;
+  risks: string[];
+  outOfScope: string[];
+}
+
 export type WorkProduct = {
   id: string;
   taskId: string;
@@ -471,4 +484,5 @@ export type WorkProduct = {
 } & (
   | { kind: 'implementation_report'; body: ImplementationReport }
   | { kind: 'qa_report'; body: QaReport }
+  | { kind: 'design_brief'; body: DesignBrief }
 );

@@ -243,7 +243,7 @@ export interface TaskStep {
   id: string;
   taskId: string;
   seq: number;
-  kind: 'implementation' | 'qa';
+  kind: 'implementation' | 'qa' | 'design';
   specialistId: string;
   workspaceAccess: DelegatedWorkspaceAccess | null;
   createdAt: string;
@@ -259,6 +259,15 @@ export interface ImplementationReport {
   commitOrPatch: string | null;
 }
 
+/** The architect consult's product (ADR-015) — advisory, read-only. */
+export interface DesignBrief {
+  objective: string;
+  constraints: string[];
+  approach: string;
+  risks: string[];
+  outOfScope: string[];
+}
+
 export interface QaReport {
   requirementsReviewed: string[];
   testsRun: string[];
@@ -272,10 +281,10 @@ export interface WorkProduct {
   id: string;
   taskId: string;
   taskStepId: string | null;
-  kind: 'implementation_report' | 'qa_report';
+  kind: 'implementation_report' | 'qa_report' | 'design_brief';
   producerSpecialistId: string;
   runId: string | null;
-  body: ImplementationReport | QaReport;
+  body: ImplementationReport | QaReport | DesignBrief;
   createdAt: string;
 }
 

@@ -201,6 +201,11 @@ reusable — it is the first concrete member of this family, and Phase 4
 generalizes by **extension of the envelope, not redesign**. The family
 contract is the envelope; payload schemas stay per-type and evolve freely.
 
+Concrete members so far: `RunSummary` (the seed), `ImplementationReport` and
+`QaReport` (the task loop's products, ADR-009), and `DesignBrief` (the
+architect consult's product, ADR-015 — advisory, produced by a read-only
+`design` step and consumed by the next developer prompt).
+
 ## 5. Knowledge Flow and Context Packages
 
 The collaboration failure mode to design against: delegation degenerating

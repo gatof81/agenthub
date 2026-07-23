@@ -86,3 +86,9 @@ agents:
     defaultCaps:
       maxTurns: 30
       timeoutMs: 600000
+
+# The `architecture` / `design` tags are also load-bearing (ADR-015): the
+# specialist that DECLARES one of them (first by id order; never the QA
+# specialist) serves the task loop's on-demand design consults — a read-only
+# step whose DesignBrief folds into the developer's next prompt. Nobody
+# declares them -> consults are a logged no-op, never a blocker.

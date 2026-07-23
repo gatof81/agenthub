@@ -234,6 +234,20 @@ export class Orchestrator {
     this.logger = deps.logger ?? NOOP_LOGGER;
     this.metrics = deps.metrics ?? NOOP_METRICS;
     this.workspaceManager = deps.workspaceManager ?? new FakeWorkspaceManager();
+    this.qaSpecialistId = deps.qaSpecialistId ?? null;
+    // The design-consult specialist (ADR-015): the first agent by stable id
+    // order whose DECLARED capabilities include architecture/design — the
+    // opposite default from the implementation gate: a consult is claimed by
+    // declaring the craft, never assigned to an unconstrained agent. QA is
+    // never the consultant. None configured → consults are a logged no-op.
+    const designCapable = [...this.agents.values()]
+      .filter(
+        (a) =>
+          a.id !== this.qaSpecialistId &&
+          (a.capabilities?.includes('architecture') === true ||
+            a.capabilities?.includes('design') === true),
+      )
+      .sort((a, b) => a.id.localeCompare(b.id));
     this.supervisor = new Supervisor({
       store: this.store,
       // the step machinery is the run loop itself, wrapped behind the seam the
@@ -243,8 +257,8 @@ export class Orchestrator {
       workspace: this.workspaceManager,
       logger: this.logger,
       ...(deps.maxQaCycles !== undefined ? { maxQaCycles: deps.maxQaCycles } : {}),
+      designSpecialistId: designCapable[0]?.id ?? null,
     });
-    this.qaSpecialistId = deps.qaSpecialistId ?? null;
   }
 
   // — N1: session discovery (FR-48, ADR-007) —

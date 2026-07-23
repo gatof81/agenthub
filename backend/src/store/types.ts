@@ -35,6 +35,7 @@ import type {
   WorkProduct,
   ImplementationReport,
   QaReport,
+  DesignBrief,
 } from '../domain/types.js';
 
 export interface CreateProjectInput {
@@ -318,6 +319,7 @@ export type NewWorkProduct = {
 } & (
   | { kind: 'implementation_report'; body: ImplementationReport }
   | { kind: 'qa_report'; body: QaReport }
+  | { kind: 'design_brief'; body: DesignBrief }
 );
 
 /** Event types that participate in SSE Last-Event-ID replay (08 §3). */
