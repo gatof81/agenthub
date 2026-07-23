@@ -64,6 +64,7 @@ import type {
   SweepResult,
   Task,
   TaskState,
+  TaskStep,
   TerminalRunState,
   UsageSource,
 } from '../domain/types.js';
@@ -979,6 +980,26 @@ export class Orchestrator {
     };
   }
 
+  /**
+   * The `--resume` handle for a task step (#123): the latest recorded handle
+   * of a PRIOR step of the same task + specialist + kind, so an implementer's
+   * attempt N continues attempt N-1 and a QA cycle continues its own previous
+   * cycle — never another role's CLI context, and never the conversation's
+   * handle. First step of a chain → null (fresh CLI conversation).
+   */
+  private stepResumeSessionId(step: TaskStep): string | null {
+    const prior = this.store
+      .listTaskSteps(step.taskId)
+      .filter(
+        (s) =>
+          s.seq < step.seq &&
+          s.specialistId === step.specialistId &&
+          s.kind === step.kind &&
+          s.runtimeSessionId !== null,
+      );
+    return prior.at(-1)?.runtimeSessionId ?? null;
+  }
+
   /** Resolve when `runId` reaches a terminal state (woken by `finalize`), or now if already there. */
   private awaitRunTerminal(runId: string): Promise<void> {
     const run = this.store.getRun(runId);
@@ -1399,16 +1420,23 @@ export class Orchestrator {
     // directory is the step's audited DelegatedWorkspaceAccess.path — the single
     // source of truth for where the step was granted to run. Null path (an
     // ordinary run, or the strategy-A fallback) → the session's default root.
-    const workingDir =
-      run.taskStepId !== null
-        ? this.store.getTaskStep(run.taskStepId)?.workspaceAccess?.path ?? null
-        : null;
+    const step = run.taskStepId !== null ? (this.store.getTaskStep(run.taskStepId) ?? null) : null;
+    const workingDir = step?.workspaceAccess?.path ?? null;
+
+    // The continuation handle (#123). A step run resumes ITS OWN chain — the
+    // latest handle of the same task + specialist + kind — never the
+    // conversation's: a worktree step's CLI conversation is scoped to the
+    // worktree cwd, so resuming (or, worse, overwriting) the conversation
+    // handle poisons every post-task turn once the worktree is cleaned up,
+    // and it bled CLI context across roles (QA resumed the implementer's
+    // session). An ordinary run keeps the conversation handle (FR-24).
+    const resumeSessionId = step ? this.stepResumeSessionId(step) : conversation.runtimeSessionId;
 
     const turn: TurnRequest = {
       prompt: message.content,
       policy: run.policySnapshot,
       caps: run.capsSnapshot,
-      runtimeSessionId: conversation.runtimeSessionId,
+      runtimeSessionId: resumeSessionId,
       env: { ...this.runEnv, HUB_RUN_ID: run.id },
       // Snapshotted at send like policy and caps (I-8), not read from live
       // config: a queued run survives a restart, and the restart re-reads
@@ -1421,7 +1449,7 @@ export class Orchestrator {
     let seq = 0;
     let resultMeta: Extract<AdapterItem, { kind: 'result' }> | null = null;
     let exitMeta: Extract<AdapterItem, { kind: 'exit' }> | null = null;
-    let runtimeSessionId = conversation.runtimeSessionId;
+    let runtimeSessionId = resumeSessionId;
     let execId: string | null = null;
     let estimatedCostUsd = 0;
     const stderr: string[] = [];
@@ -1494,7 +1522,10 @@ export class Orchestrator {
             });
             if (item.runtimeSessionId) {
               runtimeSessionId = item.runtimeSessionId;
-              this.store.setRuntimeSessionId(conversation.id, item.runtimeSessionId);
+              // a step's handle lands on ITS row; only an ordinary run may
+              // touch the conversation's (#123)
+              if (step) this.store.setTaskStepRuntimeSessionId(step.id, item.runtimeSessionId);
+              else this.store.setRuntimeSessionId(conversation.id, item.runtimeSessionId);
             }
             break;
           case 'event':
@@ -1522,7 +1553,8 @@ export class Orchestrator {
             resultMeta = item;
             if (item.runtimeSessionId && item.runtimeSessionId !== runtimeSessionId) {
               runtimeSessionId = item.runtimeSessionId; // drift is captured (FR-24)
-              this.store.setRuntimeSessionId(conversation.id, item.runtimeSessionId);
+              if (step) this.store.setTaskStepRuntimeSessionId(step.id, item.runtimeSessionId);
+              else this.store.setRuntimeSessionId(conversation.id, item.runtimeSessionId);
             }
             break;
           case 'exit':

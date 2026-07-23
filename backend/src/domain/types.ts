@@ -415,6 +415,16 @@ export interface TaskStep {
   specialistId: string;
   /** the audited workspace grant for this step (ADR-010); null for pre-N5b-2 rows. */
   workspaceAccess: DelegatedWorkspaceAccess | null;
+  /**
+   * The CLI continuation handle this step's run produced (#123, migration
+   * 011) — the step-chain counterpart of `Conversation.runtimeSessionId`,
+   * which a step run must NEVER touch: a worktree step's CLI conversation is
+   * scoped to the worktree cwd, so sharing the conversation handle poisons
+   * every post-task turn once the worktree is cleaned up. A later step of the
+   * same task + specialist + kind resumes the latest of these; null until the
+   * step's run reports one (or for pre-011 rows).
+   */
+  runtimeSessionId: string | null;
   createdAt: string;
 }
 

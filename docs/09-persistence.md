@@ -183,6 +183,8 @@ never a half-migrated serving process.
 | 003 | `runs.instructions_snapshot` — the role travels per turn and is recorded per run (B5-04, I-8). No backfill: pre-B5-04 rows stay NULL, meaning *unrecorded* |
 | 004–007 | The model-correction increments (N2–N4a): project session binding + ownership (004); `specialist_sessions` (005); conversation `mode` + nullable `project_id` (006); `runs.target_session_id`/`target_decision` (007). Full table with rationale in [doc 19 §5](./19-model-correction-plan.md) |
 | 008 | Tasks (N5a, ADR-009): new `tasks`, `task_steps`, `work_products`; `runs += task_step_id`. Forward-only, no backfill (no pre-N5 tasks). The dev → QA → human-approval `TaskState` machine (`taskStateMachine.ts`) and the `ImplementationReport`/`QaReport` bodies (stored as JSON, like the caps/policy/decision snapshots) live in the domain; the table shapes are in [06 §2](./06-domain-model.md) |
+| 009–010 | `task_steps += workspace_access` — the audited `DelegatedWorkspaceAccess` grant per step (N5b-2, ADR-010); `tasks += pull_request_url` — the PR opened on approval (N6b) |
+| 011 | `task_steps += runtime_session_id` — per-step CLI continuation (#123). A step run must never share the **conversation's** `--resume` handle: the first worktree step's CLI conversation is scoped to the worktree cwd, so writing its id to the conversation poisons every post-task turn once the worktree is cleaned up (and bled CLI context across roles). A later step resumes the latest handle of the same task + specialist + kind. No backfill: pre-011 steps simply start fresh chains |
 
 A migration is exercised against a **populated prior-era database**, not only
 from empty (`test/migrations.test.ts`) — applying it to a fresh schema proves

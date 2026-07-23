@@ -601,6 +601,7 @@ export class MemoryHubStore implements HubStore {
       kind: input.kind,
       specialistId: input.specialistId,
       workspaceAccess: input.workspaceAccess ? clone(input.workspaceAccess) : null,
+      runtimeSessionId: null,
       createdAt: this.now(),
     };
     this.taskSteps.push(step);
@@ -610,6 +611,12 @@ export class MemoryHubStore implements HubStore {
   getTaskStep(id: string): TaskStep | undefined {
     const step = this.taskSteps.find((s) => s.id === id);
     return step ? clone(step) : undefined;
+  }
+
+  setTaskStepRuntimeSessionId(taskStepId: string, runtimeSessionId: string): void {
+    const step = this.taskSteps.find((s) => s.id === taskStepId);
+    if (!step) throw new NotFoundError('task step', taskStepId);
+    step.runtimeSessionId = runtimeSessionId;
   }
 
   listTaskSteps(taskId: string): TaskStep[] {

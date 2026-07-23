@@ -144,6 +144,60 @@ function suite(name: string, makeStore: () => HubStore): void {
       store.close();
     });
 
+    it('step runs keep their OWN continuation chains and never touch the conversation handle (#123)', async () => {
+      const { store, port, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject();
+      const conv = orch.createConversation({ projectId: project.id, mode: 'automatic' });
+
+      // Distinct CLI session ids per exec, so the resume chains are observable.
+      // The first QA cycle demands changes (the extractor's marker), forcing a
+      // second dev + QA cycle: dev attempt 2 must resume dev attempt 1's CLI
+      // session, QA cycle 2 must resume QA cycle 1's — and neither role ever
+      // resumes the other's, nor lands on the conversation.
+      const stepLines = (cliSession: string, text: string): string[] => [
+        JSON.stringify({ type: 'system', subtype: 'init', session_id: cliSession, model: 'claude-sonnet-5', claude_code_version: '2.1.212' }),
+        JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text }] } }),
+        JSON.stringify({ type: 'result', subtype: 'success', session_id: cliSession, result: text, total_cost_usd: 0.01, num_turns: 1 }),
+      ];
+      port.enqueueFixture({ streamLines: stepLines('cli-dev-1', 'implemented the change') });
+      port.enqueueFixture({ streamLines: stepLines('cli-qa-1', 'CHANGES_REQUIRED: missing test') });
+      port.enqueueFixture({ streamLines: stepLines('cli-dev-2', 'added the test') });
+      port.enqueueFixture({ streamLines: stepLines('cli-qa-2', 'all good') });
+
+      orch.send(conv.id, 'implement feature X');
+      await orch.idle();
+
+      const task = store.listTasks({ projectId: project.id })[0]!;
+      expect(task.state).toBe('awaiting_human_approval');
+
+      // each step recorded ITS run's CLI session on its own row (migration 011)
+      const steps = store.listTaskSteps(task.id);
+      expect(steps.map((s) => [s.kind, s.runtimeSessionId])).toEqual([
+        ['implementation', 'cli-dev-1'],
+        ['qa', 'cli-qa-1'],
+        ['implementation', 'cli-dev-2'],
+        ['qa', 'cli-qa-2'],
+      ]);
+
+      // the execs resumed per-chain: first of each chain fresh, second resumes
+      // the first — QA never inherits the implementer's CLI context
+      const resumeOf = (i: number): string | null => {
+        const argv = port.execRequests[i]!.req.argv;
+        const at = argv.indexOf('--resume');
+        return at === -1 ? null : argv[at + 1]!;
+      };
+      expect(port.execRequests).toHaveLength(4);
+      expect(resumeOf(0)).toBeNull(); // dev attempt 1: fresh
+      expect(resumeOf(1)).toBeNull(); // QA cycle 1: fresh — NOT cli-dev-1
+      expect(resumeOf(2)).toBe('cli-dev-1'); // dev attempt 2 continues dev
+      expect(resumeOf(3)).toBe('cli-qa-1'); // QA cycle 2 continues QA
+
+      // the conversation's continuation handle stayed untouched — the worktree
+      // CLI sessions must not leak into post-task turns (the #123 poisoning)
+      expect(store.getConversation(conv.id)!.runtimeSessionId).toBeNull();
+      store.close();
+    });
+
     it('with no QA specialist configured, a task message just runs a normal turn (control)', async () => {
       const store = makeStore();
       const port = new FakeSubstrateExecPort();
