@@ -307,6 +307,8 @@ keeps talking while it runs:
      into the **next developer prompt**; a running step is never interrupted
      (cancel remains the explicit interrupt). Feedback that lands after the
      last developer turn survives for the next resume — never lost.
+     A steering note carrying `NEEDS_DESIGN: <question>` additionally pulls
+     the architect consult before that developer run (ADR-015).
    - task `awaiting_human_approval` → the message is the owner's change
      request: the task re-enters the loop through `changes_requested_by_user`
      with the message as the note (the N6 approve/reject affordances remain

@@ -136,11 +136,19 @@ and trade-offs in ADR-015.
 ## The design consult (amended, ADR-015)
 
 The loop gains one optional, bounded step kind: **`design`** — the architect
-consult ADR-015 decided. When a developer step's output carries the
-`NEEDS_DESIGN: <question>` marker, the supervisor runs one read-only step by
-the configured design specialist (declared `architecture`/`design`
-capability), records its **DesignBrief** work product, and re-runs the
-developer with the brief folded into the prompt — the same fold QA feedback
-uses. At most one consult per QA cycle; no design specialist configured or a
-failed consult run → a logged no-op, the loop proceeds. The consult advises;
-it never gates: QA and owner approval remain the only gates.
+consult ADR-015 decided, pulled by any of its three requesters via the same
+deterministic `NEEDS_DESIGN: <question>` marker:
+
+- **the implementer** — the marker in a developer step's output; the
+  developer re-runs with the brief folded into the prompt;
+- **QA** — the marker in a changes-required QA output (the failure is
+  architectural); the consult runs immediately and its brief is carried into
+  the NEXT cycle's first developer prompt;
+- **the owner** — the marker in a steering note (ADR-014); the consult runs
+  BEFORE the next developer run, so brief and note land in the same prompt.
+
+The consult is one read-only step by the configured design specialist
+(declared `architecture`/`design` capability), recording a **DesignBrief**
+work product. At most one consult per QA cycle; no design specialist
+configured or a failed consult run → a logged no-op, the loop proceeds. The
+consult advises; it never gates: QA and owner approval remain the only gates.

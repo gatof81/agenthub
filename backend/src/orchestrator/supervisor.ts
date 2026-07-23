@@ -161,6 +161,9 @@ export class Supervisor {
     let fromState = input.fromState;
     let pendingFeedback = input.pendingFeedback;
     let cycle = 0;
+    // a QA-triggered design consult's brief, carried into the next cycle's
+    // first developer prompt (ADR-015)
+    let carryBrief: string | null = null;
     for (;;) {
       // — implementation (with at most ONE design consult per cycle, ADR-015) —
       this.store.transitionTask(task.id, fromState, 'implementing');
@@ -170,17 +173,14 @@ export class Supervisor {
           ? objective
           : `${objective}\n\nQA requested changes — address them:\n${JSON.stringify(this.lastQaReport(task.id))}`;
       pendingFeedback = null; // consumed by this (first) developer turn
-      let designBrief: string | null = null;
+      // a QA-triggered consult (below) carries its brief into THIS cycle's
+      // first developer prompt — and, being set, bounds the cycle to it
+      let designBrief: string | null = carryBrief;
+      carryBrief = null;
       let dev!: StepResult;
       let devStep!: TaskStep;
       let implReport!: ImplementationReport;
       for (;;) {
-        devStep = this.store.createTaskStep({
-          taskId: task.id,
-          kind: 'implementation',
-          specialistId: devSpecialistId,
-          workspaceAccess: accessFor(workspace, 'implementation'),
-        });
         // Owner steering queued while the task ran (ADR-014, I-14): drained
         // read-and-clear at EVERY developer boundary — including the
         // post-consult re-run — so each note lands in exactly one prompt.
@@ -188,6 +188,25 @@ export class Supervisor {
         // survives in the queue and folds into the next resume's first
         // developer prompt rather than being lost.
         const steering = this.store.drainTaskFeedback(task.id);
+        // Owner-explicit consult trigger (ADR-015): a steering note carrying
+        // the NEEDS_DESIGN marker pulls the architect BEFORE this developer
+        // run, so the brief and the note land in the same prompt. Still one
+        // consult per cycle (a set designBrief blocks it).
+        if (designBrief === null) {
+          const ownerAsk = steering
+            .map((note) => NEEDS_DESIGN.exec(note))
+            .find((m) => m !== null);
+          if (ownerAsk) {
+            const brief = await this.runDesignConsult(task, workspace, objective, ownerAsk[1]?.trim() ?? '');
+            if (brief !== null) designBrief = JSON.stringify(brief);
+          }
+        }
+        devStep = this.store.createTaskStep({
+          taskId: task.id,
+          kind: 'implementation',
+          specialistId: devSpecialistId,
+          workspaceAccess: accessFor(workspace, 'implementation'),
+        });
         let devPrompt =
           designBrief === null
             ? basePrompt
@@ -293,6 +312,14 @@ export class Supervisor {
       cycle += 1;
       if (cycle >= this.maxCycles) {
         return this.failTask(task, workspace, 'qa_running', 'QA still requesting changes after max cycles');
+      }
+      // QA-flagged architectural failure (ADR-015): QA's output carrying the
+      // NEEDS_DESIGN marker pulls the consult NOW; the brief is carried into
+      // the next cycle's first developer prompt (and bounds that cycle).
+      const qaAsk = NEEDS_DESIGN.exec(qa.assistantOutput);
+      if (qaAsk !== null) {
+        const brief = await this.runDesignConsult(task, workspace, objective, qaAsk[1]?.trim() ?? '');
+        if (brief !== null) carryBrief = JSON.stringify(brief);
       }
       this.store.transitionTask(task.id, 'qa_running', 'changes_requested_by_qa');
       fromState = 'changes_requested_by_qa';
