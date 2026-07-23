@@ -56,6 +56,7 @@ import type {
   Message,
   Project,
   QaReport,
+  RouteProposal,
   Run,
   RunErrorCode,
   SessionOwnership,
@@ -981,6 +982,40 @@ export class Orchestrator {
   }
 
   /**
+   * Can this specialist take a task's IMPLEMENTATION step (#124)? Declared
+   * capabilities must include `implementation`; a specialist that declares
+   * none is unconstrained (backward-compatible — capabilities are optional in
+   * AGENTS_CONFIG). This is what keeps a design-only role (the architect) out
+   * of the dev seat, where the dev → QA loop can never converge.
+   */
+  private canImplement(agent: Agent): boolean {
+    return agent.capabilities === undefined || agent.capabilities.includes('implementation');
+  }
+
+  /**
+   * The developer for a task's implementation steps (#124): the router's
+   * contextual pick when it can implement, else a deterministic reroute — the
+   * conversation's own specialist if capable, else the first capable one by
+   * stable id order. The QA specialist is never the developer (the envelope's
+   * independence requirement). Null = nobody can implement; the caller falls
+   * back to a normal turn rather than spawning a task doomed to loop.
+   */
+  private resolveDevSpecialist(
+    proposal: RouteProposal,
+    conversation: Conversation,
+  ): string | null {
+    const proposed = this.agents.get(proposal.specialistId);
+    if (proposed && proposed.id !== this.qaSpecialistId && this.canImplement(proposed)) {
+      return proposed.id;
+    }
+    const candidates = [...this.agents.values()]
+      .filter((a) => a.id !== this.qaSpecialistId && this.canImplement(a))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const conversationOwn = candidates.find((a) => a.id === conversation.agentId);
+    return (conversationOwn ?? candidates[0])?.id ?? null;
+  }
+
+  /**
    * The `--resume` handle for a task step (#123): the latest recorded handle
    * of a PRIOR step of the same task + specialist + kind, so an implementer's
    * attempt N continues attempt N-1 and a QA cycle continues its own previous
@@ -1294,24 +1329,36 @@ export class Orchestrator {
     // a single turn — it spawns a supervised developer → QA task. This run is a
     // light kickoff (no substrate turn); the implementation and QA execute as
     // their own step runs the supervisor owns. Gated on a configured QA
-    // specialist distinct from the developer, so a hub without one just runs a
-    // normal turn (the developer answers).
+    // specialist and an implementation-capable developer (#124) — a hub with
+    // neither just runs a normal turn (the routed specialist answers).
     if (
       proposal.workType === 'task' &&
       conversation.projectId !== null &&
-      this.qaSpecialistId !== null &&
-      this.qaSpecialistId !== proposal.specialistId
+      this.qaSpecialistId !== null
     ) {
-      const task = this.startTask({
-        projectId: conversation.projectId,
-        sourceConversationId: conversation.id,
-        sourceMessageId: run.messageId,
-        objective: userMessageContent,
-        devSpecialistId: proposal.specialistId,
-        qaSpecialistId: this.qaSpecialistId,
-      });
-      this.finalizeTaskKickoff(run, conversation, userMessageContent, task);
-      return null; // the kickoff run executes no turn
+      const devSpecialistId = this.resolveDevSpecialist(proposal, conversation);
+      if (devSpecialistId !== null) {
+        if (devSpecialistId !== proposal.specialistId) {
+          // the router's contextual pick could not implement (#124 — the
+          // architect-as-implementer loop); the audit trail is the step row
+          this.logger.info('task.dev_rerouted', {
+            runId: run.id,
+            proposed: proposal.specialistId,
+            devSpecialistId,
+          });
+        }
+        const task = this.startTask({
+          projectId: conversation.projectId,
+          sourceConversationId: conversation.id,
+          sourceMessageId: run.messageId,
+          objective: userMessageContent,
+          devSpecialistId,
+          qaSpecialistId: this.qaSpecialistId,
+        });
+        this.finalizeTaskKickoff(run, conversation, userMessageContent, task);
+        return null; // the kickoff run executes no turn
+      }
+      // no implementation-capable specialist → fall through to a normal turn
     }
 
     const projectPrimarySessionId =

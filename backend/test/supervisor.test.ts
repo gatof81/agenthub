@@ -53,6 +53,26 @@ class RecordingWorkspace implements WorkspaceManagerPort {
 
 const okStep = (text: string): StepResult => ({ assistantOutput: text, summary: null, runId: 'run_x', failed: false });
 const failStep = (): StepResult => ({ assistantOutput: '', summary: null, runId: 'run_x', failed: true });
+/** A dev step whose summary shows real file changes — post-QA attempts need
+ *  this to clear the no-progress guard (#124). */
+const progressStep = (text: string): StepResult => ({
+  assistantOutput: text,
+  summary: {
+    runId: 'run_x',
+    objective: 'x',
+    outcome: 'completed',
+    filesTouched: ['src/a.ts'],
+    commandsRun: [],
+    denialCount: 0,
+    warnings: [],
+    costUsd: null,
+    numTurns: null,
+    durationMs: null,
+    runtimeSessionId: null,
+  },
+  runId: 'run_x',
+  failed: false,
+});
 
 function setup(script: StepResult[], maxQaCycles?: number) {
   const store = new MemoryHubStore();
@@ -97,7 +117,7 @@ describe('Supervisor dev → QA loop (ADR-009)', () => {
     const { store, task, runner, workspace, sup } = setup([
       okStep('first attempt'),
       okStep('QA found a bug: CHANGES_REQUIRED'),
-      okStep('fixed the bug'),
+      progressStep('fixed the bug'),
       okStep('QA: looks good now'),
     ]);
     await sup.supervise(task, 'add feature X', 'dev', 'qa');
@@ -159,7 +179,7 @@ describe('Supervisor dev → QA loop (ADR-009)', () => {
     const { store, task, workspace, sup } = setup(
       [
         okStep('a'), okStep('CHANGES_REQUIRED'),
-        okStep('b'), okStep('CHANGES_REQUIRED'),
+        progressStep('b'), okStep('CHANGES_REQUIRED'),
       ],
       2,
     );
@@ -167,6 +187,27 @@ describe('Supervisor dev → QA loop (ADR-009)', () => {
     expect(store.getTask(task.id)!.state).toBe('failed');
     // one worktree, a commit per dev attempt, cleaned up on the terminal failure
     expect(workspace.calls).toEqual(['create', 'commit', 'commit', 'cleanup']);
+  });
+
+  it('no progress after changes_required fails fast — no second QA round on an unchanged tree (#124)', async () => {
+    const { store, task, workspace, sup } = setup([
+      okStep('first attempt'),
+      okStep('CHANGES_REQUIRED: missing test'),
+      okStep('nothing further I can do'), // summary null → filesChanged [] = no progress
+      okStep('QA would run again'), // must never be reached
+    ]);
+    await sup.supervise(task, 'X', 'dev', 'qa');
+
+    expect(store.getTask(task.id)!.state).toBe('failed');
+    // the stalled attempt is recorded (honest trail), but QA never re-ran
+    expect(store.listTaskSteps(task.id).map((s) => s.kind)).toEqual([
+      'implementation',
+      'qa',
+      'implementation',
+    ]);
+    expect(store.listWorkProducts(task.id)).toHaveLength(3);
+    // cut BEFORE committing the empty attempt: one commit (attempt 1), then cleanup
+    expect(workspace.calls).toEqual(['create', 'commit', 'cleanup']);
   });
 
   it('an unexpected throw mid-loop fails the task from its current state and cleans up (ADR-009 boot reconciliation)', async () => {

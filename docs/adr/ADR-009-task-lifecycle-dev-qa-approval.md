@@ -96,3 +96,28 @@ Forward constraint: **any new non-terminal task state must be classified
 transient or resting when it is added**, and the reconciler's healable set
 updated accordingly — a state that is neither healed nor deliberately excluded
 is a reconciliation gap.
+
+## Convergence guards on the loop (amended, #124)
+
+The loop's convergence assumed the implementation seat could actually
+implement. In production the router's contextual pick for the kickoff message
+was the design-only architect, whose hard constraint is *not* to write product
+code; QA (correctly) requested changes every cycle, and the task burned all
+its cycles to a generic `failed`. Two guards close that class:
+
+- **Capability-gated dev seat.** A task's implementation steps only go to a
+  specialist whose declared `capabilities` include `implementation` (a
+  specialist declaring no capabilities is unconstrained — backward
+  compatible). If the router's proposed specialist cannot implement, the
+  orchestrator reroutes deterministically: the conversation's own specialist
+  if capable, else the first capable one by stable id order; the QA specialist
+  is never eligible (independence). No capable specialist at all → the message
+  runs a normal turn instead of spawning a task doomed to loop. The reroute is
+  logged (`task.dev_rerouted`); the step rows remain the audit trail.
+- **No-progress cut.** After a `changes_required` verdict, a developer attempt
+  that changes **no files** cannot alter the next QA verdict — the loop is
+  re-reviewing the same tree. The supervisor fails the task immediately with a
+  distinct reason (`no_progress`) instead of spending the remaining cycles.
+
+The router still *proposes*; these guards are the orchestrator/supervisor
+*disposing* (01 §3) — a model never places itself in the implementation seat.

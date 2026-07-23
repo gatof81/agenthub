@@ -186,6 +186,19 @@ export class Supervisor {
         kind: 'implementation_report',
         body: implReport,
       });
+      // No-progress guard (#124): QA asked for changes and the developer's next
+      // attempt changed no files — another QA round reviews the same tree and
+      // must reach the same verdict, so the loop cannot converge. Cut now with
+      // a distinct reason instead of burning the remaining cycles. (The report
+      // is recorded first — the trail stays honest.)
+      if (cycle > 0 && implReport.filesChanged.length === 0) {
+        return this.failTask(
+          task,
+          workspace,
+          'implementing',
+          'no_progress: developer changed no files after QA requested changes',
+        );
+      }
       // commit before QA so QA reviews exactly the implementer's version as a
       // committed ref, and the work survives specialist failure (ADR-010)
       await this.workspace.commitWork(
