@@ -82,6 +82,10 @@ Reversible: this is orchestration policy over existing state — no migration
 (`tasks.source_conversation_id` already exists; enforcement is the envelope
 gate plus a supervisor feedback fold).
 
+Amendment (2026-07-23): the "no migration" note above covers the I-14 gate
+only. The steering-queue storage requires migration 012
+(`tasks += pending_feedback`), added in the implementation increment.
+
 ## Consequences
 
 - **Kills the spawn storm class.** Retries and follow-ups converge on the one

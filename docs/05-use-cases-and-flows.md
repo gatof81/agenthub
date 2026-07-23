@@ -1,6 +1,6 @@
 # 05 — Use Cases and Flows (Phase 1)
 
-**Status:** approved (owner, 2026-07-15; UC-01 amended per ADR-007, owner 2026-07-17) · **Last updated:** 2026-07-17
+**Status:** approved (owner, 2026-07-15; UC-01 amended per ADR-007, owner 2026-07-17; UC-12/UC-13 amended per ADR-014, owner 2026-07-23) · **Last updated:** 2026-07-23
 
 Flows for the Phase-1 MVP, traceable to [04-requirements.md](./04-requirements.md).
 Participants: **UI** (frontend) · **Hub** (backend: API, run orchestrator,
