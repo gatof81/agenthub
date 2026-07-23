@@ -191,7 +191,7 @@ export class RealWorkspaceManager implements WorkspaceManagerPort {
     const base = /HUB_BASE=(\S+)/.exec(r.stdout)?.[1] ?? 'HEAD';
     const aheadCount = Number(/HUB_AHEAD=(\d+)/.exec(r.stdout)?.[1] ?? '0');
     if (base !== 'HEAD' && aheadCount > 0) {
-      // committed-but-unpushed local work exists and is NOT in the task branch
+      // local commits ahead of the remote base are excluded from the task branch
       this.logger.warn('task.workspace_ahead', { taskId: task.id, base, aheadCount });
     } else {
       this.logger.info('task.worktree_base', { taskId: task.id, base, aheadCount });
