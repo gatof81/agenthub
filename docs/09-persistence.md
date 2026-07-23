@@ -185,6 +185,7 @@ never a half-migrated serving process.
 | 008 | Tasks (N5a, ADR-009): new `tasks`, `task_steps`, `work_products`; `runs += task_step_id`. Forward-only, no backfill (no pre-N5 tasks). The dev → QA → human-approval `TaskState` machine (`taskStateMachine.ts`) and the `ImplementationReport`/`QaReport` bodies (stored as JSON, like the caps/policy/decision snapshots) live in the domain; the table shapes are in [06 §2](./06-domain-model.md) |
 | 009–010 | `task_steps += workspace_access` — the audited `DelegatedWorkspaceAccess` grant per step (N5b-2, ADR-010); `tasks += pull_request_url` — the PR opened on approval (N6b) |
 | 011 | `task_steps += runtime_session_id` — per-step CLI continuation (#123). A step run must never share the **conversation's** `--resume` handle: the first worktree step's CLI conversation is scoped to the worktree cwd, so writing its id to the conversation poisons every post-task turn once the worktree is cleaned up (and bled CLI context across roles). A later step resumes the latest handle of the same task + specialist + kind. No backfill: pre-011 steps simply start fresh chains |
+| 012 | `tasks += pending_feedback` — owner steering queued while the task runs (ADR-014, I-14): JSON array of notes, drained read-and-clear into the next developer prompt. NULL = none; no backfill |
 
 A migration is exercised against a **populated prior-era database**, not only
 from empty (`test/migrations.test.ts`) — applying it to a fresh schema proves

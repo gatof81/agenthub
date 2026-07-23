@@ -361,6 +361,13 @@ export interface Task {
   state: TaskState;
   /** the PR opened on approval (N6b); null until approved, or if it could not be opened. */
   pullRequestUrl: string | null;
+  /**
+   * Owner steering queued while the task runs (ADR-014, migration 012): a
+   * work-shaped message during an active task lands here instead of spawning
+   * a sibling task (I-14). The supervisor drains it into the next developer
+   * prompt — a running step is never interrupted.
+   */
+  pendingFeedback: string[];
   createdAt: string;
   updatedAt: string;
 }

@@ -698,6 +698,35 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       store.close();
     });
 
+    it('queues and drains owner steering on a task, in order and atomically (ADR-014, I-14)', () => {
+      const store = makeStore();
+      const { project, conv } = seedRun(store);
+      const task = store.createTask({ projectId: project.id, sourceConversationId: conv.id });
+      expect(task.pendingFeedback).toEqual([]);
+
+      store.appendTaskFeedback(task.id, 'also rename the button');
+      const after = store.appendTaskFeedback(task.id, 'and add a test');
+      // arrival order kept; read back through getTask — on SQLite this is the
+      // only cover for the pending_feedback column mapping
+      expect(after.pendingFeedback).toEqual(['also rename the button', 'and add a test']);
+      expect(store.getTask(task.id)!.pendingFeedback).toEqual([
+        'also rename the button',
+        'and add a test',
+      ]);
+
+      // drain = read-and-clear: each note folds into exactly one prompt
+      expect(store.drainTaskFeedback(task.id)).toEqual([
+        'also rename the button',
+        'and add a test',
+      ]);
+      expect(store.getTask(task.id)!.pendingFeedback).toEqual([]);
+      expect(store.drainTaskFeedback(task.id)).toEqual([]);
+
+      expect(() => store.appendTaskFeedback('task_missing', 'x')).toThrow(NotFoundError);
+      expect(() => store.drainTaskFeedback('task_missing')).toThrow(NotFoundError);
+      store.close();
+    });
+
     it('records a task step runtime handle on the STEP, round-tripped, never touching the conversation (#123)', () => {
       const store = makeStore();
       const { project, conv } = seedRun(store);

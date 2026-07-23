@@ -189,6 +189,45 @@ describe('Supervisor dev → QA loop (ADR-009)', () => {
     expect(workspace.calls).toEqual(['create', 'commit', 'commit', 'cleanup']);
   });
 
+  it('folds queued owner steering into the developer prompt and drains it (ADR-014)', async () => {
+    const { store, task, runner, sup } = setup([okStep('implemented'), okStep('QA: ok')]);
+    store.appendTaskFeedback(task.id, 'also rename the button');
+    store.appendTaskFeedback(task.id, 'and use the accent color');
+    await sup.supervise(task, 'add feature X', 'dev', 'qa');
+
+    expect(store.getTask(task.id)!.state).toBe('awaiting_human_approval');
+    // both notes landed in the DEVELOPER prompt, in order — and only there
+    expect(runner.calls[0]!.prompt).toContain('take it into account');
+    expect(runner.calls[0]!.prompt).toContain('- also rename the button\n- and use the accent color');
+    expect(runner.calls[1]!.prompt).not.toContain('rename the button');
+    // drained: each note folds into exactly one prompt
+    expect(store.getTask(task.id)!.pendingFeedback).toEqual([]);
+  });
+
+  it('steering that arrives after the last developer turn survives for the resume (ADR-014)', async () => {
+    const { store, task, runner, sup } = setup([
+      okStep('impl'),
+      okStep('QA: ok'), // → awaiting_human_approval, steering still queued
+      okStep('addressed both'),
+      okStep('QA: ok again'),
+    ]);
+    await sup.supervise(task, 'add feature X', 'dev', 'qa');
+    // the owner steered mid-QA — too late for any dev boundary of round 1
+    store.appendTaskFeedback(task.id, 'late note: tighten the copy');
+    expect(store.getTask(task.id)!.pendingFeedback).toEqual(['late note: tighten the copy']);
+
+    store.transitionTask(task.id, 'awaiting_human_approval', 'changes_requested_by_user');
+    await sup.supervise(store.getTask(task.id)!, 'add feature X', 'dev', 'qa', {
+      feedback: 'please split the component',
+    });
+
+    // the resume's first developer prompt carries BOTH the formal note and the
+    // late steering — nothing queued is ever lost
+    expect(runner.calls[2]!.prompt).toContain('please split the component');
+    expect(runner.calls[2]!.prompt).toContain('late note: tighten the copy');
+    expect(store.getTask(task.id)!.pendingFeedback).toEqual([]);
+  });
+
   it('no progress after changes_required fails fast — no second QA round on an unchanged tree (#124)', async () => {
     const { store, task, workspace, sup } = setup([
       okStep('first attempt'),

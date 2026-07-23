@@ -33,6 +33,7 @@ const TASK: Task = {
   sourceConversationId: 'c1',
   sourceMessageId: 'm1',
   state: 'planning',
+  pendingFeedback: [],
   pullRequestUrl: null,
   createdAt: 't',
   updatedAt: 't',

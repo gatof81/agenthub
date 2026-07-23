@@ -220,6 +220,7 @@ Coordinated work, **one hardcoded flow** (ADR-009) — not a workflow engine
 | I-11 | Every terminal run has exactly one `RunSummary`, written in the terminal transition's transaction | FR-42 |
 | I-12 | An active conversation never belongs to an archived project — archiving a project stops the session its conversations share (FR-40), so an active conversation there could not take a turn. Archiving a project archives its conversations with it; restoring a conversation requires its project to be restored first | FR-43 |
 | I-13 | Task state changes follow the ADR-009 machine only (`taskStateMachine.ts`), each transition one guarded transaction — the task analogue of I-3 for runs (N5a) | ADR-009 |
+| I-14 | A conversation has at most **one non-terminal task**. A work-shaped message during it **steers** the running task (queued `pendingFeedback`, drained into the next developer prompt; from `awaiting_human_approval` it re-enters via `changes_requested_by_user`) — never a sibling task. Explicit user request is the only early split | ADR-014 |
 
 ## 4. Ports (domain boundaries)
 

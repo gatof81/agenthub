@@ -256,6 +256,7 @@ interface TaskRow {
   source_message_id: string | null;
   state: TaskState;
   pull_request_url: string | null;
+  pending_feedback: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -267,6 +268,8 @@ function toTask(r: TaskRow): Task {
     sourceMessageId: r.source_message_id,
     state: r.state,
     pullRequestUrl: r.pull_request_url,
+    // NULL and '[]' both mean "no pending steering" (migration 012)
+    pendingFeedback: r.pending_feedback ? (JSON.parse(r.pending_feedback) as string[]) : [],
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -1009,6 +1012,38 @@ export class SqliteHubStore implements HubStore {
       .run(url, this.now(), taskId);
     if (res.changes !== 1) throw new NotFoundError('task', taskId);
     return this.getTask(taskId)!;
+  }
+
+  appendTaskFeedback(taskId: string, note: string): Task {
+    const tx = this.db.transaction((): void => {
+      const row = this.db.prepare(`SELECT pending_feedback FROM tasks WHERE id = ?`).get(taskId) as
+        | { pending_feedback: string | null }
+        | undefined;
+      if (!row) throw new NotFoundError('task', taskId);
+      const queue = row.pending_feedback ? (JSON.parse(row.pending_feedback) as string[]) : [];
+      queue.push(note);
+      this.db
+        .prepare(`UPDATE tasks SET pending_feedback = ?, updated_at = ? WHERE id = ?`)
+        .run(JSON.stringify(queue), this.now(), taskId);
+    });
+    tx();
+    return this.getTask(taskId)!;
+  }
+
+  drainTaskFeedback(taskId: string): string[] {
+    let drained: string[] = [];
+    const tx = this.db.transaction((): void => {
+      const row = this.db.prepare(`SELECT pending_feedback FROM tasks WHERE id = ?`).get(taskId) as
+        | { pending_feedback: string | null }
+        | undefined;
+      if (!row) throw new NotFoundError('task', taskId);
+      drained = row.pending_feedback ? (JSON.parse(row.pending_feedback) as string[]) : [];
+      if (drained.length > 0) {
+        this.db.prepare(`UPDATE tasks SET pending_feedback = NULL WHERE id = ?`).run(taskId);
+      }
+    });
+    tx();
+    return drained;
   }
 
   createTaskStep(input: CreateTaskStepInput): TaskStep {
