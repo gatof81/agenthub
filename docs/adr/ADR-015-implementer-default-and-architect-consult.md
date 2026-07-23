@@ -1,6 +1,6 @@
 # ADR-015 — The conversation's agent implements; the architect is an on-demand consult
 
-Status: proposed
+Status: accepted (owner, 2026-07-23)
 Date: 2026-07-23
 
 ## Context

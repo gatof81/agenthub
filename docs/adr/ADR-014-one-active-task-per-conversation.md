@@ -1,6 +1,6 @@
 # ADR-014 — One active task per conversation; messages steer it
 
-Status: proposed
+Status: accepted (owner, 2026-07-23)
 Date: 2026-07-23
 
 ## Context
