@@ -71,6 +71,8 @@ decision and is superseded):
 | [ADR-011](./adr/ADR-011-browser-auth-cloudflare-access.md) | **Browser auth via Cloudflare Access** — the backend verifies the signed `Cf-Access-Jwt-Assertion` (aud + iss + JWKS signature), never the forgeable email header; bearer token retained for localhost/programmatic. Resolves Q-07 for Phase-1 browser auth | **accepted** (owner, 2026-07-17) |
 | [ADR-012](./adr/ADR-012-router-model-call.md) | **Automatic-mode model router calls the Messages API directly** (N4b, Haiku 4.5, forced tool call) reusing `CLAUDE_CODE_OAUTH_TOKEN` — a narrow control-plane carve-out from ADR-001's "all model I/O via the seam"; deterministic fallback on failure; offline suite unaffected | **accepted** (owner, 2026-07-19) |
 | [ADR-013](./adr/ADR-013-orchestrator-decomposition.md) | Decompose the ~1,667-line **Orchestrator** into four intra-module collaborators behind a thin facade (from the architecture review C4); boundaries preserved, incremental migration | **proposed** (2026-07-21) |
+| [ADR-014](./adr/ADR-014-one-active-task-per-conversation.md) | **One active task per conversation (I-14)** — messages steer the running task (`question` answers, `steer` folds at the next step boundary), never spawn siblings; explicit user request is the only early split | **proposed** (2026-07-23) |
+| [ADR-015](./adr/ADR-015-implementer-default-and-architect-consult.md) | **Conversation's agent implements by default; architect as on-demand `design` consult** (read-only, `DesignBrief` work product, bounded); QA remains an unconditional gate | **proposed** (2026-07-23) |
 
 Remaining candidate (deferred, non-blocking): a full Hub-owned user/tenant
 login (ADR-011 Option 4) — Q-07 is resolved for Phase-1 browser auth by
