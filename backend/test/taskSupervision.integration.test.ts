@@ -242,6 +242,52 @@ function suite(name: string, makeStore: () => HubStore): void {
       store.close();
     });
 
+    it("the conversation's agent takes the dev seat even when the router proposes another capable specialist (ADR-015)", async () => {
+      const store = makeStore();
+      const port = new FakeSubstrateExecPort();
+      // a second implementation-capable specialist the router will propose
+      const OTHER: Agent = { ...DEV, id: 'otherdev', name: 'Other Dev', instructions: 'You are the other dev.' };
+      const orch = new Orchestrator({
+        store,
+        adapter: new FakeRuntimeAdapter(port),
+        execPort: port,
+        agents: new Map([
+          [DEV.id, DEV],
+          [OTHER.id, OTHER],
+          [QA.id, QA],
+        ]),
+        qaSpecialistId: 'qa',
+        // a router that always proposes the OTHER capable dev — the seat must
+        // still go to the conversation's own agent (context wins, ADR-015)
+        router: {
+          route: () =>
+            Promise.resolve({
+              workType: 'task' as const,
+              capabilities: ['implementation'],
+              specialistId: 'otherdev',
+              reason: 'stub router proposes the other dev',
+            }),
+        },
+      });
+      const p = orch.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+      await orch.idle();
+      const conv = orch.createConversation({ projectId: p.id, mode: 'automatic' });
+
+      port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+      port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+      orch.send(conv.id, 'implement feature X');
+      await orch.idle();
+
+      const task = store.listTasks({ projectId: p.id })[0]!;
+      const steps = store.listTaskSteps(task.id);
+      expect(steps[0]!.specialistId).toBe('dev'); // NOT otherdev
+      const devRun = store.getRun(
+        store.listWorkProducts(task.id).find((w) => w.kind === 'implementation_report')!.runId!,
+      )!;
+      expect(devRun.instructionsSnapshot).toBe(DEV.instructions);
+      store.close();
+    });
+
     it('with no implementation-capable specialist, a task message falls back to a normal turn (#124)', async () => {
       const store = makeStore();
       const port = new FakeSubstrateExecPort();

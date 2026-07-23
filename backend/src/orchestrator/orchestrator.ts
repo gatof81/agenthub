@@ -993,26 +993,29 @@ export class Orchestrator {
   }
 
   /**
-   * The developer for a task's implementation steps (#124): the router's
-   * contextual pick when it can implement, else a deterministic reroute — the
-   * conversation's own specialist if capable, else the first capable one by
-   * stable id order. The QA specialist is never the developer (the envelope's
-   * independence requirement). Null = nobody can implement; the caller falls
-   * back to a normal turn rather than spawning a task doomed to loop.
+   * The developer for a task's implementation steps (ADR-015, #124): the
+   * CONVERSATION'S OWN agent when it can implement — the entity that already
+   * holds the context implements by default, no third-party fresh-context tax
+   * — else the router's contextual pick when capable, else the first capable
+   * specialist by stable id order. The QA specialist is never the developer
+   * (the envelope's independence requirement). Null = nobody can implement;
+   * the caller falls back to a normal turn rather than spawning a task doomed
+   * to loop.
    */
   private resolveDevSpecialist(
     proposal: RouteProposal,
     conversation: Conversation,
   ): string | null {
+    const eligible = (a: Agent | undefined): boolean =>
+      a !== undefined && a.id !== this.qaSpecialistId && this.canImplement(a);
+    const conversationOwn = this.agents.get(conversation.agentId);
+    if (eligible(conversationOwn)) return conversationOwn!.id;
     const proposed = this.agents.get(proposal.specialistId);
-    if (proposed && proposed.id !== this.qaSpecialistId && this.canImplement(proposed)) {
-      return proposed.id;
-    }
+    if (eligible(proposed)) return proposed!.id;
     const candidates = [...this.agents.values()]
-      .filter((a) => a.id !== this.qaSpecialistId && this.canImplement(a))
+      .filter((a) => eligible(a))
       .sort((a, b) => a.id.localeCompare(b.id));
-    const conversationOwn = candidates.find((a) => a.id === conversation.agentId);
-    return (conversationOwn ?? candidates[0])?.id ?? null;
+    return candidates[0]?.id ?? null;
   }
 
   /**
