@@ -37,7 +37,7 @@ its PR state. The work plan below tracks per-PR/build progress separately.
 | [adr/](./adr/README.md) | ADR-001..012 + 014–015 accepted, ADR-013 proposed | see adr/README.md |
 | [logs/](./logs/README.md) | living — in-repo memory for the stateless specialist roles (architecture / developer / QA) | ADR-008, 18 §2 |
 
-**Specification complete and approved.** Suggested full read-through order: 01 → 02 → 03 → 18 → 15 → 16 → ADR-001..013 → spike results → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 17 → 19.
+**Specification complete and approved.** Suggested full read-through order: 01 → 02 → 03 → 18 → 15 → 16 → ADR-001..015 → spike results → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 14 → 17 → 19.
 
 ## Decisions requested now
 

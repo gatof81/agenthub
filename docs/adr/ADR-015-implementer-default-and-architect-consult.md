@@ -76,9 +76,11 @@ Option 3.
   (three real repetitions, then an ADR).
 
 Reversible: orchestration + one enum extension. `task_steps.kind` and
-`work_products.kind` carry CHECK constraints (migration 008), so `design` /
-`design_brief` need a forward-only migration; the seat-precedence change is
-pure code.
+`work_products.kind` are plain `TEXT NOT NULL` columns (migration 008 — the
+allowed values live in comments, no CHECK constraint), so widening to
+`design` / `design_brief` needs no schema change; what does need a
+forward-only change is every consumer that switches on `kind` (store mappers,
+extractor, task view). The seat-precedence change is pure code.
 
 ## Consequences
 
