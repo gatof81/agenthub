@@ -29,7 +29,7 @@ const DEV: Agent = {
   allowedTools: ['Read', 'Grep', 'Glob', 'Write', 'Edit', 'Bash'],
   runtime: 'claude-cli',
   defaultCaps: { maxTurns: 10, budgetUsd: 1, timeoutMs: 60_000 },
-  capabilities: ['implement'],
+  capabilities: ['implementation'],
 };
 
 const QA: Agent = {
@@ -40,6 +40,17 @@ const QA: Agent = {
   runtime: 'claude-cli',
   defaultCaps: { maxTurns: 10, budgetUsd: 1, timeoutMs: 60_000 },
   capabilities: ['qa'],
+};
+
+/** A design-only role (#124): declared capabilities WITHOUT `implementation`. */
+const ARCH: Agent = {
+  id: 'arch',
+  name: 'Architect',
+  instructions: 'You are the architect. You design; you never write product code.',
+  allowedTools: ['Read', 'Grep', 'Glob'],
+  runtime: 'claude-cli',
+  defaultCaps: { maxTurns: 10, budgetUsd: 1, timeoutMs: 60_000 },
+  capabilities: ['architecture', 'design'],
 };
 
 /** Records cleanup calls so the reconcile worktree-cleanup path can be asserted. */
@@ -69,6 +80,7 @@ function makeHarness(store: HubStore, workspaceManager?: WorkspaceManagerPort) {
     agents: new Map([
       [DEV.id, DEV],
       [QA.id, QA],
+      [ARCH.id, ARCH],
     ]),
     // the developer is routed (DeterministicRouter echoes the conversation's
     // agent); QA is the configured reviewer that arms the task envelope
@@ -156,6 +168,9 @@ function suite(name: string, makeStore: () => HubStore): void {
       // resumes the other's, nor lands on the conversation.
       const stepLines = (cliSession: string, text: string): string[] => [
         JSON.stringify({ type: 'system', subtype: 'init', session_id: cliSession, model: 'claude-sonnet-5', claude_code_version: '2.1.212' }),
+        // an Edit step, so dev attempts show file progress (the #124 no-progress
+        // guard would otherwise cut the changes-required cycle this test drives)
+        JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Edit', input: { file_path: 'src/a.ts' }, id: 'tu_1' }] } }),
         JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text }] } }),
         JSON.stringify({ type: 'result', subtype: 'success', session_id: cliSession, result: text, total_cost_usd: 0.01, num_turns: 1 }),
       ];
@@ -195,6 +210,63 @@ function suite(name: string, makeStore: () => HubStore): void {
       // the conversation's continuation handle stayed untouched — the worktree
       // CLI sessions must not leak into post-task turns (the #123 poisoning)
       expect(store.getConversation(conv.id)!.runtimeSessionId).toBeNull();
+      store.close();
+    });
+
+    it('a task routed to a non-implementing specialist reroutes the dev step to a capable one (#124)', async () => {
+      const { store, port, orch, readyProject } = makeHarness(makeStore());
+      const project = await readyProject();
+      // the deterministic router echoes the conversation's specialist — pin the
+      // ARCHITECT so the proposal is a design-only role, the #124 prod scenario
+      const conv = orch.createConversation({ projectId: project.id, mode: 'automatic', agentId: 'arch' });
+
+      port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+      port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+      orch.send(conv.id, 'implement feature X');
+      await orch.idle();
+
+      // the task spawned — but the implementation seat went to the capable
+      // developer, not the architect the router proposed
+      const task = store.listTasks({ projectId: project.id })[0]!;
+      expect(task.state).toBe('awaiting_human_approval');
+      const steps = store.listTaskSteps(task.id);
+      expect(steps.map((s) => [s.kind, s.specialistId])).toEqual([
+        ['implementation', 'dev'],
+        ['qa', 'qa'],
+      ]);
+      // the step runs carried the DEVELOPER's snapshot, not the architect's
+      const devRun = store.getRun(
+        store.listWorkProducts(task.id).find((w) => w.kind === 'implementation_report')!.runId!,
+      )!;
+      expect(devRun.instructionsSnapshot).toBe(DEV.instructions);
+      store.close();
+    });
+
+    it('with no implementation-capable specialist, a task message falls back to a normal turn (#124)', async () => {
+      const store = makeStore();
+      const port = new FakeSubstrateExecPort();
+      const orch = new Orchestrator({
+        store,
+        adapter: new FakeRuntimeAdapter(port),
+        execPort: port,
+        // only design-only + QA roles: nobody can take the implementation seat
+        agents: new Map([
+          [ARCH.id, ARCH],
+          [QA.id, QA],
+        ]),
+        qaSpecialistId: 'qa',
+      });
+      const p = orch.createProject({ name: 'p', defaultAgentId: 'arch', sessionTemplateId: 'tpl' });
+      await orch.idle();
+      const conv = orch.createConversation({ projectId: p.id, mode: 'automatic' });
+
+      port.enqueueFixture({ streamLines: fixtureStreamLines(FIXTURES.baseline) });
+      orch.send(conv.id, 'implement feature X');
+      await orch.idle();
+
+      // no task doomed to a role-mismatch loop — a single ordinary turn ran
+      expect(store.listTasks({ projectId: p.id })).toHaveLength(0);
+      expect(port.execRequests).toHaveLength(1);
       store.close();
     });
 

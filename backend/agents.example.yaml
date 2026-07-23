@@ -27,6 +27,12 @@ workspaceTemplates:
 # it and `capabilities` are free-form tags the automatic router (N4) will
 # select on. Both are optional — a bare agent still loads. Real specialists
 # (e.g. Claudio, Claudia) live in the deployment config; these are examples.
+#
+# One tag is load-bearing: `implementation`. A task's implementation step is
+# only assigned to a specialist that carries it — or that declares no
+# capabilities at all (undeclared = unconstrained). A specialist that declares
+# capabilities WITHOUT `implementation` (e.g. a design-only architect) is never
+# put in the developer seat, where the dev → QA loop could not converge (#124).
 agents:
   - id: dev
     name: Developer
