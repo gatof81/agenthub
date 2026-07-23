@@ -97,7 +97,7 @@ extractor, task view). The seat-precedence change is pure code.
   minutes) — bounded to one per QA cycle; marker-driven requests are
   deterministic but crude (a missed marker means no consult — the owner can
   always ask explicitly).
-- Follow-ups: migration (step/work-product kind enums), StepRunner/extractor
-  support for `DesignBrief`, seat-precedence change + tests, doc 18 §4 family
-  registry row, TaskView rendering of the brief; ADR-009 amendment on
-  acceptance.
+- Follow-ups: consumer updates for the new `kind` values — no schema change
+  (see Reversibility): store mappers, StepRunner/extractor support for
+  `DesignBrief`, seat-precedence change + tests, doc 18 §4 family registry
+  row, TaskView rendering of the brief; ADR-009 amendment on acceptance.
