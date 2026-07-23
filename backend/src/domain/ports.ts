@@ -12,6 +12,7 @@ import type {
   RepoAuth,
   RepoSpec,
   KillOutcome,
+  DesignBrief,
   ImplementationReport,
   ProjectStatus,
   QaReport,
@@ -405,9 +406,17 @@ export interface QaReportInput extends ReportInput {
  * fake; a model call (Messages API forced tool, reusing the ADR-012 carve-out)
  * in `real`, behind this same port so the offline suite always runs the fake.
  */
+/** The architect consult's input (ADR-015): the implementer's design question rides along. */
+export interface DesignBriefInput extends ReportInput {
+  /** what the implementer asked (the NEEDS_DESIGN marker's payload) */
+  question: string;
+}
+
 export interface ReportExtractorPort {
   extractImplementation(input: ReportInput): Promise<ImplementationReport>;
   extractQa(input: QaReportInput): Promise<QaReport>;
+  /** The design consult's product (ADR-015) — advisory, never a gate. */
+  extractDesign(input: DesignBriefInput): Promise<DesignBrief>;
 }
 
 // — WorkspaceManagerPort (ADR-010 B, N5b-2) —

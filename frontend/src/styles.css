@@ -981,6 +981,7 @@ button.retry:hover { background: var(--raised); border-color: var(--accent); }
 }
 .step-kind { font-weight: 600; font-size: 13px; }
 .step-kind.qa { color: var(--accent); }
+.step-kind.design { color: var(--warn); } /* the architect consult (ADR-015) */
 .step-specialist { color: var(--muted); font-size: 13px; }
 .step-access {
   margin-left: auto; font-size: 12px; color: var(--muted);

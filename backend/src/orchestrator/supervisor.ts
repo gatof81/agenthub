@@ -15,6 +15,7 @@ import type { ReportExtractorPort, WorkspaceManagerPort } from '../domain/ports.
 import { NOOP_LOGGER, type Logger } from '../domain/ports.js';
 import type {
   DelegatedWorkspaceAccess,
+  DesignBrief,
   ImplementationReport,
   RunSummary,
   Task,
@@ -58,7 +59,15 @@ export interface SupervisorDeps {
   workspace: WorkspaceManagerPort;
   logger?: Logger;
   maxQaCycles?: number;
+  /**
+   * The architecture-capable specialist for on-demand design consults
+   * (ADR-015); null/absent = consults are a logged no-op — never a gate.
+   */
+  designSpecialistId?: string | null;
 }
+
+/** The implementer's design request (ADR-015): a deterministic marker, like QA's CHANGES_REQUIRED. */
+const NEEDS_DESIGN = /NEEDS_DESIGN:?\s*([^\n]*)/;
 
 export class Supervisor {
   private readonly store: HubStore;
@@ -67,6 +76,7 @@ export class Supervisor {
   private readonly workspace: WorkspaceManagerPort;
   private readonly logger: Logger;
   private readonly maxCycles: number;
+  private readonly designSpecialistId: string | null;
 
   constructor(deps: SupervisorDeps) {
     this.store = deps.store;
@@ -75,6 +85,7 @@ export class Supervisor {
     this.workspace = deps.workspace;
     this.logger = deps.logger ?? NOOP_LOGGER;
     this.maxCycles = deps.maxQaCycles ?? MAX_QA_CYCLES;
+    this.designSpecialistId = deps.designSpecialistId ?? null;
   }
 
   /**
@@ -151,51 +162,72 @@ export class Supervisor {
     let pendingFeedback = input.pendingFeedback;
     let cycle = 0;
     for (;;) {
-      // — implementation —
+      // — implementation (with at most ONE design consult per cycle, ADR-015) —
       this.store.transitionTask(task.id, fromState, 'implementing');
-      const devStep = this.store.createTaskStep({
-        taskId: task.id,
-        kind: 'implementation',
-        specialistId: devSpecialistId,
-        workspaceAccess: accessFor(workspace, 'implementation'),
-      });
-      const base = pendingFeedback
+      const basePrompt = pendingFeedback
         ? `${objective}\n\nThe owner requested changes — address them:\n${pendingFeedback}`
         : cycle === 0
           ? objective
           : `${objective}\n\nQA requested changes — address them:\n${JSON.stringify(this.lastQaReport(task.id))}`;
       pendingFeedback = null; // consumed by this (first) developer turn
-      // Owner steering queued while the task ran (ADR-014, I-14): drained
-      // read-and-clear at this — the developer — boundary, so each note lands
-      // in exactly one prompt. Steering that arrives after the LAST developer
-      // turn (e.g. mid-QA) survives in the queue and folds into the next
-      // resume's first developer prompt rather than being lost.
-      const steering = this.store.drainTaskFeedback(task.id);
-      const devPrompt =
-        steering.length > 0
-          ? `${base}\n\nThe owner added while the task was running — take it into account:\n- ${steering.join('\n- ')}`
-          : base;
-      const dev = await this.runner.runStep({
-        taskId: task.id,
-        taskStepId: devStep.id,
-        specialistId: devSpecialistId,
-        prompt: devPrompt,
-      });
-      if (dev.failed) return this.failTask(task, workspace, 'implementing', 'dev step failed');
+      let designBrief: string | null = null;
+      let dev!: StepResult;
+      let devStep!: TaskStep;
+      let implReport!: ImplementationReport;
+      for (;;) {
+        devStep = this.store.createTaskStep({
+          taskId: task.id,
+          kind: 'implementation',
+          specialistId: devSpecialistId,
+          workspaceAccess: accessFor(workspace, 'implementation'),
+        });
+        // Owner steering queued while the task ran (ADR-014, I-14): drained
+        // read-and-clear at EVERY developer boundary — including the
+        // post-consult re-run — so each note lands in exactly one prompt.
+        // Steering that arrives after the LAST developer turn (e.g. mid-QA)
+        // survives in the queue and folds into the next resume's first
+        // developer prompt rather than being lost.
+        const steering = this.store.drainTaskFeedback(task.id);
+        let devPrompt =
+          designBrief === null
+            ? basePrompt
+            : `${basePrompt}\n\nThe architect's design brief — follow it:\n${designBrief}`;
+        if (steering.length > 0) {
+          devPrompt = `${devPrompt}\n\nThe owner added while the task was running — take it into account:\n- ${steering.join('\n- ')}`;
+        }
+        dev = await this.runner.runStep({
+          taskId: task.id,
+          taskStepId: devStep.id,
+          specialistId: devSpecialistId,
+          prompt: devPrompt,
+        });
+        if (dev.failed) return this.failTask(task, workspace, 'implementing', 'dev step failed');
 
-      const implReport = await this.extractor.extractImplementation({
-        objective,
-        assistantOutput: dev.assistantOutput,
-        summary: dev.summary,
-      });
-      this.store.addWorkProduct({
-        taskId: task.id,
-        taskStepId: devStep.id,
-        producerSpecialistId: devSpecialistId,
-        runId: dev.runId,
-        kind: 'implementation_report',
-        body: implReport,
-      });
+        implReport = await this.extractor.extractImplementation({
+          objective,
+          assistantOutput: dev.assistantOutput,
+          summary: dev.summary,
+        });
+        this.store.addWorkProduct({
+          taskId: task.id,
+          taskStepId: devStep.id,
+          producerSpecialistId: devSpecialistId,
+          runId: dev.runId,
+          kind: 'implementation_report',
+          body: implReport,
+        });
+
+        // Design consult (ADR-015): the implementer discovered it needs design
+        // help (NEEDS_DESIGN marker). Bounded to one consult per cycle; the
+        // consult is advisory — unavailable or failed, the loop just proceeds.
+        const ask = NEEDS_DESIGN.exec(dev.assistantOutput);
+        if (ask === null || designBrief !== null) break;
+        const brief = await this.runDesignConsult(task, workspace, objective, ask[1]?.trim() ?? '');
+        if (brief === null) break;
+        designBrief = JSON.stringify(brief);
+        // re-run the developer with the brief folded — the "next developer
+        // prompt" the ADR promises
+      }
       // No-progress guard (#124): QA asked for changes and the developer's next
       // attempt changed no files — another QA round reviews the same tree and
       // must reach the same verdict, so the loop cannot converge. Cut now with
@@ -265,6 +297,59 @@ export class Supervisor {
       this.store.transitionTask(task.id, 'qa_running', 'changes_requested_by_qa');
       fromState = 'changes_requested_by_qa';
     }
+  }
+
+  /**
+   * One architect consult (ADR-015): a read-only `design` step whose product —
+   * a DesignBrief — folds into the developer's next prompt. Null when no
+   * design specialist is configured or the consult run fails: the consult is
+   * an enhancer, never a gate, so the loop proceeds without it.
+   */
+  private async runDesignConsult(
+    task: Task,
+    workspace: TaskWorkspace,
+    objective: string,
+    question: string,
+  ): Promise<DesignBrief | null> {
+    if (this.designSpecialistId === null) {
+      this.logger.info('task.design_unavailable', { taskId: task.id });
+      return null;
+    }
+    const step = this.store.createTaskStep({
+      taskId: task.id,
+      kind: 'design',
+      specialistId: this.designSpecialistId,
+      workspaceAccess: accessFor(workspace, 'design'),
+    });
+    const consult = await this.runner.runStep({
+      taskId: task.id,
+      taskStepId: step.id,
+      specialistId: this.designSpecialistId,
+      prompt:
+        `Design consult for a running task (read-only — advise, do not implement).\n\n` +
+        `Objective:\n${objective}\n\n` +
+        `The implementer asked:\n${question || '(no specific question — review the approach)'}`,
+    });
+    if (consult.failed) {
+      this.logger.warn('task.design_failed', { taskId: task.id, stepId: step.id });
+      return null;
+    }
+    const brief = await this.extractor.extractDesign({
+      objective,
+      question,
+      assistantOutput: consult.assistantOutput,
+      summary: consult.summary,
+    });
+    this.store.addWorkProduct({
+      taskId: task.id,
+      taskStepId: step.id,
+      producerSpecialistId: this.designSpecialistId,
+      runId: consult.runId,
+      kind: 'design_brief',
+      body: brief,
+    });
+    this.logger.info('task.design_consulted', { taskId: task.id, stepId: step.id });
+    return brief;
   }
 
   /** A terminal failure: clean up the worktree (branch/commits survive) then fail. */
@@ -343,9 +428,11 @@ function accessFor(workspace: TaskWorkspace, kind: TaskStep['kind']): DelegatedW
   const accessMode: WorkspaceAccessMode =
     kind === 'qa'
       ? 'test-execution'
-      : workspace.strategy === 'worktree'
-        ? 'worktree-write'
-        : 'project-workspace-write';
+      : kind === 'design'
+        ? 'read-only' // a consult advises, never writes (ADR-015, ADR-010 ladder)
+        : workspace.strategy === 'worktree'
+          ? 'worktree-write'
+          : 'project-workspace-write';
   return {
     accessMode,
     branch: workspace.branch,

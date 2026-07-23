@@ -9,9 +9,14 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import type { QaReportInput, ReportExtractorPort, ReportInput } from '../domain/ports.js';
+import type {
+  DesignBriefInput,
+  QaReportInput,
+  ReportExtractorPort,
+  ReportInput,
+} from '../domain/ports.js';
 import { NOOP_LOGGER, type Logger } from '../domain/ports.js';
-import type { ImplementationReport, QaReport } from '../domain/types.js';
+import type { DesignBrief, ImplementationReport, QaReport } from '../domain/types.js';
 
 const EXTRACTOR_MODEL = 'claude-haiku-4-5';
 const DEFAULT_TIMEOUT_MS = 12_000;
@@ -46,6 +51,17 @@ export class DeterministicReportExtractor implements ReportExtractorPort {
       failed: [],
       regressions: [],
       verdict,
+    });
+  }
+
+  extractDesign(input: DesignBriefInput): Promise<DesignBrief> {
+    return Promise.resolve({
+      objective: input.objective,
+      constraints: [],
+      // the consult's advice IS the output text; mechanical, never invented
+      approach: input.assistantOutput.slice(0, 4000) || 'no design output produced',
+      risks: [],
+      outOfScope: [],
     });
   }
 }
@@ -85,6 +101,19 @@ const QA_SCHEMA = {
     verdict: { type: 'string', enum: ['passed', 'changes_required'] },
   },
   required: ['requirementsReviewed', 'testsRun', 'passed', 'failed', 'regressions', 'verdict'],
+} as const;
+
+const DESIGN_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    objective: { type: 'string' },
+    constraints: { type: 'array', items: { type: 'string' } },
+    approach: { type: 'string' },
+    risks: { type: 'array', items: { type: 'string' } },
+    outOfScope: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['objective', 'constraints', 'approach', 'risks', 'outOfScope'],
 } as const;
 
 export class ModelReportExtractor implements ReportExtractorPort {
@@ -163,6 +192,28 @@ export class ModelReportExtractor implements ReportExtractorPort {
     }
   }
 
+  async extractDesign(input: DesignBriefInput): Promise<DesignBrief> {
+    try {
+      const body = await this.callTool<DesignBrief>(
+        'submit_design_brief',
+        'Summarize the architect consult into a structured design brief.',
+        DESIGN_SCHEMA,
+        this.designPrompt(input),
+      );
+      return {
+        objective: body.objective ?? input.objective,
+        constraints: body.constraints ?? [],
+        approach: body.approach ?? '',
+        risks: body.risks ?? [],
+        outOfScope: body.outOfScope ?? [],
+      };
+    } catch (err) {
+      // advisory, never a gate (ADR-015) → mechanical fallback
+      this.logger.warn('report.extract_fallback', { kind: 'design', error: errName(err) });
+      return this.fallback.extractDesign(input);
+    }
+  }
+
   private async callTool<T>(
     toolName: string,
     toolDescription: string,
@@ -187,6 +238,14 @@ export class ModelReportExtractor implements ReportExtractorPort {
       `What the developer reported doing:\n${input.assistantOutput}\n\n` +
       `Mechanical grounding — files touched: ${(input.summary?.filesTouched ?? []).join(', ') || 'none'}; ` +
       `commands run: ${(input.summary?.commandsRun ?? []).join(', ') || 'none'}.`
+    );
+  }
+
+  private designPrompt(input: DesignBriefInput): string {
+    return (
+      `Objective:\n${input.objective}\n\n` +
+      `The implementer's design question:\n${input.question || '(none stated)'}\n\n` +
+      `What the architect advised:\n${input.assistantOutput}`
     );
   }
 

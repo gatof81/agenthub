@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import {
   api,
+  type DesignBrief,
   type ImplementationReport,
   type QaReport,
   type TaskDetail,
@@ -41,8 +42,12 @@ function stateLabel(s: TaskState): string {
   return s.replace(/_/g, ' ');
 }
 
-function isQa(body: ImplementationReport | QaReport): body is QaReport {
+function isQa(body: ImplementationReport | QaReport | DesignBrief): body is QaReport {
   return 'verdict' in body;
+}
+
+function isDesign(body: ImplementationReport | QaReport | DesignBrief): body is DesignBrief {
+  return 'approach' in body;
 }
 
 function List({ label, items }: { label: string; items: string[] }): React.JSX.Element | null {
@@ -74,6 +79,20 @@ function WorkProductCard({ wp }: { wp: WorkProduct }): React.JSX.Element {
         <List label="Passed" items={body.passed} />
         <List label="Failed" items={body.failed} />
         <List label="Regressions" items={body.regressions} />
+      </div>
+    );
+  }
+  if (isDesign(body)) {
+    // the architect consult's brief (ADR-015): advisory, read-only
+    return (
+      <div className="wp-card">
+        <div className="wp-head">
+          <span className="wp-kind">Design brief</span>
+        </div>
+        {body.approach && <p className="wp-summary">{body.approach}</p>}
+        <List label="Constraints" items={body.constraints} />
+        <List label="Risks" items={body.risks} />
+        <List label="Out of scope" items={body.outOfScope} />
       </div>
     );
   }
@@ -181,7 +200,7 @@ export function TaskView({
                 {detail.steps.map((s) => (
                   <li key={s.id} className="task-step">
                     <span className={`step-kind ${s.kind}`}>
-                      {s.kind === 'implementation' ? 'Implementation' : 'QA'}
+                      {s.kind === 'implementation' ? 'Implementation' : s.kind === 'design' ? 'Design' : 'QA'}
                     </span>
                     <span className="step-specialist">{s.specialistId}</span>
                     {s.workspaceAccess && (

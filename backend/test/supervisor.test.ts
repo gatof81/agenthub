@@ -74,7 +74,11 @@ const progressStep = (text: string): StepResult => ({
   failed: false,
 });
 
-function setup(script: StepResult[], maxQaCycles?: number) {
+function setup(
+  script: StepResult[],
+  maxQaCycles?: number,
+  opts: { designSpecialistId?: string | null } = {},
+) {
   const store = new MemoryHubStore();
   const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
   const task = store.createTask({ projectId: p.id });
@@ -86,6 +90,7 @@ function setup(script: StepResult[], maxQaCycles?: number) {
     extractor: new DeterministicReportExtractor(),
     workspace,
     ...(maxQaCycles !== undefined ? { maxQaCycles } : {}),
+    ...(opts.designSpecialistId !== undefined ? { designSpecialistId: opts.designSpecialistId } : {}),
   });
   return { store, task, runner, workspace, sup };
 }
@@ -157,6 +162,79 @@ describe('Supervisor dev → QA loop (ADR-009)', () => {
     expect(workspace.calls.filter((c) => c === 'create')).toHaveLength(1);
     // four steps total: two developer + two QA across the two rounds
     expect(store.listTaskSteps(task.id)).toHaveLength(4);
+  });
+
+  it('NEEDS_DESIGN triggers one architect consult; the brief folds into the re-run dev prompt (ADR-015)', async () => {
+    const { store, task, runner, sup } = setup(
+      [
+        okStep('NEEDS_DESIGN: how should the cache invalidate?'), // dev asks
+        okStep('Use a write-through cache keyed by conversation id.'), // architect
+        okStep('implemented per the brief'), // dev re-runs with the brief
+        okStep('QA: looks good'),
+      ],
+      undefined,
+      { designSpecialistId: 'arch' },
+    );
+    await sup.supervise(task, 'add caching', 'dev', 'qa');
+
+    expect(store.getTask(task.id)!.state).toBe('awaiting_human_approval');
+    const steps = store.listTaskSteps(task.id);
+    expect(steps.map((s) => [s.kind, s.specialistId])).toEqual([
+      ['implementation', 'dev'],
+      ['design', 'arch'],
+      ['implementation', 'dev'],
+      ['qa', 'qa'],
+    ]);
+    // the consult never writes: read-only grant on the task's branch
+    expect(steps[1]!.workspaceAccess).toMatchObject({ accessMode: 'read-only', branch: `hub/task/${task.id}` });
+    // the architect got the question; the re-run dev got the brief
+    expect(runner.calls[1]!.specialistId).toBe('arch');
+    expect(runner.calls[1]!.prompt).toContain('how should the cache invalidate?');
+    expect(runner.calls[1]!.prompt).toContain('advise, do not implement');
+    expect(runner.calls[2]!.prompt).toContain("The architect's design brief");
+    expect(runner.calls[2]!.prompt).toContain('write-through cache');
+    // work products: impl (the asking attempt), design brief, impl, qa
+    expect(store.listWorkProducts(task.id).map((w) => w.kind)).toEqual([
+      'implementation_report',
+      'design_brief',
+      'implementation_report',
+      'qa_report',
+    ]);
+  });
+
+  it('the consult is bounded to one per cycle — a second NEEDS_DESIGN proceeds to QA (ADR-015)', async () => {
+    const { store, task, runner, sup } = setup(
+      [
+        okStep('NEEDS_DESIGN: first question'),
+        okStep('brief one'),
+        okStep('NEEDS_DESIGN: still unsure'), // second ask, same cycle → ignored
+        okStep('QA: acceptable'),
+      ],
+      undefined,
+      { designSpecialistId: 'arch' },
+    );
+    await sup.supervise(task, 'X', 'dev', 'qa');
+
+    expect(store.getTask(task.id)!.state).toBe('awaiting_human_approval');
+    expect(store.listTaskSteps(task.id).map((s) => s.kind)).toEqual([
+      'implementation',
+      'design',
+      'implementation',
+      'qa', // ← not a second design step
+    ]);
+    expect(runner.calls[3]!.specialistId).toBe('qa');
+  });
+
+  it('with no design specialist configured, NEEDS_DESIGN is a no-op and the loop proceeds (ADR-015)', async () => {
+    const { store, task, runner, sup } = setup([
+      okStep('NEEDS_DESIGN: help'),
+      okStep('QA: fine as is'),
+    ]);
+    await sup.supervise(task, 'X', 'dev', 'qa');
+
+    expect(store.getTask(task.id)!.state).toBe('awaiting_human_approval');
+    expect(store.listTaskSteps(task.id).map((s) => s.kind)).toEqual(['implementation', 'qa']);
+    expect(runner.calls).toHaveLength(2);
   });
 
   it('a failed dev step fails the task and cleans up the worktree', async () => {
