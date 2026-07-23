@@ -101,5 +101,5 @@ gate plus a supervisor feedback fold).
   conversation waits for the active task (or the user splits explicitly).
   That friction is chosen over the system guessing topic boundaries.
 - Follow-ups: implementation increment (envelope gate + steer fold + UI
-  affordance); ADR-012 §Decision amendment; doc 04 gains I-14; doc 05 UC
+  affordance); ADR-012 §Decision amendment; doc 06 gains I-14; doc 05 UC
   update for the steering flow.
