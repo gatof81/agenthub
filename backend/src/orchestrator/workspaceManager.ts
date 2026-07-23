@@ -152,15 +152,32 @@ export class RealWorkspaceManager implements WorkspaceManagerPort {
     if (!sessionId) return fallback;
     const branch = taskBranch(task.id);
     const path = taskWorktreePath(task.id);
-    // create a worktree on a fresh task branch off HEAD, from the repo root
+    // The task branch is cut from the REMOTE base, never the local HEAD (#132):
+    // a workspace can carry committed-but-unpushed work (observed in prod — a
+    // local memory-snapshot commit), and a branch cut from HEAD inherits it, so
+    // `openPullRequest` silently publishes commits the task never made. Base
+    // resolution: best-effort fetch, then `origin/HEAD` → the checked-out
+    // branch's upstream → local HEAD as the last resort (a repo with no
+    // remote — the pre-#132 behavior). When the local HEAD is ahead of the
+    // chosen base, that divergence is measured and logged: those commits are
+    // deliberately EXCLUDED from the task. path/branch ride as positional
+    // params ($2/$3; $1 = repo root), never shell-interpreted.
+    const script =
+      'cd "$1" || exit 1; ' +
+      'git fetch origin --quiet >/dev/null 2>&1 || true; ' +
+      'base=$(git rev-parse --verify --quiet origin/HEAD) || ' +
+      'base=$(git rev-parse --verify --quiet "@{upstream}") || base=HEAD; ' +
+      'git worktree add "$2" -b "$3" "$base" || exit 1; ' +
+      'echo "HUB_BASE=$base"; ' +
+      'echo "HUB_AHEAD=$(git rev-list --count "$base"..HEAD 2>/dev/null || echo 0)"';
     const r = await runExec(this.execPort, sessionId, [
-      'git',
-      'worktree',
-      'add',
+      'bash',
+      '-c',
+      script,
+      'hub_worktree',
+      WORKSPACE_ROOT,
       path,
-      '-b',
       branch,
-      'HEAD',
     ]);
     if (r.error || r.exitCode !== 0) {
       // repo-less project or a failed add → strategy A, the task still runs
@@ -170,6 +187,14 @@ export class RealWorkspaceManager implements WorkspaceManagerPort {
         error: r.error ?? null,
       });
       return fallback;
+    }
+    const base = /HUB_BASE=(\S+)/.exec(r.stdout)?.[1] ?? 'HEAD';
+    const aheadCount = Number(/HUB_AHEAD=(\d+)/.exec(r.stdout)?.[1] ?? '0');
+    if (base !== 'HEAD' && aheadCount > 0) {
+      // local commits ahead of the remote base are excluded from the task branch
+      this.logger.warn('task.workspace_ahead', { taskId: task.id, base, aheadCount });
+    } else {
+      this.logger.info('task.worktree_base', { taskId: task.id, base, aheadCount });
     }
     return { strategy: 'worktree', branch, path };
   }

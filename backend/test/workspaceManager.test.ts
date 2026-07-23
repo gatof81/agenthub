@@ -59,8 +59,8 @@ const WORKTREE = { strategy: 'worktree' as const, branch: 'hub/task/task_1', pat
 const PRIMARY = { strategy: 'project-primary' as const, branch: null, path: null };
 
 describe('RealWorkspaceManager (ADR-010 B, offline)', () => {
-  it('createTaskWorkspace runs `git worktree add <path> -b <branch> HEAD`', async () => {
-    const { execPort, mgr } = make('s1');
+  it('createTaskWorkspace cuts the branch from the REMOTE base, never local HEAD (#132)', async () => {
+    const { execPort, mgr } = make('s1', 0, 'HUB_BASE=abc1234\nHUB_AHEAD=0\n');
     const ws = await mgr.createTaskWorkspace(TASK);
 
     expect(ws).toEqual({
@@ -70,14 +70,33 @@ describe('RealWorkspaceManager (ADR-010 B, offline)', () => {
     });
     expect(execPort.requests).toHaveLength(1);
     expect(execPort.requests[0]!.sessionId).toBe('s1');
-    expect(execPort.requests[0]!.req.argv).toEqual([
-      'git',
-      'worktree',
-      'add',
-      taskWorktreePath(TASK.id),
-      '-b',
-      taskBranch(TASK.id),
-      'HEAD',
+    const argv = execPort.requests[0]!.req.argv;
+    expect(argv[0]).toBe('bash');
+    // base resolution: fetch best-effort, then origin/HEAD → upstream → HEAD;
+    // the worktree is added from the RESOLVED base, not local HEAD
+    expect(argv[2]).toContain('git fetch origin');
+    expect(argv[2]).toContain('origin/HEAD');
+    expect(argv[2]).toContain('@{upstream}');
+    expect(argv[2]).toContain('git worktree add "$2" -b "$3" "$base"');
+    // path/branch ride as positional params, never shell-interpreted
+    expect(argv.slice(-2)).toEqual([taskWorktreePath(TASK.id), taskBranch(TASK.id)]);
+  });
+
+  it('logs unpushed local commits as EXCLUDED when the workspace runs ahead of the base (#132)', async () => {
+    const warned: Array<Record<string, unknown>> = [];
+    const execPort = new RecordingExec(0, 'HUB_BASE=abc1234\nHUB_AHEAD=2\n');
+    const mgr = new RealWorkspaceManager({
+      store: storeWithSession('s1'),
+      execPort: execPort as unknown as SubstrateExecPort,
+      logger: {
+        info: () => {},
+        warn: (event, fields) => warned.push({ event, ...fields }),
+        error: () => {},
+      },
+    });
+    await mgr.createTaskWorkspace(TASK);
+    expect(warned).toEqual([
+      { event: 'task.workspace_ahead', taskId: TASK.id, base: 'abc1234', aheadCount: 2 },
     ]);
   });
 

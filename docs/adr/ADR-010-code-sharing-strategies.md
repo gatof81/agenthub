@@ -97,3 +97,21 @@ hidden versions of a project.
   (I-8) rather than a new mechanism.
 - Strategy selection logic lives in the deterministic selector (ADR-008),
   keeping models out of authority decisions (SEC-01).
+
+## Worktree base (amended, #132)
+
+A task's worktree branch is cut from the **remote base**, never the local
+HEAD. Observed in production: a project workspace carried a
+committed-but-unpushed local commit (a memory snapshot); the task branch cut
+from HEAD inherited it, and the approval PR silently published commits the
+task never made — an exfiltration-shaped hazard for workspaces holding
+session state (SEC-10-adjacent), even on private repos.
+
+Base resolution at `createTaskWorkspace`: best-effort `git fetch origin`,
+then `origin/HEAD` → the checked-out branch's upstream → local `HEAD` as the
+last resort (a repo with no remote — the original behavior). When the local
+HEAD is ahead of the chosen base, those commits are **deliberately excluded**
+from the task and the divergence is logged (`task.workspace_ahead`); a task
+builds on what the remote knows, and the PR can only ever contain task
+commits. Uncommitted working-tree changes were never visible to a worktree
+and remain so.
