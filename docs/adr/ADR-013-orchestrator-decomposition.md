@@ -222,7 +222,8 @@ leaves the offline suite green and the facade's public surface unchanged.
 - **No behavior change.** This ADR changes structure only; the public API,
   the run state machine, and every FR/UC cited above are unchanged. If accepted,
   it authorizes the extractions as prep steps — it does not schedule a
-  dedicated refactor increment.
+  dedicated refactor increment *(superseded by the 2026-07-24 amendment below:
+  the owner directed dedicated, structure-only extraction PRs, now authorized)*.
 
 ## Amendment — accepted; dedicated extraction PRs; map updated to the post-ADR-014/015 file (2026-07-24)
 
@@ -238,14 +239,15 @@ collaborators:
 - `canImplement` / `resolveDevSpecialist` (the ADR-015 dev-seat precedence) →
   **`SessionResolver`** — decision logic about *who and where*, alongside the
   selector integration.
-- `steerTask` / `finalizeTaskKickoff` / `finalizeEnvelopeRun`, the
-  `Supervisor` construction with its design-consult wiring
-  (`designSpecialistId`), and the `requestTaskChanges` re-entry path →
-  **`TaskCoordinator`**. The envelope signal `SessionResolver` returns to the
-  facade now has **two** task-shaped outcomes — *start* and *steer* (I-14) —
-  both routed to `TaskCoordinator`; the light envelope-run seal
-  (`finalizeEnvelopeRun`) reaches the terminal choke point through the same
-  injected `finalize` hook as the step-completion wake.
+- `steerTask` / `finalizeEnvelopeRun` (the light envelope-run seal shared with
+  the pre-existing `finalizeTaskKickoff`) and the `Supervisor` construction's
+  design-consult wiring (`designSpecialistId`) → **`TaskCoordinator`**, which
+  already owned `finalizeTaskKickoff` and `requestTaskChanges` in the original
+  Decision map. The envelope signal `SessionResolver` returns to the facade
+  now has **two** task-shaped outcomes — *start* and *steer* (I-14) — both
+  routed to `TaskCoordinator`; `finalizeEnvelopeRun` reaches the terminal
+  choke point through the same injected `finalize` hook as the
+  step-completion wake.
 - `stepResumeSessionId` and `executeRun`'s step handling (the worktree
   `workingDir`, the per-step continuation handle, #123) → **`RunLoop`**.
 
