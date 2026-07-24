@@ -1,6 +1,6 @@
 # ADR-013 — Decompose the Orchestrator god-class into collaborators behind a thin facade
 
-Status: proposed
+Status: accepted (owner, 2026-07-24)
 Date: 2026-07-21
 
 > Drafted by the architect specialist (Enrique) from the architecture review's
@@ -223,3 +223,37 @@ leaves the offline suite green and the facade's public surface unchanged.
   the run state machine, and every FR/UC cited above are unchanged. If accepted,
   it authorizes the extractions as prep steps — it does not schedule a
   dedicated refactor increment.
+
+## Amendment — accepted; dedicated extraction PRs; map updated to the post-ADR-014/015 file (2026-07-24)
+
+Accepted by the owner on 2026-07-24. Two things changed between drafting and
+acceptance; neither invalidates the cut.
+
+**The class kept growing as Option 1 predicted.** At acceptance
+`orchestrator.ts` is **1,999 lines**: ADR-014 (one active task per
+conversation — steer) and ADR-015 (implementer default, design consult) both
+landed inside it. The members added since drafting map onto the same four
+collaborators:
+
+- `canImplement` / `resolveDevSpecialist` (the ADR-015 dev-seat precedence) →
+  **`SessionResolver`** — decision logic about *who and where*, alongside the
+  selector integration.
+- `steerTask` / `finalizeTaskKickoff` / `finalizeEnvelopeRun`, the
+  `Supervisor` construction with its design-consult wiring
+  (`designSpecialistId`), and the `requestTaskChanges` re-entry path →
+  **`TaskCoordinator`**. The envelope signal `SessionResolver` returns to the
+  facade now has **two** task-shaped outcomes — *start* and *steer* (I-14) —
+  both routed to `TaskCoordinator`; the light envelope-run seal
+  (`finalizeEnvelopeRun`) reaches the terminal choke point through the same
+  injected `finalize` hook as the step-completion wake.
+- `stepResumeSessionId` and `executeRun`'s step handling (the worktree
+  `workingDir`, the per-step continuation handle, #123) → **`RunLoop`**.
+
+**The migration approach is amended.** The features the extractions were gated
+on (N6b, then the ADR-014/015 work) shipped without them, so "extract at the
+hilt" has no near hilt left while the file keeps growing. The owner directed
+the decomposition proceed now as **dedicated, structure-only extraction PRs** —
+one collaborator per PR, offline suite green after each, the facade's public
+surface unchanged — preserving the original order and its rationale:
+`TaskCoordinator` → `ProvisioningService` → `SessionResolver` → `RunLoop`
+last.
