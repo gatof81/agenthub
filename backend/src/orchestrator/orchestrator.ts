@@ -22,7 +22,6 @@ import {
   type HubNotifier,
   type Logger,
   type Metrics,
-  type PullRequestContent,
   type ReportExtractorPort,
   type RouterPort,
   type RuntimeAdapter,
@@ -31,12 +30,12 @@ import {
   type TurnRequest,
   type WorkspaceManagerPort,
 } from '../domain/ports.js';
-import { isTerminal } from '../domain/runStateMachine.js';
 import { isTerminalTask } from '../domain/taskStateMachine.js';
+import { OrchestratorError } from './errors.js';
 import { DeterministicRouter } from './router.js';
 import { DeterministicReportExtractor } from './reportExtractor.js';
-import { FakeWorkspaceManager, workspaceFromSteps } from './workspaceManager.js';
-import { Supervisor, type StepResult } from './supervisor.js';
+import { FakeWorkspaceManager } from './workspaceManager.js';
+import { TaskCoordinator } from './taskCoordinator.js';
 import { NoExecutionTargetError, selectExecutionTarget } from './selector.js';
 import {
   assembleAssistantText,
@@ -52,11 +51,9 @@ import type {
   Conversation,
   ConversationMode,
   ExecutionTargetDecision,
-  ImplementationReport,
   KillOutcome,
   Message,
   Project,
-  QaReport,
   RouteProposal,
   Run,
   RunErrorCode,
@@ -65,31 +62,15 @@ import type {
   SpecialistSessionStatus,
   SweepResult,
   Task,
-  TaskState,
   TaskStep,
   TerminalRunState,
   UsageSource,
 } from '../domain/types.js';
 import type { HubStore, NewRunEvent } from '../store/types.js';
 
-export class OrchestratorError extends Error {
-  constructor(
-    readonly code:
-      | 'unknown_agent'
-      | 'project_not_ready'
-      | 'run_not_cancellable'
-      | 'not_found'
-      // restore (FR-44 / I-12): the API maps both to 409 with the code
-      | 'session_gone'
-      | 'project_archived'
-      // N6: an approval action on a task not in awaiting_human_approval (409)
-      | 'task_not_approvable',
-    message: string,
-  ) {
-    super(message);
-    this.name = 'OrchestratorError';
-  }
-}
+// Moved to its own file so ADR-013 collaborators can throw it without
+// importing the facade; re-exported to keep the api module's import unchanged.
+export { OrchestratorError } from './errors.js';
 
 export interface OrchestratorDeps {
   store: HubStore;
@@ -209,15 +190,8 @@ export class Orchestrator {
    */
   private readonly pendingKills = new Map<string, Promise<KillOutcome | undefined>>();
 
-  /**
-   * The N5b task supervisor and the plumbing it needs: `runCompletions` wakes a
-   * step run's awaiter when `finalize` seals it, and `taskDriving` holds each
-   * in-flight `supervise()` so `idle()` settles a whole task, not just its runs.
-   */
-  private readonly supervisor: Supervisor;
-  private readonly workspaceManager: WorkspaceManagerPort;
-  private readonly runCompletions = new Map<string, () => void>();
-  private readonly taskDriving = new Set<Promise<void>>();
+  /** Everything task-shaped (ADR-013): the Supervisor wrapper, envelopes, approval, task healing. */
+  private readonly tasks: TaskCoordinator;
   private readonly qaSpecialistId: string | null;
 
   constructor(deps: OrchestratorDeps) {
@@ -233,31 +207,19 @@ export class Orchestrator {
     this.notify = deps.notify ?? NOOP_NOTIFIER;
     this.logger = deps.logger ?? NOOP_LOGGER;
     this.metrics = deps.metrics ?? NOOP_METRICS;
-    this.workspaceManager = deps.workspaceManager ?? new FakeWorkspaceManager();
     this.qaSpecialistId = deps.qaSpecialistId ?? null;
-    // The design-consult specialist (ADR-015): the first agent by stable id
-    // order whose DECLARED capabilities include architecture/design — the
-    // opposite default from the implementation gate: a consult is claimed by
-    // declaring the craft, never assigned to an unconstrained agent. QA is
-    // never the consultant. None configured → consults are a logged no-op.
-    const designCapable = [...this.agents.values()]
-      .filter(
-        (a) =>
-          a.id !== this.qaSpecialistId &&
-          (a.capabilities?.includes('architecture') === true ||
-            a.capabilities?.includes('design') === true),
-      )
-      .sort((a, b) => a.id.localeCompare(b.id));
-    this.supervisor = new Supervisor({
+    this.tasks = new TaskCoordinator({
       store: this.store,
-      // the step machinery is the run loop itself, wrapped behind the seam the
-      // supervisor is unit-tested against (N5b)
-      runner: { runStep: (i) => this.runTaskStep(i) },
+      agents: this.agents,
+      workspaceManager: deps.workspaceManager ?? new FakeWorkspaceManager(),
       extractor: deps.reportExtractor ?? new DeterministicReportExtractor(),
-      workspace: this.workspaceManager,
-      logger: this.logger,
+      qaSpecialistId: this.qaSpecialistId,
       ...(deps.maxQaCycles !== undefined ? { maxQaCycles: deps.maxQaCycles } : {}),
-      designSpecialistId: designCapable[0]?.id ?? null,
+      // the run machinery, injected (ADR-013): dispatch and the terminal choke point
+      pump: (key) => this.pump(key),
+      finalize: (run, from, to, opts) => this.finalize(run, from, to, opts),
+      notify: this.notify,
+      logger: this.logger,
     });
   }
 
@@ -798,21 +760,14 @@ export class Orchestrator {
 
   /** Awaits every in-flight run and task-supervision — deterministic tests, clean shutdown. */
   async idle(): Promise<void> {
-    while (this.inFlight.size > 0 || this.taskDriving.size > 0) {
-      await Promise.all([...this.inFlight.values(), ...this.taskDriving.values()]);
+    while (this.inFlight.size > 0 || this.tasks.driving().length > 0) {
+      await Promise.all([...this.inFlight.values(), ...this.tasks.driving()]);
     }
   }
 
-  // — N5b (ADR-009): task supervision (developer → QA → human approval) —
+  // — N5b/N6 (ADR-009): task supervision + human approval — delegated to the
+  // TaskCoordinator (ADR-013); these stay on the facade for the api module —
 
-  /**
-   * Start a task from a routed `task` message: create the Task row and drive it
-   * through the dev → QA loop to `awaiting_human_approval` (or `failed`) on the
-   * project's primary session. The supervisor owns every step run; this returns
-   * as soon as the task exists, the loop running in the background (tracked so
-   * `idle()` settles the whole task, not just its runs). Step runs are hosted by
-   * the originating conversation.
-   */
   startTask(input: {
     projectId: string;
     sourceConversationId: string;
@@ -821,179 +776,19 @@ export class Orchestrator {
     devSpecialistId: string;
     qaSpecialistId: string;
   }): Task {
-    const task = this.store.createTask({
-      projectId: input.projectId,
-      sourceConversationId: input.sourceConversationId,
-      sourceMessageId: input.sourceMessageId,
-    });
-    const driving = this.supervisor
-      .supervise(task, input.objective, input.devSpecialistId, input.qaSpecialistId)
-      .catch((err) => {
-        // supervise() lands flow outcomes in `failed` itself; a throw here is a
-        // bug guard so a background rejection is never swallowed silently
-        this.logger.error('task.supervise_crashed', {
-          taskId: task.id,
-          error: err instanceof Error ? err.name : 'unknown',
-        });
-      })
-      .finally(() => {
-        this.taskDriving.delete(driving);
-      });
-    this.taskDriving.add(driving);
-    return task;
+    return this.tasks.startTask(input);
   }
 
-  // — N6 (ADR-009): human approval of a task awaiting_human_approval —
-
-  /**
-   * The owner approves the work: terminal success. The project session pushes
-   * the task branch and opens a PR (N6b, ADR-010) — best-effort, so a PR failure
-   * never un-approves the task — then the worktree is cleaned up (its branch, on
-   * the remote via the push, survives).
-   */
-  async approveTask(taskId: string): Promise<Task> {
-    const task = this.approvableTask(taskId);
-    const workspace = workspaceFromSteps(this.store.listTaskSteps(taskId));
-    this.store.transitionTask(taskId, 'awaiting_human_approval', 'approved');
-    const pr = await this.workspaceManager.openPullRequest(task, workspace, this.prContent(task));
-    if (pr.url) this.store.setTaskPullRequestUrl(taskId, pr.url);
-    await this.workspaceManager.cleanup(task, workspace);
-    return this.store.getTask(taskId)!;
+  approveTask(taskId: string): Promise<Task> {
+    return this.tasks.approveTask(taskId);
   }
 
-  /** The owner rejects the work: terminal. The worktree is cleaned up; the branch survives. */
-  async rejectTask(taskId: string): Promise<Task> {
-    const task = this.approvableTask(taskId);
-    await this.workspaceManager.cleanup(task, workspaceFromSteps(this.store.listTaskSteps(taskId)));
-    return this.store.transitionTask(taskId, 'awaiting_human_approval', 'rejected');
+  rejectTask(taskId: string): Promise<Task> {
+    return this.tasks.rejectTask(taskId);
   }
 
-  /** Title + body for the approval PR (N6b): the objective, plus the reports' gist. */
-  private prContent(task: Task): PullRequestContent {
-    const objective = this.taskObjective(task);
-    const products = this.store.listWorkProducts(task.id);
-    const impl = products.find((w) => w.kind === 'implementation_report')?.body as
-      | ImplementationReport
-      | undefined;
-    const qa = products.findLast((w) => w.kind === 'qa_report')?.body as QaReport | undefined;
-    const title = `[Agent Hub] ${(objective.split('\n')[0] ?? '').slice(0, 72) || `task ${task.id}`}`;
-    const body = [
-      objective ? `## Objective\n\n${objective}` : '',
-      impl?.summary ? `## Implementation\n\n${impl.summary}` : '',
-      impl?.filesChanged.length ? `Files changed: ${impl.filesChanged.join(', ')}` : '',
-      qa ? `## QA\n\nVerdict: **${qa.verdict}**` : '',
-      `_Opened by Agent Hub after QA passed and owner approval (task ${task.id})._`,
-    ]
-      .filter(Boolean)
-      .join('\n\n');
-    return { title, body };
-  }
-
-  /**
-   * The owner requests changes (N6): the task re-enters the developer → QA loop
-   * with `note` as the first developer prompt's feedback, back to
-   * `awaiting_human_approval` (or `failed`). Returns once the task has moved to
-   * `changes_requested_by_user`; the loop runs in the background (tracked so
-   * `idle()` settles it). Reuses the existing worktree — the work continues on
-   * the same branch.
-   */
   requestTaskChanges(taskId: string, note: string): Task {
-    const task = this.approvableTask(taskId);
-    const objective = this.taskObjective(task);
-    const { devSpecialistId, qaSpecialistId } = this.taskSpecialists(taskId);
-    const updated = this.store.transitionTask(
-      taskId,
-      'awaiting_human_approval',
-      'changes_requested_by_user',
-    );
-    const driving = this.supervisor
-      .supervise(updated, objective, devSpecialistId, qaSpecialistId, { feedback: note })
-      .catch((err) => {
-        this.logger.error('task.resume_crashed', {
-          taskId,
-          error: err instanceof Error ? err.name : 'unknown',
-        });
-      })
-      .finally(() => {
-        this.taskDriving.delete(driving);
-      });
-    this.taskDriving.add(driving);
-    return updated;
-  }
-
-  private approvableTask(taskId: string): Task {
-    const task = this.store.getTask(taskId);
-    if (!task) throw new OrchestratorError('not_found', `task ${taskId}`);
-    if (task.state !== 'awaiting_human_approval') {
-      throw new OrchestratorError(
-        'task_not_approvable',
-        `task is ${task.state}, not awaiting_human_approval`,
-      );
-    }
-    return task;
-  }
-
-  /** The task brief, recovered from its source message (the resume prompt's base). */
-  private taskObjective(task: Task): string {
-    if (task.sourceMessageId) {
-      const msg = this.store.getMessage(task.sourceMessageId);
-      if (msg) return msg.content;
-    }
-    return ''; // source message pruned — the loop still runs on the note alone
-  }
-
-  /** The developer/QA specialists that ran this task, recovered from its steps. */
-  private taskSpecialists(taskId: string): { devSpecialistId: string; qaSpecialistId: string } {
-    const steps = this.store.listTaskSteps(taskId);
-    const dev = steps.find((s) => s.kind === 'implementation')?.specialistId;
-    const qa = steps.find((s) => s.kind === 'qa')?.specialistId ?? this.qaSpecialistId;
-    return { devSpecialistId: dev ?? '', qaSpecialistId: qa ?? '' };
-  }
-
-  /**
-   * Run one specialist turn as a task step (the N5b StepRunner impl): create a
-   * step run in the task's conversation carrying the specialist's snapshot and
-   * the step link, pump it, await its terminal state, and report what it said
-   * plus whether it failed. A step run skips routing (see `resolveRunSession`).
-   */
-  private async runTaskStep(input: {
-    taskId: string;
-    taskStepId: string;
-    specialistId: string;
-    prompt: string;
-  }): Promise<StepResult> {
-    const failed = (): StepResult => ({ assistantOutput: '', summary: null, runId: null, failed: true });
-    const conversationId = this.store.getTask(input.taskId)?.sourceConversationId ?? null;
-    if (!conversationId) return failed();
-    const conversation = this.store.getConversation(conversationId);
-    if (!conversation) return failed();
-    const agent = this.agents.get(input.specialistId);
-    if (!agent) {
-      this.logger.warn('task.step_unknown_specialist', {
-        taskId: input.taskId,
-        specialistId: input.specialistId,
-      });
-      return failed();
-    }
-    const { run } = this.store.sendMessage({
-      conversationId,
-      content: input.prompt,
-      caps: agent.defaultCaps,
-      policy: agent.allowedTools,
-      instructions: agent.instructions,
-      taskStepId: input.taskStepId,
-    });
-    // register the awaiter BEFORE dispatch so a fast finalize is never missed
-    const done = this.awaitRunTerminal(run.id);
-    this.pump(workspaceKeyFor(conversation));
-    await done;
-    const final = this.store.getRun(run.id);
-    return {
-      assistantOutput: assembleAssistantText(this.store.getEvents(run.id)) || '',
-      summary: this.store.getSummary(run.id) ?? null,
-      runId: run.id,
-      failed: !final || (final.state !== 'completed' && final.state !== 'completed_with_denials'),
-    };
+    return this.tasks.requestTaskChanges(taskId, note);
   }
 
   /**
@@ -1051,80 +846,6 @@ export class Orchestrator {
           s.runtimeSessionId !== null,
       );
     return prior.at(-1)?.runtimeSessionId ?? null;
-  }
-
-  /** Resolve when `runId` reaches a terminal state (woken by `finalize`), or now if already there. */
-  private awaitRunTerminal(runId: string): Promise<void> {
-    const run = this.store.getRun(runId);
-    if (!run || isTerminal(run.state)) return Promise.resolve();
-    return new Promise<void>((resolve) => this.runCompletions.set(runId, resolve));
-  }
-
-  /**
-   * Seal the light kickoff run for a task (N5b envelope): it runs no turn, so it
-   * goes starting → streaming → completed carrying a short note that a task was
-   * started. The developer/QA work happens in separate step runs the supervisor
-   * owns — the kickoff never touches the substrate.
-   */
-  private finalizeTaskKickoff(
-    run: Run,
-    conversation: Conversation,
-    userMessageContent: string,
-    task: Task,
-  ): void {
-    this.finalizeEnvelopeRun(
-      run,
-      conversation,
-      userMessageContent,
-      `Started task ${task.id}. Routing to the developer, then QA; you'll be asked to approve the result.`,
-    );
-  }
-
-  /**
-   * Steer the conversation's active task with a work-shaped message (ADR-014):
-   * from `awaiting_human_approval` the message is the owner's change request —
-   * re-enter the loop through the existing N6 path; from any other live state
-   * it queues as pending feedback, drained into the next developer prompt (a
-   * running step is one CLI turn and is never interrupted — cancel is the
-   * explicit interrupt).
-   */
-  private steerTask(run: Run, conversation: Conversation, task: Task, note: string): void {
-    if (task.state === 'awaiting_human_approval') {
-      this.requestTaskChanges(task.id, note);
-      this.finalizeEnvelopeRun(
-        run,
-        conversation,
-        note,
-        `Changes requested on task ${task.id} — re-entering the developer → QA loop.`,
-      );
-    } else {
-      this.store.appendTaskFeedback(task.id, note);
-      this.finalizeEnvelopeRun(
-        run,
-        conversation,
-        note,
-        `Noted — task ${task.id} is running; your message will be folded into its next developer step.`,
-      );
-    }
-    this.logger.info('task.steered', { taskId: task.id, runId: run.id, taskState: task.state });
-  }
-
-  /** Seal a light envelope run (kickoff or steer): no substrate turn, a short note as the answer. */
-  private finalizeEnvelopeRun(
-    run: Run,
-    conversation: Conversation,
-    userMessageContent: string,
-    note: string,
-  ): void {
-    this.store.transitionRun(run.id, 'starting', 'streaming');
-    this.notify.runState(conversation.id, { runId: run.id, state: 'streaming' });
-    this.finalize(run, 'streaming', 'completed', {
-      usageSource: 'result-event',
-      assistantContent: note,
-      userMessageContent,
-      warnings: [],
-      runtimeSessionId: conversation.runtimeSessionId,
-    });
   }
 
   // — UC-04: cancellation —
@@ -1252,37 +973,9 @@ export class Orchestrator {
         });
       }
     }
-    // in-flight tasks whose supervise() loop died with the crash: their step
-    // runs were healed above, but the Task row would otherwise stay non-terminal
-    // FOREVER (ADR-009 "Boot reconciliation of tasks"; UC-06 covers runs) — the
-    // source kickoff already told the user to expect an approval, so nothing
-    // would ever advance it. Heal every TRANSIENT state to `failed` and clean up
-    // the worktree (best-effort — the session may be down). RESTING states
-    // (awaiting_human_approval, waiting on the owner) are not crash artifacts and
-    // are left alone. A new non-terminal state must be classified here (ADR-009).
-    const CRASH_HEALABLE_TASK_STATES: TaskState[] = [
-      'planning',
-      'implementing',
-      'qa_pending',
-      'qa_running',
-      'changes_requested_by_qa',
-      'changes_requested_by_user',
-    ];
-    for (const task of this.store.listTasksByState(CRASH_HEALABLE_TASK_STATES)) {
-      const steps = this.store.listTaskSteps(task.id);
-      if (steps.length > 0) {
-        try {
-          await this.workspaceManager.cleanup(task, workspaceFromSteps(steps));
-        } catch (err) {
-          this.logger.warn('task.reconcile_cleanup_failed', {
-            taskId: task.id,
-            error: err instanceof Error ? err.name : 'unknown',
-          });
-        }
-      }
-      this.store.transitionTask(task.id, task.state, 'failed');
-      this.logger.warn('task.reconciled_failed', { taskId: task.id, from: task.state });
-    }
+    // in-flight tasks whose supervise() loop died with the crash (ADR-009
+    // "Boot reconciliation of tasks") — the TaskCoordinator owns the healing
+    await this.tasks.reconcileTasks();
 
     // queue rebuild: re-arm every WORKSPACE that still has queued runs
     // (projects and specialist workspaces alike, N3b-2)
@@ -1406,7 +1099,7 @@ export class Orchestrator {
         .listTasks({ sourceConversationId: conversation.id })
         .find((t) => !isTerminalTask(t.state));
       if (activeTask) {
-        this.steerTask(run, conversation, activeTask, userMessageContent);
+        this.tasks.steerTask(run, conversation, activeTask, userMessageContent);
         return null; // the steer run executes no turn
       }
       const devSpecialistId = this.resolveDevSpecialist(proposal, conversation);
@@ -1420,7 +1113,7 @@ export class Orchestrator {
             devSpecialistId,
           });
         }
-        const task = this.startTask({
+        const task = this.tasks.startTask({
           projectId: conversation.projectId,
           sourceConversationId: conversation.id,
           sourceMessageId: run.messageId,
@@ -1428,7 +1121,7 @@ export class Orchestrator {
           devSpecialistId,
           qaSpecialistId: this.qaSpecialistId,
         });
-        this.finalizeTaskKickoff(run, conversation, userMessageContent, task);
+        this.tasks.finalizeTaskKickoff(run, conversation, userMessageContent, task);
         return null; // the kickoff run executes no turn
       }
       // no implementation-capable specialist → fall through to a normal turn
@@ -1928,11 +1621,7 @@ export class Orchestrator {
     // wake a task-step awaiter (N5b): the supervisor blocks on its step run's
     // terminal state, and `finalize` is the one choke point every outcome flows
     // through — success, failure, cancel, timeout alike.
-    const wake = this.runCompletions.get(run.id);
-    if (wake) {
-      this.runCompletions.delete(run.id);
-      wake();
-    }
+    this.tasks.wakeRunTerminal(run.id);
   }
 
   /**
