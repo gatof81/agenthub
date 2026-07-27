@@ -124,6 +124,13 @@ function suite(name: string, makeStore: () => HubStore): void {
       expect(task.state).toBe('awaiting_human_approval');
       expect(task.sourceConversationId).toBe(conv.id);
 
+      // the outcome is announced IN the conversation (a run-less assistant
+      // note) — the owner is told to review without opening the task view
+      const lastMessage = store.listMessages(conv.id).at(-1)!;
+      expect(lastMessage.role).toBe('assistant');
+      expect(lastMessage.runId).toBeNull();
+      expect(lastMessage.content).toContain('awaiting your review');
+
       // both step turns ran inside the task's git worktree (ADR-010 B) — the
       // exec carried its absolute path as workingDir, isolated from the session root
       const worktree = taskWorktreePath(task.id);
@@ -408,7 +415,8 @@ function suite(name: string, makeStore: () => HubStore): void {
       const project = await readyProject();
       // a task caught mid-flight by the crash: its supervise() loop died with the
       // process, so it would otherwise stay non-terminal forever
-      const stuck = store.createTask({ projectId: project.id });
+      const conv = orch.createConversation({ projectId: project.id, mode: 'automatic' });
+      const stuck = store.createTask({ projectId: project.id, sourceConversationId: conv.id });
       store.transitionTask(stuck.id, 'planning', 'implementing');
       // a persisted step carries the worktree grant — reconcile recovers the
       // worktree descriptor from the steps (workspaceFromSteps) and cleans it up
@@ -435,6 +443,10 @@ function suite(name: string, makeStore: () => HubStore): void {
 
       expect(store.getTask(stuck.id)!.state).toBe('failed'); // healed, not stuck
       expect(store.getTask(paused.id)!.state).toBe('awaiting_human_approval'); // untouched
+      // the heal is announced in the source conversation (a run-less note)
+      const note = store.listMessages(conv.id).at(-1)!;
+      expect(note.role).toBe('assistant');
+      expect(note.content).toContain('interrupted by a Hub restart');
       // the crashed task's worktree was recovered from its steps and cleaned up;
       // the paused task (no steps, resting) was never touched
       expect(workspace.cleanupCalls).toHaveLength(1);

@@ -752,6 +752,17 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
 
     // — run history (activity panel) —
 
+    it('appendAssistantMessage persists a standalone assistant note with no run, in thread order', () => {
+      const store = makeStore();
+      const { conv } = seedRun(store);
+      const note = store.appendAssistantMessage(conv.id, 'Task tsk_x is awaiting your review.');
+      expect(note.role).toBe('assistant');
+      expect(note.runId).toBeNull();
+      const listed = store.listMessages(conv.id);
+      expect(listed.at(-1)).toEqual(note); // appended after the seed user message
+      expect(() => store.appendAssistantMessage('conv_missing', 'x')).toThrow();
+    });
+
     it('listRunsByConversation returns the conversation runs newest-first, scoped and limited', () => {
       const store = makeStore();
       const { project, conv, run: r1 } = seedRun(store);
