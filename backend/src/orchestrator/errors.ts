@@ -5,6 +5,8 @@
  * (`Orchestrator`, `OrchestratorError`) is unchanged.
  */
 
+import type { Agent } from '../domain/types.js';
+
 export class OrchestratorError extends Error {
   constructor(
     readonly code:
@@ -22,4 +24,15 @@ export class OrchestratorError extends Error {
     super(message);
     this.name = 'OrchestratorError';
   }
+}
+
+/**
+ * Resolve a configured agent or throw `unknown_agent` — the validation shared
+ * by the facade (send/conversations) and the ProvisioningService
+ * (createProject/bindSpecialistSession) since the ADR-013 split.
+ */
+export function mustAgent(agents: ReadonlyMap<string, Agent>, agentId: string): Agent {
+  const agent = agents.get(agentId);
+  if (!agent) throw new OrchestratorError('unknown_agent', `agent ${agentId} not configured`);
+  return agent;
 }

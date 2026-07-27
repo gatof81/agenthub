@@ -84,10 +84,11 @@ describe('the project declares its workspace (ADR-006, FR-45)', () => {
     const { store, port, orch } = harness();
     const p = store.createProject({ name: 'legacy', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
     const legacy = { ...store.getProject(p.id)!, sessionTemplateId: null };
+    // `provision` is private on the ProvisioningService collaborator (ADR-013)
     const orchAny = orch as unknown as {
-      provision: (pr: unknown, i: string, r: null) => Promise<void>;
+      provisioning: { provision: (pr: unknown, i: string, r: null) => Promise<void> };
     };
-    await orchAny.provision(legacy, '', null);
+    await orchAny.provisioning.provision(legacy, '', null);
     expect(port.seededSessions).toHaveLength(0); // nothing dispatched
     expect(store.getProject(p.id)!.status).toBe('error');
   });
