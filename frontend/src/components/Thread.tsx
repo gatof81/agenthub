@@ -68,6 +68,13 @@ interface Props {
   onBack: () => void;
   /** the title changed — backend auto-title after the first message, or a rename */
   onRenamed: (conversation: Conversation) => void;
+  /**
+   * The explicit early task split (#128, ADR-014): start a NEW task in a
+   * fresh conversation, carrying the current draft as its first message.
+   * Shown only while this conversation has an active task — everything typed
+   * here steers that task (I-14); this is the deliberate escape hatch.
+   */
+  onStartNewTask: (draft: string) => void;
   /** reader-chosen text size (11 §11) and the cycler behind the header "Aa" */
   textSize: TextSize;
   onCycleTextSize: () => void;
@@ -79,11 +86,15 @@ interface Props {
 const WATCHDOG_IDLE_MS = 15_000;
 const WATCHDOG_TICK_MS = 5_000;
 
+/** Task states that no longer hold the conversation (I-14): a new task may start. */
+const TERMINAL_TASK_STATES: ReadonlySet<Task['state']> = new Set(['approved', 'rejected', 'failed']);
+
 export function Thread({
   conversation,
   projectStatus,
   onBack,
   onRenamed,
+  onStartNewTask,
   textSize,
   onCycleTextSize,
   registerCommands,
@@ -403,6 +414,10 @@ export function Thread({
     tasks.filter((t) => t.sourceMessageId).map((t) => [t.sourceMessageId!, t]),
   );
 
+  // While a task is live, everything typed here steers it (I-14) — the "New
+  // task" affordance is the explicit split ADR-014 reserves for the user.
+  const activeTask = tasks.find((t) => !TERMINAL_TASK_STATES.has(t.state)) ?? null;
+
   // Run-level watchdog (belt to the SSE stall watchdog, which only catches a
   // dead socket). If a run is shown active but its stream has gone quiet past
   // WATCHDOG_IDLE_MS — the terminal frame lost on a still-open socket, or a run
@@ -643,6 +658,19 @@ export function Thread({
               disabled={projectStatus !== 'ready'}
             />
             <div className="composer-actions">
+              {activeTask && (
+                <button
+                  className="new-task-btn"
+                  onClick={() => {
+                    onStartNewTask(draft);
+                    setDraft('');
+                  }}
+                  disabled={projectStatus !== 'ready'}
+                  title="Messages here steer the running task — this starts a NEW task in a fresh conversation, taking your draft with it"
+                >
+                  New task ↗
+                </button>
+              )}
               {active && (
                 <button
                   className="icon-btn stop"
