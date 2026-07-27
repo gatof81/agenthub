@@ -28,14 +28,13 @@ import {
   type TurnRequest,
   type WorkspaceManagerPort,
 } from '../domain/ports.js';
-import { isTerminalTask } from '../domain/taskStateMachine.js';
 import { mustAgent, OrchestratorError } from './errors.js';
 import { ProvisioningService } from './provisioningService.js';
+import { SessionResolver } from './sessionResolver.js';
 import { DeterministicRouter } from './router.js';
 import { DeterministicReportExtractor } from './reportExtractor.js';
 import { FakeWorkspaceManager } from './workspaceManager.js';
 import { TaskCoordinator } from './taskCoordinator.js';
-import { NoExecutionTargetError, selectExecutionTarget } from './selector.js';
 import {
   assembleAssistantText,
   deriveRunSummary,
@@ -47,11 +46,9 @@ import type {
   Agent,
   Conversation,
   ConversationMode,
-  ExecutionTargetDecision,
   KillOutcome,
   Message,
   Project,
-  RouteProposal,
   Run,
   RunErrorCode,
   SpecialistSessionBinding,
@@ -156,7 +153,6 @@ export class Orchestrator {
   private readonly adapter: RuntimeAdapter;
   private readonly execPort: SubstrateExecPort;
   private readonly agents: ReadonlyMap<string, Agent>;
-  private readonly router: RouterPort;
   private readonly now: Clock;
   private readonly runEnv: Record<string, string>;
   private readonly tokenPrices: TokenPrices;
@@ -182,6 +178,8 @@ export class Orchestrator {
 
   /** Everything task-shaped (ADR-013): the Supervisor wrapper, envelopes, approval, task healing. */
   private readonly tasks: TaskCoordinator;
+  /** Decides WHERE a run executes (ADR-013): routing, selector, envelope signals. */
+  private readonly resolver: SessionResolver;
   /** Project/specialist-session lifecycle (ADR-013): discovery, provisioning, bind, archive/restore. */
   private readonly provisioning: ProvisioningService;
   private readonly qaSpecialistId: string | null;
@@ -191,7 +189,6 @@ export class Orchestrator {
     this.adapter = deps.adapter;
     this.execPort = deps.execPort;
     this.agents = deps.agents;
-    this.router = deps.router ?? new DeterministicRouter();
     this.now = deps.clock ?? systemClock;
     this.runEnv = deps.runEnv ?? {};
     this.tokenPrices = deps.tokenPrices ?? DEFAULT_TOKEN_PRICES;
@@ -219,6 +216,14 @@ export class Orchestrator {
       execPort: this.execPort,
       agents: this.agents,
       notify: this.notify,
+      logger: this.logger,
+    });
+    this.resolver = new SessionResolver({
+      store: this.store,
+      execPort: this.execPort,
+      agents: this.agents,
+      router: deps.router ?? new DeterministicRouter(),
+      qaSpecialistId: this.qaSpecialistId,
       logger: this.logger,
     });
   }
@@ -404,42 +409,6 @@ export class Orchestrator {
     return this.tasks.requestTaskChanges(taskId, note);
   }
 
-  /**
-   * Can this specialist take a task's IMPLEMENTATION step (#124)? Declared
-   * capabilities must include `implementation`; a specialist that declares
-   * none is unconstrained (backward-compatible — capabilities are optional in
-   * AGENTS_CONFIG). This is what keeps a design-only role (the architect) out
-   * of the dev seat, where the dev → QA loop can never converge.
-   */
-  private canImplement(agent: Agent): boolean {
-    return agent.capabilities === undefined || agent.capabilities.includes('implementation');
-  }
-
-  /**
-   * The developer for a task's implementation steps (ADR-015, #124): the
-   * CONVERSATION'S OWN agent when it can implement — the entity that already
-   * holds the context implements by default, no third-party fresh-context tax
-   * — else the router's contextual pick when capable, else the first capable
-   * specialist by stable id order. The QA specialist is never the developer
-   * (the envelope's independence requirement). Null = nobody can implement;
-   * the caller falls back to a normal turn rather than spawning a task doomed
-   * to loop.
-   */
-  private resolveDevSpecialist(
-    proposal: RouteProposal,
-    conversation: Conversation,
-  ): string | null {
-    const eligible = (a: Agent | undefined): boolean =>
-      a !== undefined && a.id !== this.qaSpecialistId && this.canImplement(a);
-    const conversationOwn = this.agents.get(conversation.agentId);
-    if (eligible(conversationOwn)) return conversationOwn!.id;
-    const proposed = this.agents.get(proposal.specialistId);
-    if (eligible(proposed)) return proposed!.id;
-    const candidates = [...this.agents.values()]
-      .filter((a) => eligible(a))
-      .sort((a, b) => a.id.localeCompare(b.id));
-    return candidates[0]?.id ?? null;
-  }
 
   /**
    * The `--resume` handle for a task step (#123): the latest recorded handle
@@ -483,7 +452,7 @@ export class Orchestrator {
       if (run.execId) {
         const conversation = this.store.getConversation(run.conversationId)!;
         const pending = this.adapter.kill(
-          this.sessionMetaForConversation(conversation).sessionId!,
+          this.resolver.sessionMetaForConversation(conversation).sessionId!,
           run.execId,
           KILL_GRACE_MS,
         );
@@ -515,7 +484,7 @@ export class Orchestrator {
     for (const run of this.store.listRunsByState(['interrupted'])) {
       const conversation = this.store.getConversation(run.conversationId)!;
       const message = this.store.getMessage(run.messageId)!;
-      const sessionId = this.sessionMetaForConversation(conversation).sessionId;
+      const sessionId = this.resolver.sessionMetaForConversation(conversation).sessionId;
       const probe =
         run.execId && sessionId
           ? await this.adapter.status(sessionId, run.execId)
@@ -596,222 +565,65 @@ export class Orchestrator {
   // — the run loop —
 
   /**
-   * The session a conversation's runs use, looked up (never started) plus its
-   * cached state — for kill/reconcile/error-context. Project conversation →
-   * the project's binding; direct specialist conversation → the specialist's
-   * (N3b-2). See `resolveRunSession` for the execution path that also starts it.
+   * Resolve where this run executes (SessionResolver, ADR-013) and route the
+   * signal: a session executes a turn; a fail seals the run as exec_refused
+   * (the resolver's own vocabulary); the task-shaped signals (ADR-014) go to
+   * the TaskCoordinator and the run becomes a light envelope. Returns null
+   * when the run was finalized here (no turn to execute).
    */
-  private sessionMetaForConversation(c: Conversation): {
-    sessionId: string | null;
-    lastKnownState: string | null;
-  } {
-    if (c.projectId !== null) {
-      const b = this.store.getProject(c.projectId)?.sessionBinding;
-      return { sessionId: b?.sessionId ?? null, lastKnownState: b?.lastKnownState ?? null };
-    }
-    const b = this.store.getSpecialistSession(c.agentId);
-    return { sessionId: b?.sessionId ?? null, lastKnownState: b?.lastKnownState ?? null };
-  }
-
-  private async resolveRunSession(
+  private async resolveTarget(
     run: Run,
     conversation: Conversation,
     userMessageContent: string,
   ): Promise<string | null> {
-    const fail = (detail: string): null => {
-      this.finalize(run, 'starting', 'failed', {
-        usageSource: 'error-partial',
-        errorCode: 'exec_refused',
-        errorDetail: detail,
-        userMessageContent,
-        warnings: [],
-        runtimeSessionId: conversation.runtimeSessionId,
-      });
-      return null;
-    };
-
-    // A task step run (N5b, ADR-009/010 A): the supervisor already chose the
-    // specialist, and the step runs in its project's primary session — never
-    // re-routed. Structural, so no selector and no recorded target decision.
-    if (run.taskStepId !== null) {
-      const sessionId =
-        conversation.projectId !== null
-          ? this.store.getProject(conversation.projectId)?.sessionBinding.sessionId ?? null
-          : null;
-      return sessionId ?? fail('task step run has no project session (ADR-010 A)');
-    }
-
-    // Automatic mode (N4a, ADR-008): the router proposes a specialist and the
-    // deterministic selector chooses the session, recorded on the run. Direct
-    // mode derives the session structurally, with no selector in the loop.
-    if (conversation.mode === 'automatic') {
-      return this.resolveAutomaticTarget(run, conversation, userMessageContent, fail);
-    }
-
-    if (conversation.projectId !== null) {
-      const sessionId = this.store.getProject(conversation.projectId)?.sessionBinding.sessionId ?? null;
-      return sessionId ?? fail('project has no substrate session (FR-33)');
-    }
-
-    // direct specialist conversation
-    const binding = this.store.getSpecialistSession(conversation.agentId);
-    if (!binding) return fail(`specialist ${conversation.agentId} has no session bound (N3b-1)`);
-    return this.ensureSpecialistSessionRunnable(binding, fail);
-  }
-
-  /**
-   * Automatic-mode session resolution (N4a, ADR-008 Option 3). The router only
-   * PROPOSES a specialist; the deterministic selector chooses the session from
-   * real bindings — never a model (01 §3, SEC-01). The decision persists on the
-   * run before the turn executes, so the inspector shows who ran, where and why.
-   * In N4a the router echoes the conversation's own specialist, so the choice is
-   * structural; the message-aware router that can pick a different specialist is
-   * N4b, behind the same port.
-   */
-  private async resolveAutomaticTarget(
-    run: Run,
-    conversation: Conversation,
-    userMessageContent: string,
-    fail: (detail: string) => null,
-  ): Promise<string | null> {
-    const proposal = await this.router.route({
-      message: userMessageContent,
-      specialists: [...this.agents.values()],
-      conversation: {
-        id: conversation.id,
-        projectId: conversation.projectId,
-        agentId: conversation.agentId,
-        mode: conversation.mode,
-      },
-    });
-
-    // Envelope (N5b, ADR-009): a routed `task` in a project conversation is not
-    // a single turn — it spawns a supervised developer → QA task. This run is a
-    // light kickoff (no substrate turn); the implementation and QA execute as
-    // their own step runs the supervisor owns. Gated on a configured QA
-    // specialist and an implementation-capable developer (#124) — a hub with
-    // neither just runs a normal turn (the routed specialist answers).
-    if (
-      proposal.workType === 'task' &&
-      conversation.projectId !== null &&
-      this.qaSpecialistId !== null
-    ) {
-      // I-14 (ADR-014): a conversation has at most ONE active task. A
-      // work-shaped message while one runs STEERS it — folded at the next
-      // step boundary, or re-entering the loop from awaiting_human_approval —
-      // never a sibling task. Questions fall through to a normal turn above
-      // (workType 'question' never reaches this branch).
-      const activeTask = this.store
-        .listTasks({ sourceConversationId: conversation.id })
-        .find((t) => !isTerminalTask(t.state));
-      if (activeTask) {
-        this.tasks.steerTask(run, conversation, activeTask, userMessageContent);
+    const target = await this.resolver.resolve(run, conversation, userMessageContent);
+    switch (target.kind) {
+      case 'session':
+        return target.sessionId;
+      case 'fail':
+        this.finalize(run, 'starting', 'failed', {
+          usageSource: 'error-partial',
+          errorCode: 'exec_refused',
+          errorDetail: target.detail,
+          userMessageContent,
+          warnings: [],
+          runtimeSessionId: conversation.runtimeSessionId,
+        });
+        return null;
+      case 'steer-task':
+        this.tasks.steerTask(run, conversation, target.task, userMessageContent);
         return null; // the steer run executes no turn
-      }
-      const devSpecialistId = this.resolveDevSpecialist(proposal, conversation);
-      if (devSpecialistId !== null) {
-        if (devSpecialistId !== proposal.specialistId) {
-          // the router's contextual pick could not implement (#124 — the
-          // architect-as-implementer loop); the audit trail is the step row
-          this.logger.info('task.dev_rerouted', {
-            runId: run.id,
-            proposed: proposal.specialistId,
-            devSpecialistId,
-          });
-        }
+      case 'start-task': {
         const task = this.tasks.startTask({
-          projectId: conversation.projectId,
+          projectId: conversation.projectId!,
           sourceConversationId: conversation.id,
           sourceMessageId: run.messageId,
           objective: userMessageContent,
-          devSpecialistId,
-          qaSpecialistId: this.qaSpecialistId,
+          devSpecialistId: target.devSpecialistId,
+          qaSpecialistId: target.qaSpecialistId,
         });
         this.tasks.finalizeTaskKickoff(run, conversation, userMessageContent, task);
         return null; // the kickoff run executes no turn
       }
-      // no implementation-capable specialist → fall through to a normal turn
     }
-
-    const projectPrimarySessionId =
-      conversation.projectId !== null
-        ? this.store.getProject(conversation.projectId)?.sessionBinding.sessionId ?? null
-        : null;
-    const specialistBinding = this.store.getSpecialistSession(proposal.specialistId);
-
-    let decision: ExecutionTargetDecision;
-    try {
-      decision = selectExecutionTarget({
-        proposal,
-        projectPrimarySessionId,
-        specialistSessionId: specialistBinding?.sessionId ?? null,
-      });
-    } catch (err) {
-      if (err instanceof NoExecutionTargetError) {
-        return fail(
-          `no execution target for specialist ${proposal.specialistId} (ADR-008): neither a project primary session nor a bound specialist session`,
-        );
-      }
-      throw err;
-    }
-
-    this.store.recordRunTarget(run.id, decision.selectedSessionId, decision);
-
-    // The selector chose the session; it must still be runnable. A project
-    // primary session was already gated `ready` at send; a specialist session
-    // may need starting on use — the same path a direct specialist run takes.
-    if (decision.workspaceStrategy === 'specialist-session') {
-      return this.ensureSpecialistSessionRunnable(specialistBinding!, fail);
-    }
-    return decision.selectedSessionId;
   }
 
-  /**
-   * Ensure a specialist's bound session is running, starting it on use (N3b-2,
-   * owner decision — needs operate-tier start upstream, shared-terminal#429).
-   * Returns the session id, or `fail`s (returning null) if it is gone upstream
-   * (FR-44) or cannot be started. Shared by direct and automatic resolution.
-   */
-  private async ensureSpecialistSessionRunnable(
-    binding: SpecialistSessionBinding,
-    fail: (detail: string) => null,
-  ): Promise<string | null> {
-    const info = await this.execPort.getSession(binding.sessionId);
-    if (info === null) {
-      this.store.setSpecialistSession({ ...binding, status: 'error', lastKnownState: null });
-      return fail(`specialist session ${binding.sessionId} no longer exists upstream (FR-44)`);
-    }
-    if (info.status !== 'running') {
-      // Until #429 ships an owner session 403s on start: report it honestly
-      // rather than silently. Auto-starts once #429 lands.
-      try {
-        await this.execPort.startSession(binding.sessionId);
-        this.store.setSpecialistSession({ ...binding, status: 'available', lastKnownState: 'running' });
-      } catch {
-        this.store.setSpecialistSession({ ...binding, status: 'offline', lastKnownState: info.status });
-        return fail(
-          `specialist session is ${info.status} and could not be started from the Hub — start it in Shared Terminal (auto-start pending shared-terminal#429)`,
-        );
-      }
-    }
-    return binding.sessionId;
-  }
 
   private async executeRun(run: Run): Promise<void> {
     const conversation = this.store.getConversation(run.conversationId)!;
     const message = this.store.getMessage(run.messageId)!;
     let sessionId: string | null;
     try {
-      sessionId = await this.resolveRunSession(run, conversation, message.content);
+      sessionId = await this.resolveTarget(run, conversation, message.content);
     } catch (err) {
       // An UNEXPECTED throw from resolution (e.g. the seam's getSession call
       // hits a transient 500/timeout/ECONNRESET) is not one
-      // of resolveRunSession's own fail() paths — those already finalize and
+      // of the resolver's own fail signals — those are sealed by resolveTarget and
       // return null. Left uncaught, this would escape executeRun; pump()'s
       // `.catch(() => {})` would swallow it silently while the run stayed
       // `starting` forever, wedging the whole workspace queue behind it
       // (dispatchNextRun treats `starting` as the active run — I-2/FR-04).
-      // Finalizing here — same pattern as resolveRunSession's own fail() —
+      // Finalizing here — same pattern as resolveTarget's fail handling —
       // keeps the queue moving no matter how resolution fails.
       //
       // Classify like the mid-turn seam catch (08 §6): a 409/429 (container
@@ -822,7 +634,7 @@ export class Orchestrator {
         err && typeof err === 'object' && 'status' in err ? Number((err as { status: unknown }).status) : NaN;
       const refused = status === 409 || status === 429;
       const raw = err instanceof Error ? err.message : String(err);
-      const lastKnownState = this.sessionMetaForConversation(conversation).lastKnownState ?? 'unknown';
+      const lastKnownState = this.resolver.sessionMetaForConversation(conversation).lastKnownState ?? 'unknown';
       this.finalize(run, 'starting', 'failed', {
         usageSource: 'error-partial',
         errorCode: refused ? 'exec_refused' : 'seam_unavailable',
@@ -833,7 +645,7 @@ export class Orchestrator {
       });
       return;
     }
-    if (sessionId === null) return; // resolveRunSession finalized the run
+    if (sessionId === null) return; // resolveTarget finalized the run
 
     // A task step runs inside its git worktree (ADR-010 B, N5b-2): the working
     // directory is the step's audited DelegatedWorkspaceAccess.path — the single
@@ -996,7 +808,7 @@ export class Orchestrator {
         // client can retry provisioning without a second API call (matches the
         // no-session exec_refused path above; 08 §6)
         const lastKnownState =
-          this.sessionMetaForConversation(conversation).lastKnownState ?? 'unknown';
+          this.resolver.sessionMetaForConversation(conversation).lastKnownState ?? 'unknown';
         this.finalize(current, current.state, 'failed', {
           usageSource: 'error-partial',
           errorCode: refused ? 'exec_refused' : 'seam_unavailable',
