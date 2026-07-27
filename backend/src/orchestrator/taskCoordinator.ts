@@ -175,15 +175,20 @@ export class TaskCoordinator {
     });
     const driving = this.supervisor
       .supervise(task, input.objective, input.devSpecialistId, input.qaSpecialistId)
-      .then(() => this.announceTaskOutcome(task.id))
-      .catch((err) => {
-        // supervise() lands flow outcomes in `failed` itself; a throw here is a
-        // bug guard so a background rejection is never swallowed silently
-        this.logger.error('task.supervise_crashed', {
-          taskId: task.id,
-          error: err instanceof Error ? err.name : 'unknown',
-        });
-      })
+      // two-argument then: the rejection handler is EXCLUSIVELY supervise()'s
+      // bug guard — an announce failure surfaces as task.announce_failed (its
+      // own catch), never misattributed as a supervise crash
+      .then(
+        () => this.announceTaskOutcome(task.id),
+        (err: unknown) => {
+          // supervise() lands flow outcomes in `failed` itself; a throw here is a
+          // bug guard so a background rejection is never swallowed silently
+          this.logger.error('task.supervise_crashed', {
+            taskId: task.id,
+            error: err instanceof Error ? err.name : 'unknown',
+          });
+        },
+      )
       .finally(() => {
         this.taskDriving.delete(driving);
       });
@@ -256,13 +261,16 @@ export class TaskCoordinator {
     );
     const driving = this.supervisor
       .supervise(updated, objective, devSpecialistId, qaSpecialistId, { feedback: note })
-      .then(() => this.announceTaskOutcome(taskId))
-      .catch((err) => {
-        this.logger.error('task.resume_crashed', {
-          taskId,
-          error: err instanceof Error ? err.name : 'unknown',
-        });
-      })
+      // two-argument then — same reasoning as startTask's chain
+      .then(
+        () => this.announceTaskOutcome(taskId),
+        (err: unknown) => {
+          this.logger.error('task.resume_crashed', {
+            taskId,
+            error: err instanceof Error ? err.name : 'unknown',
+          });
+        },
+      )
       .finally(() => {
         this.taskDriving.delete(driving);
       });
@@ -497,7 +505,11 @@ export class TaskCoordinator {
       }
       this.store.transitionTask(task.id, task.state, 'failed');
       this.logger.warn('task.reconciled_failed', { taskId: task.id, from: task.state });
-      // the restart killed the loop mid-flight — say so where the owner reads
+      // The restart killed the loop mid-flight — say so where the owner reads.
+      // Deliberately NOT announceTaskOutcome: reconciliation runs before the
+      // server accepts connections, so there is no client to nudge — the
+      // run-state re-emit would be a per-restart no-op frame (ADR-009
+      // "Outcome announcement").
       try {
         if (task.sourceConversationId !== null) {
           this.store.appendAssistantMessage(
