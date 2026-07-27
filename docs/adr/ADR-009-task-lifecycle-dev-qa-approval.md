@@ -166,8 +166,11 @@ standalone assistant message with no run (`messages.run_id` NULL):
 - **boot heal** — a task reconciled to `failed` after a restart announces
   the interruption explicitly.
 
-The note is best-effort (an announce failure never fails the task flow) and
-is accompanied by a re-emitted kickoff-run state frame so connected clients
-refetch — a repeated state frame is an idempotent projection (NFR-07), not a
-new transition. The task view remains the detailed record; the note is the
-doorbell.
+The note is best-effort (an announce failure never fails the task flow).
+For announces during a live session (the first two cases) it is accompanied
+by a re-emitted kickoff-run state frame so connected clients refetch — a
+repeated state frame is an idempotent projection (NFR-07), not a new
+transition. The boot-heal announce omits the frame: reconciliation runs
+before the server accepts connections, so there is no client to nudge — the
+note is simply there when the conversation is next opened. The task view
+remains the detailed record; the note is the doorbell.
