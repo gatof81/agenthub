@@ -324,6 +324,12 @@ shrink the input the way stacked text buttons did.
 - **Cancel** (UX-04) is a small icon button that appears only while a run is
   active, beside send — both actions available at once without competing for
   width.
+- **New task ↗** (ADR-014, #128) is a compact pill that appears only while the
+  conversation has an active (non-terminal) task: everything typed here steers
+  that task (I-14), and this button is the explicit escape hatch — it starts a
+  NEW task in a fresh conversation of the same project, taking the current
+  draft with it as the first message. Explicit only, never inferred from
+  message content.
 - The field **auto-grows** with the draft up to a cap, then scrolls; a
   multi-line message is comfortable without a tall box permanently stealing the
   thread.

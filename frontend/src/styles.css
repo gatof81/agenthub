@@ -515,6 +515,19 @@ body {
   flex: none;
   cursor: pointer;
 }
+.new-task-btn {
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.new-task-btn:hover { color: var(--fg); border-color: var(--accent-strong); }
+.new-task-btn:disabled { color: var(--muted); border-color: var(--border); cursor: default; opacity: 0.6; }
 .icon-btn.send { background: var(--accent-strong); color: #fff; }
 .icon-btn.send:disabled { background: var(--border); color: var(--muted); cursor: default; }
 .icon-btn.stop { background: transparent; border: 1px solid var(--border); color: var(--muted); }

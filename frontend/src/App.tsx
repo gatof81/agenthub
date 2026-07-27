@@ -227,6 +227,31 @@ export function App(): React.JSX.Element {
     }
   }, [selectedProject]);
 
+  // The explicit early task split (#128, ADR-014): a fresh conversation in the
+  // same project, seeded with the drafted message — sent BEFORE opening it, so
+  // the new thread mounts with the kickoff already on record. The busy
+  // conversation keeps steering its own task (I-14). Returns success so the
+  // caller clears the draft ONLY when the split landed; on any failure we stay
+  // put and the draft survives for a retry. A conversation created before a
+  // failed send is added to the sidebar (never an unreachable orphan) but not
+  // navigated to — leaving would unmount the composer and lose the draft.
+  const startNewTask = useCallback(
+    async (draft: string): Promise<boolean> => {
+      if (!selectedProject) return false;
+      try {
+        const { conversation } = await api.createConversation(selectedProject.id);
+        setConversations((prev) => [...prev, conversation]);
+        if (draft.trim() !== '') await api.sendMessage(conversation.id, draft);
+        setSelectedConversation(conversation);
+        return true;
+      } catch (e) {
+        toastError(e, "Couldn't start the new task");
+        return false;
+      }
+    },
+    [selectedProject],
+  );
+
   // A restore has to land in the view the user returns to, not just vanish
   // from the archived list. Projects reappear via refreshProjects(); a
   // restored CONVERSATION would not — `conversations` is populated only by
@@ -449,6 +474,7 @@ export function App(): React.JSX.Element {
           projectStatus={selectedProject?.status ?? 'ready'}
           onBack={() => setSelectedConversation(null)}
           onRenamed={applyConversationRename}
+          onStartNewTask={startNewTask}
           textSize={textSize}
           onCycleTextSize={cycleTextSize}
           registerCommands={setThreadCommands}
