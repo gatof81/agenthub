@@ -254,6 +254,20 @@ export class MemoryHubStore implements HubStore {
     return result;
   }
 
+  appendAssistantMessage(conversationId: string, content: string): Message {
+    this.mustConversationRef(conversationId);
+    const message: Message = {
+      id: this.id('msg'),
+      conversationId,
+      role: 'assistant',
+      content: capMessageContent(content),
+      runId: null,
+      createdAt: this.now(),
+    };
+    this.messages.push(message);
+    return clone(message);
+  }
+
   // — run lifecycle —
 
   sendMessage(input: SendMessageInput): { message: Message; run: Run } {

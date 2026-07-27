@@ -597,6 +597,25 @@ export class SqliteHubStore implements HubStore {
 
   // — run lifecycle —
 
+  appendAssistantMessage(conversationId: string, content: string): Message {
+    this.mustConversation(conversationId);
+    const message: Message = {
+      id: this.id('msg'),
+      conversationId,
+      role: 'assistant',
+      content: capMessageContent(content),
+      runId: null,
+      createdAt: this.now(),
+    };
+    this.db
+      .prepare(
+        `INSERT INTO messages (id, conversation_id, role, content, run_id, created_at)
+         VALUES (?, ?, 'assistant', ?, NULL, ?)`,
+      )
+      .run(message.id, conversationId, message.content, message.createdAt);
+    return message;
+  }
+
   sendMessage(input: SendMessageInput): { message: Message; run: Run } {
     validateSendMessage(input);
     this.mustConversation(input.conversationId);

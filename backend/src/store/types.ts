@@ -167,6 +167,13 @@ export interface HubStore {
   getMessage(id: string): Message | undefined;
   listMessages(conversationId: string, opts?: { before?: string; limit?: number }): Message[];
   /**
+   * Append a standalone assistant message with NO run — the Hub speaking for
+   * itself (task outcome notes: ready-for-approval / failed, ADR-009). Every
+   * run-produced assistant message keeps going through `finalizeRun`; this is
+   * for announcements that happen outside any run.
+   */
+  appendAssistantMessage(conversationId: string, content: string): Message;
+  /**
    * Batch variant: the most recent message of each conversation in one query,
    * keyed by conversationId (a conversation with no messages is absent from
    * the map). Avoids the N+1 when the conversation list (sidebar) attaches a

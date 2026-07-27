@@ -152,3 +152,22 @@ The consult is one read-only step by the configured design specialist
 work product. At most one consult per QA cycle; no design specialist
 configured or a failed consult run → a logged no-op, the loop proceeds. The
 consult advises; it never gates: QA and owner approval remain the only gates.
+
+## Outcome announcement (amended, 2026-07-27)
+
+A task's resting and terminal outcomes are announced **in the source
+conversation** — the same channel the kickoff spoke through — as a
+standalone assistant message with no run (`messages.run_id` NULL):
+
+- **`awaiting_human_approval`** — "passed QA and is awaiting your review";
+  the owner learns a verdict is wanted without opening the task view.
+- **`failed`** (a flow outcome or a supervise crash) — "failed — open the
+  task view for the step-by-step trail".
+- **boot heal** — a task reconciled to `failed` after a restart announces
+  the interruption explicitly.
+
+The note is best-effort (an announce failure never fails the task flow) and
+is accompanied by a re-emitted kickoff-run state frame so connected clients
+refetch — a repeated state frame is an idempotent projection (NFR-07), not a
+new transition. The task view remains the detailed record; the note is the
+doorbell.
