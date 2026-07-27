@@ -73,8 +73,10 @@ interface Props {
    * fresh conversation, carrying the current draft as its first message.
    * Shown only while this conversation has an active task — everything typed
    * here steers that task (I-14); this is the deliberate escape hatch.
+   * Resolves true only on success — the draft is cleared on that signal, so
+   * a failed split never loses what the user typed.
    */
-  onStartNewTask: (draft: string) => void;
+  onStartNewTask: (draft: string) => Promise<boolean>;
   /** reader-chosen text size (11 §11) and the cycler behind the header "Aa" */
   textSize: TextSize;
   onCycleTextSize: () => void;
@@ -662,8 +664,11 @@ export function Thread({
                 <button
                   className="new-task-btn"
                   onClick={() => {
-                    onStartNewTask(draft);
-                    setDraft('');
+                    // clear only on success — a failed split keeps the draft
+                    // here so the user can retry without retyping
+                    void onStartNewTask(draft).then((ok) => {
+                      if (ok) setDraft('');
+                    });
                   }}
                   disabled={projectStatus !== 'ready'}
                   title="Messages here steer the running task — this starts a NEW task in a fresh conversation, taking your draft with it"

@@ -64,7 +64,7 @@ function task(state: Task['state']): Task {
   };
 }
 
-function renderThread(tasks: Task[], onStartNewTask = vi.fn()) {
+function renderThread(tasks: Task[], onStartNewTask = vi.fn().mockResolvedValue(true)) {
   mockedApi.getConversation.mockResolvedValue({
     conversation: CONVERSATION,
     messages: [],
@@ -102,7 +102,17 @@ describe('the explicit early task split (#128, ADR-014)', () => {
 
     expect(onStartNewTask).toHaveBeenCalledWith('and also add dark mode');
     // the draft moved to the new conversation — the composer here is cleared
-    expect((composer as HTMLTextAreaElement).value).toBe('');
+    await waitFor(() => expect((composer as HTMLTextAreaElement).value).toBe(''));
+  });
+
+  it('keeps the draft when the split fails — nothing typed is ever lost', async () => {
+    renderThread([task('implementing')], vi.fn().mockResolvedValue(false));
+    const button = await screen.findByRole('button', { name: /New task/ });
+    const composer = screen.getByPlaceholderText(/Message the agent|Queue a follow-up/);
+    await userEvent.type(composer, 'a long task description');
+    await userEvent.click(button);
+    // the failure toast is App's; the composer must still hold the text
+    expect((composer as HTMLTextAreaElement).value).toBe('a long task description');
   });
 
   it('is absent when the conversation has only terminal tasks (a new message routes normally)', async () => {
