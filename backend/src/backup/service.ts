@@ -9,6 +9,7 @@
 
 import { gzipSync } from 'node:zlib';
 import { readFileSync, rmSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import type { SnapshotFreshness, SnapshotSink } from './types.js';
 
@@ -33,6 +34,14 @@ export interface BackupServiceDeps {
   now?: () => Date;
   /** Retention: keep the most-recent N snapshots + one per day for M days. */
   retention?: { recent: number; dailyDays: number };
+  /**
+   * Key de-collision suffix (#141): appended to the second-resolution stamp so
+   * two snapshots in the same second (a scheduled tick racing the shutdown
+   * snapshot during a deploy — including across the old/new process) never
+   * overwrite each other. Random by default; injectable for deterministic
+   * tests.
+   */
+  suffix?: () => string;
   log?: (msg: string) => void;
 }
 
@@ -59,6 +68,7 @@ export class BackupService {
   private readonly retention: { recent: number; dailyDays: number };
   private readonly initialDelayMs: number;
   private readonly log: (msg: string) => void;
+  private readonly suffix: () => string;
   private lastSnapshotAt: Date | null = null;
   private lastError: string | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -66,6 +76,7 @@ export class BackupService {
   constructor(private readonly deps: BackupServiceDeps) {
     this.now = deps.now ?? (() => new Date());
     this.retention = deps.retention ?? { recent: 8, dailyDays: 14 };
+    this.suffix = deps.suffix ?? (() => randomBytes(2).toString('hex'));
     this.initialDelayMs = deps.initialDelayMs ?? 5_000;
     // eslint-disable-next-line no-console -- operator-visible backup warnings (never payload data, SEC-05)
     this.log = deps.log ?? ((m) => console.warn(`[backup] ${m}`));
@@ -73,7 +84,10 @@ export class BackupService {
 
   /** Take one snapshot end-to-end. Resolves to the key, or null on failure. */
   async snapshotOnce(): Promise<string | null> {
-    const stamp = utcStamp(this.now());
+    // #141: de-collide the second-resolution stamp — retention (dayOf) and
+    // the boot seed (parseUtcStamp) read fixed prefixes, so the suffix is
+    // invisible to both, and keys stay lexicographically time-sortable.
+    const stamp = `${utcStamp(this.now())}-${this.suffix()}`;
     const tmpPath = join(this.deps.tmpDir, `hub-${stamp}.sqlite`);
     const key = `${SNAPSHOT_PREFIX}/${stamp}.sqlite.gz`;
     try {
