@@ -417,6 +417,9 @@ export class Orchestrator {
       case 'steer-task':
         this.tasks.steerTask(run, conversation, target.task, userMessageContent);
         return null; // the steer run executes no turn
+      case 'stale-steer':
+        this.tasks.sealStaleSteer(run, conversation, target.task, userMessageContent);
+        return null; // authored for a task that ended before dispatch (#150)
       case 'start-task': {
         const task = this.tasks.startTask({
           projectId: conversation.projectId!,

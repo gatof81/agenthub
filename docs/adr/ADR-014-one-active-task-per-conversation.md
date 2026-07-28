@@ -107,3 +107,17 @@ only. The steering-queue storage requires migration 012
 - Follow-ups: implementation increment (envelope gate + steer fold + UI
   affordance); ADR-012 §Decision amendment; doc 06 gains I-14; doc 05 UC
   update for the steering flow.
+
+## Amendment — steer intent survives the queue (#150, 2026-07-28)
+
+The envelope classifies at DISPATCH, but a message can be authored while a
+task is live and dispatch only after it went terminal (it queues behind the
+step run, I-2). Re-routing such a message spawned a fresh task from a
+context-less fragment (observed live, 2026-07-28). The gate now checks the
+message's authorship window: born inside a now-terminal task's lifetime
+(`task.createdAt ≤ message.createdAt ≤ task.updatedAt`), the run is sealed
+with an informational note — "the task ended before this was processed;
+nothing was applied; resend if you still want it as new work" — never a new
+task. Messages authored after the terminal transition start fresh work,
+unchanged. Explicit-split semantics (#128) are unaffected: the affordance
+sends into a NEW conversation, which has no prior tasks.
