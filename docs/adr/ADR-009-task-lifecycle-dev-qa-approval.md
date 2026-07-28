@@ -163,11 +163,13 @@ standalone assistant message with no run (`messages.run_id` NULL):
   the owner learns a verdict is wanted without opening the task view.
 - **`failed`** (a flow outcome or a supervise crash) — "failed — open the
   task view for the step-by-step trail".
+- **`cancelled`** (#140) — "was cancelled — its branch survives for
+  inspection"; the owner's explicit stop of the running loop.
 - **boot heal** — a task reconciled to `failed` after a restart announces
   the interruption explicitly.
 
 The note is best-effort (an announce failure never fails the task flow).
-For announces during a live session (the first two cases) it is accompanied
+For announces during a live session (every case but the boot heal) it is accompanied
 by a re-emitted kickoff-run state frame so connected clients refetch — a
 repeated state frame is an idempotent projection (NFR-07), not a new
 transition. The boot-heal announce omits the frame: reconciliation runs
