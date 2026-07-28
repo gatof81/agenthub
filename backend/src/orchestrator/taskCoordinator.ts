@@ -470,6 +470,21 @@ export class TaskCoordinator {
     this.logger.info('task.steered', { taskId: task.id, runId: run.id, taskState: task.state });
   }
 
+  /**
+   * Seal a message that meant to steer a task which ended before dispatch
+   * (#150): nothing is applied and nothing new spawns — the note says so and
+   * the owner resends if they still want it as fresh work.
+   */
+  sealStaleSteer(run: Run, conversation: Conversation, task: Task, note: string): void {
+    this.finalizeEnvelopeRun(
+      run,
+      conversation,
+      note,
+      `Task ${task.id} ended (${task.state}) before this message was processed — nothing was applied. Send it again if you still want it as new work.`,
+    );
+    this.logger.info('task.stale_steer', { taskId: task.id, runId: run.id, taskState: task.state });
+  }
+
   /** Seal a light envelope run (kickoff or steer): no substrate turn, a short note as the answer. */
   private finalizeEnvelopeRun(
     run: Run,

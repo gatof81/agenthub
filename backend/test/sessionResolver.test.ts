@@ -106,6 +106,82 @@ describe('SessionResolver (ADR-013, fake router + store, no turn executed)', () 
     expect(target).toMatchObject({ kind: 'steer-task', task: { id: active.id } });
   });
 
+  it('a message authored during a task that ended before dispatch → stale-steer, never a fresh task (#150)', async () => {
+    // an incrementing clock so created/updated timestamps strictly order
+    let t = 0;
+    const clock = () => new Date(Date.UTC(2026, 6, 28, 0, 0, t++)).toISOString();
+    const store = new MemoryHubStore({ clock });
+    const resolver = new SessionResolver({
+      store,
+      execPort: new FakeSubstrateExecPort(),
+      agents: new Map([
+        [DEV_AGENT.id, DEV_AGENT],
+        [QA_AGENT.id, QA_AGENT],
+      ]),
+      router: routerReturning({ workType: 'task' }),
+      qaSpecialistId: QA_AGENT.id,
+    });
+    const project = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+    store.setProjectSession(project.id, {
+      sessionId: 's1',
+      lastKnownState: 'ready',
+      bindingMode: 'created',
+      ownership: 'legacy-technical',
+      ownerAccountId: null,
+    });
+    const conversation = store.createConversation({
+      projectId: project.id,
+      title: 't',
+      agentId: 'dev',
+      mode: 'automatic',
+    });
+    // task live → steer message sent → task cancelled → the message dispatches
+    const task = store.createTask({ projectId: project.id, sourceConversationId: conversation.id });
+    store.sendMessage({
+      conversationId: conversation.id,
+      content: 'use level-3 headings',
+      caps: DEV_AGENT.defaultCaps,
+      policy: DEV_AGENT.allowedTools,
+      instructions: DEV_AGENT.instructions,
+    });
+    store.transitionTask(task.id, 'planning', 'cancelled');
+    const run = store.dispatchNextRun(project.id)!;
+    const target = await resolver.resolve(run, store.getConversation(conversation.id)!, 'use level-3 headings');
+    expect(target).toMatchObject({ kind: 'stale-steer', task: { id: task.id } });
+
+    // control: a message sent AFTER the task ended is genuinely new work
+    store.sendMessage({
+      conversationId: conversation.id,
+      content: 'now do Y',
+      caps: DEV_AGENT.defaultCaps,
+      policy: DEV_AGENT.allowedTools,
+      instructions: DEV_AGENT.instructions,
+    });
+    store.transitionRun(run.id, 'starting', 'streaming');
+    store.finalizeRun({
+      runId: run.id,
+      from: 'streaming',
+      to: 'completed',
+      usage: { totalCostUsd: null, numTurns: null, usage: null, source: 'result-event' },
+      summary: {
+        runId: run.id,
+        objective: 'x',
+        outcome: 'completed',
+        filesTouched: [],
+        commandsRun: [],
+        denialCount: 0,
+        warnings: [],
+        costUsd: null,
+        numTurns: null,
+        durationMs: null,
+        runtimeSessionId: null,
+      },
+    });
+    const freshRun = store.dispatchNextRun(project.id)!;
+    const fresh = await resolver.resolve(freshRun, store.getConversation(conversation.id)!, 'now do Y');
+    expect(fresh).toMatchObject({ kind: 'start-task' });
+  });
+
   it('task without a QA specialist configured → the envelope never fires (a plain session)', async () => {
     const { store, resolver } = makeResolver(routerReturning({ workType: 'task' }), {
       qaSpecialistId: null,

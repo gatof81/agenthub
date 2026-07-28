@@ -36,7 +36,10 @@ export type ResolvedRunTarget =
   | { kind: 'session'; sessionId: string }
   | { kind: 'fail'; detail: string }
   | { kind: 'start-task'; devSpecialistId: string; qaSpecialistId: string }
-  | { kind: 'steer-task'; task: Task };
+  | { kind: 'steer-task'; task: Task }
+  /** the message was authored while `task` was live but dispatched after it
+   *  went terminal (#150) — sealed with a note, never re-routed as new work */
+  | { kind: 'stale-steer'; task: Task };
 
 export interface SessionResolverDeps {
   store: HubStore;
@@ -170,6 +173,29 @@ export class SessionResolver {
         .listTasks({ sourceConversationId: conversation.id })
         .find((t) => !isTerminalTask(t.state));
       if (activeTask) return { kind: 'steer-task', task: activeTask };
+      // Steer intent survives the queue (#150): a message AUTHORED while a
+      // task was live can dispatch only after that task went terminal (it
+      // queues behind the step run, I-2). Re-routing it here would spawn a
+      // fresh task from a context-less fragment — observed live in the
+      // 2026-07-28 acceptance. If the message was born inside a now-terminal
+      // task's lifetime window, seal it as an informational envelope instead;
+      // the owner resends if they still want it as new work. Window check via
+      // ISO timestamps (createdAt ≤ msg ≤ updatedAt; a terminal task's
+      // updatedAt is its terminal transition — approve's later PR-URL write
+      // widens it by milliseconds, a benign overshoot).
+      const message = this.store.getMessage(run.messageId);
+      const staleTarget = message
+        ? this.store
+            .listTasks({ sourceConversationId: conversation.id })
+            .filter(
+              (t) =>
+                isTerminalTask(t.state) &&
+                t.createdAt <= message.createdAt &&
+                t.updatedAt >= message.createdAt,
+            )
+            .at(-1)
+        : undefined;
+      if (staleTarget) return { kind: 'stale-steer', task: staleTarget };
       const devSpecialistId = this.resolveDevSpecialist(proposal, conversation);
       if (devSpecialistId !== null) {
         if (devSpecialistId !== proposal.specialistId) {
