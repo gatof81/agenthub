@@ -30,6 +30,7 @@ function makeService(opts: {
   retention?: { recent: number; dailyDays: number };
   payload?: string;
   snapshot?: (p: string) => void;
+  suffix?: () => string;
 }) {
   const sink = new LocalSnapshotSink(join(dir, 'snap'));
   const tmp = join(dir, 'tmp');
@@ -42,6 +43,8 @@ function makeService(opts: {
     ...(opts.initialDelayMs !== undefined ? { initialDelayMs: opts.initialDelayMs } : {}),
     now: opts.now,
     ...(opts.retention ? { retention: opts.retention } : {}),
+    // deterministic keys (#141): the de-collision suffix is injected
+    suffix: opts.suffix ?? (() => 'aaaa'),
     log: () => {},
   });
   return { svc, sink };
@@ -51,7 +54,7 @@ describe('BackupService', () => {
   it('vacuums, gzips, and uploads a decompressible snapshot', async () => {
     const { svc, sink } = makeService({ now: () => new Date('2026-07-15T18:00:00Z'), payload: 'HELLO-DB' });
     const key = await svc.snapshotOnce();
-    expect(key).toBe('snapshots/2026-07-15T180000Z.sqlite.gz');
+    expect(key).toBe('snapshots/2026-07-15T180000Z-aaaa.sqlite.gz');
     const stored = await sink.get(key!);
     expect(gunzipSync(stored).toString()).toBe('HELLO-DB');
   });
@@ -106,9 +109,9 @@ describe('BackupService', () => {
     // recent 2 = the two newest (18:00 and 12:00 on the 15th); daily-2 = newest
     // of the two most-recent days: 15th (already the 18:00) and 14th.
     expect(kept).toEqual([
-      '2026-07-14T060000Z.sqlite.gz',
-      '2026-07-15T120000Z.sqlite.gz',
-      '2026-07-15T180000Z.sqlite.gz',
+      '2026-07-14T060000Z-aaaa.sqlite.gz',
+      '2026-07-15T120000Z-aaaa.sqlite.gz',
+      '2026-07-15T180000Z-aaaa.sqlite.gz',
     ]);
   });
 
@@ -125,10 +128,11 @@ describe('BackupService', () => {
       tmpDir: tmp,
       intervalMs: 3600_000,
       now: () => clock,
+      suffix: () => 'aaaa',
       log: () => {},
     });
     const key = await svc.snapshotOnce();
-    expect(key).toBe('snapshots/2026-07-15T000000Z.sqlite.gz'); // snapshot stands
+    expect(key).toBe('snapshots/2026-07-15T000000Z-aaaa.sqlite.gz'); // snapshot stands
     expect(svc.freshness()).toMatchObject({
       lastSnapshotAt: '2026-07-15T00:00:00.000Z',
       degraded: false,
@@ -142,6 +146,27 @@ describe('BackupService', () => {
     expect(a).toBe('2026-07-15T060000Z');
     expect(a < b).toBe(true);
     expect(a).not.toContain(':');
+  });
+
+  it('two snapshots in the same second never overwrite each other (#141)', async () => {
+    // the deploy race: a scheduled tick and the shutdown snapshot land together
+    const suffixes = ['0001', '0002'];
+    let s = 0;
+    const { svc, sink } = makeService({
+      now: () => new Date('2026-07-15T18:00:00Z'),
+      suffix: () => suffixes[s++]!,
+    });
+    const first = await svc.snapshotOnce();
+    const second = await svc.snapshotOnce();
+    expect(first).not.toBe(second);
+    const keys = (await sink.list('snapshots')).map((x) => x.key).sort();
+    expect(keys).toEqual([
+      'snapshots/2026-07-15T180000Z-0001.sqlite.gz',
+      'snapshots/2026-07-15T180000Z-0002.sqlite.gz',
+    ]);
+    // the suffix is invisible to the freshness boot seed (fixed-prefix parse)
+    await svc.seedFromSink();
+    expect(svc.freshness().lastSnapshotAt).toBe('2026-07-15T18:00:00.000Z');
   });
 
   it('parseUtcStamp is the inverse of utcStamp (round-trip)', () => {
@@ -226,6 +251,7 @@ describe('deadline-bounded shutdown snapshot (B3-09)', () => {
       sink,
       tmpDir: tmp,
       intervalMs: 6 * 3600_000,
+      suffix: () => 'aaaa', // deterministic keys (doc 13 par-6), like makeService
       log: () => {},
     });
   };
