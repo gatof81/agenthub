@@ -174,7 +174,10 @@ export function Thread({
 
   const refetch = useCallback(async () => {
     const detail = await api.getConversation(conversation.id);
-    setMessages(detail.messages);
+    // step-run prompts/outputs stay out of the thread (#151) — the owner's
+    // messages, envelope notes and outcome notes are the conversation; step
+    // detail lives in the task view. Tracking below still reads the full list.
+    setMessages(detail.messages.filter((m) => !m.taskStepId));
     setHasMore(detail.hasMore);
     // pull the conversation's tasks (N5b-2b): drives the kickoff-turn affordance
     // and, for the open task view, its refetch. Best-effort — never blocks the thread.
@@ -221,7 +224,7 @@ export function Thread({
     setLoadingEarlier(true);
     try {
       const older = await api.getConversation(conversation.id, { before: oldest.id });
-      setMessages((prev) => [...older.messages, ...prev]);
+      setMessages((prev) => [...older.messages.filter((m) => !m.taskStepId), ...prev]);
       setHasMore(older.hasMore);
     } finally {
       loadingEarlierRef.current = false;
@@ -350,6 +353,7 @@ export function Thread({
         role: 'user',
         content,
         runId: null,
+        taskStepId: null,
         createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, optimistic]);

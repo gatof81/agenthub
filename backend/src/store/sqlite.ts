@@ -93,6 +93,8 @@ interface MessageRow {
   role: Message['role'];
   content: string;
   run_id: string | null;
+  /** joined from runs at read time (#151); absent on writes */
+  task_step_id?: string | null;
   created_at: string;
 }
 
@@ -207,6 +209,7 @@ function toMessage(r: MessageRow): Message {
     role: r.role,
     content: r.content,
     runId: r.run_id,
+    taskStepId: r.task_step_id ?? null,
     createdAt: r.created_at,
   };
 }
@@ -548,9 +551,13 @@ export class SqliteHubStore implements HubStore {
   // — messages —
 
   getMessage(id: string): Message | undefined {
-    const row = this.db.prepare(`SELECT * FROM messages WHERE id = ?`).get(id) as
-      | MessageRow
-      | undefined;
+    // the step link rides in from the run (#151) — never stored on the message
+    const row = this.db
+      .prepare(
+        `SELECT m.*, r.task_step_id AS task_step_id
+         FROM messages m LEFT JOIN runs r ON m.run_id = r.id WHERE m.id = ?`,
+      )
+      .get(id) as MessageRow | undefined;
     return row ? toMessage(row) : undefined;
   }
 
@@ -570,8 +577,10 @@ export class SqliteHubStore implements HubStore {
     }
     const rows = this.db
       .prepare(
-        `SELECT * FROM messages WHERE conversation_id = ? AND rowid < ?
-         ORDER BY rowid DESC LIMIT ?`,
+        `SELECT m.*, r.task_step_id AS task_step_id
+         FROM messages m LEFT JOIN runs r ON m.run_id = r.id
+         WHERE m.conversation_id = ? AND m.rowid < ?
+         ORDER BY m.rowid DESC LIMIT ?`,
       )
       .all(conversationId, beforeRowid, limit) as MessageRow[];
     return rows.reverse().map(toMessage);
@@ -583,7 +592,8 @@ export class SqliteHubStore implements HubStore {
     const placeholders = conversationIds.map(() => '?').join(',');
     const rows = this.db
       .prepare(
-        `SELECT m.* FROM messages m
+        `SELECT m.*, r.task_step_id AS task_step_id FROM messages m
+         LEFT JOIN runs r ON m.run_id = r.id
          JOIN (
            SELECT conversation_id, MAX(rowid) AS rowid FROM messages
            WHERE conversation_id IN (${placeholders})
@@ -605,6 +615,7 @@ export class SqliteHubStore implements HubStore {
       role: 'assistant',
       content: capMessageContent(content),
       runId: null,
+      taskStepId: null,
       createdAt: this.now(),
     };
     this.db
