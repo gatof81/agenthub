@@ -89,7 +89,7 @@ const WATCHDOG_IDLE_MS = 15_000;
 const WATCHDOG_TICK_MS = 5_000;
 
 /** Task states that no longer hold the conversation (I-14): a new task may start. */
-const TERMINAL_TASK_STATES: ReadonlySet<Task['state']> = new Set(['approved', 'rejected', 'failed']);
+const TERMINAL_TASK_STATES: ReadonlySet<Task['state']> = new Set(['approved', 'rejected', 'failed', 'cancelled']);
 
 export function Thread({
   conversation,

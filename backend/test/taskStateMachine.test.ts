@@ -35,11 +35,12 @@ describe('task state machine (ADR-009)', () => {
     expect(isLegalTaskTransition('changes_requested_by_user', 'implementing')).toBe(true);
   });
 
-  it('only approved / rejected / failed are terminal', () => {
-    expect([...TERMINAL_TASK_STATES].sort()).toEqual(['approved', 'failed', 'rejected']);
+  it('only approved / rejected / failed / cancelled are terminal', () => {
+    expect([...TERMINAL_TASK_STATES].sort()).toEqual(['approved', 'cancelled', 'failed', 'rejected']);
     expect(isTerminalTask('approved')).toBe(true);
     expect(isTerminalTask('rejected')).toBe(true);
     expect(isTerminalTask('failed')).toBe(true);
+    expect(isTerminalTask('cancelled')).toBe(true); // owner cancel (#140)
     // the loop-back states are NOT terminal
     expect(isTerminalTask('changes_requested_by_qa')).toBe(false);
     expect(isTerminalTask('changes_requested_by_user')).toBe(false);

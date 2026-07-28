@@ -22,6 +22,7 @@ import {
   type WorkspaceManagerPort,
 } from '../domain/ports.js';
 import { isTerminal } from '../domain/runStateMachine.js';
+import { isTerminalTask } from '../domain/taskStateMachine.js';
 import { assembleAssistantText } from '../domain/projections.js';
 import { workspaceKeyFor } from '../domain/types.js';
 import type {
@@ -73,6 +74,8 @@ export interface TaskCoordinatorDeps {
   pump: (workspaceKey: string) => void;
   /** Seal a run — the run loop's `finalize`, injected (ADR-013). */
   finalize: FinalizeRun;
+  /** Kill a live run — the run loop's `cancelRun`, injected (#140 task cancel). */
+  cancelRun: (runId: string) => Promise<void>;
   notify?: HubNotifier;
   logger?: Logger;
 }
@@ -84,6 +87,7 @@ export class TaskCoordinator {
   private readonly qaSpecialistId: string | null;
   private readonly pump: (workspaceKey: string) => void;
   private readonly finalize: FinalizeRun;
+  private readonly cancelRun: (runId: string) => Promise<void>;
   private readonly notify: HubNotifier;
   private readonly logger: Logger;
 
@@ -96,6 +100,13 @@ export class TaskCoordinator {
   private readonly supervisor: Supervisor;
   private readonly runCompletions = new Map<string, () => void>();
   private readonly taskDriving = new Set<Promise<void>>();
+  /**
+   * Owner cancel requests (#140), drained by the supervisor at step
+   * boundaries. In-memory on purpose: a restart kills the loop anyway and
+   * boot reconciliation lands the task in `failed` with its own note — a
+   * persisted request would have nothing left to cancel.
+   */
+  private readonly cancelRequests = new Set<string>();
 
   constructor(deps: TaskCoordinatorDeps) {
     this.store = deps.store;
@@ -104,6 +115,7 @@ export class TaskCoordinator {
     this.qaSpecialistId = deps.qaSpecialistId;
     this.pump = deps.pump;
     this.finalize = deps.finalize;
+    this.cancelRun = deps.cancelRun;
     this.notify = deps.notify ?? NOOP_NOTIFIER;
     this.logger = deps.logger ?? NOOP_LOGGER;
     // The design-consult specialist (ADR-015): the first agent by stable id
@@ -129,6 +141,7 @@ export class TaskCoordinator {
       logger: this.logger,
       ...(deps.maxQaCycles !== undefined ? { maxQaCycles: deps.maxQaCycles } : {}),
       designSpecialistId: designCapable[0]?.id ?? null,
+      isCancelled: (taskId) => this.cancelRequests.has(taskId),
     });
   }
 
@@ -191,6 +204,7 @@ export class TaskCoordinator {
       )
       .finally(() => {
         this.taskDriving.delete(driving);
+        this.cancelRequests.delete(task.id); // the loop is gone; nothing left to cancel
       });
     this.taskDriving.add(driving);
     return task;
@@ -211,6 +225,49 @@ export class TaskCoordinator {
     const pr = await this.workspaceManager.openPullRequest(task, workspace, this.prContent(task));
     if (pr.url) this.store.setTaskPullRequestUrl(taskId, pr.url);
     await this.workspaceManager.cleanup(task, workspace);
+    return this.store.getTask(taskId)!;
+  }
+
+  /**
+   * The owner cancels a RUNNING task (#140): a cooperative request the
+   * supervisor drains at the next step boundary, made prompt by killing the
+   * live step run (best-effort — the boundary check still lands it if the
+   * run settled first). Async by nature, like a run cancel: the response may
+   * still show a transient state; the `cancelled` transition follows at the
+   * boundary. Not for `awaiting_human_approval` (reject/request-changes are
+   * the verbs there) nor terminal states — 409 `task_not_cancellable`.
+   */
+  async cancelTask(taskId: string): Promise<Task> {
+    const task = this.store.getTask(taskId);
+    if (!task) throw new OrchestratorError('not_found', `task ${taskId}`);
+    if (isTerminalTask(task.state) || task.state === 'awaiting_human_approval') {
+      throw new OrchestratorError(
+        'task_not_cancellable',
+        task.state === 'awaiting_human_approval'
+          ? 'task is awaiting your verdict — reject or request changes instead'
+          : `task is already ${task.state}`,
+      );
+    }
+    this.cancelRequests.add(taskId);
+    const liveStepRun = this.store
+      .listRunsByState(['starting', 'streaming'])
+      .find(
+        (r) => r.taskStepId !== null && this.store.getTaskStep(r.taskStepId)?.taskId === taskId,
+      );
+    if (liveStepRun) {
+      try {
+        await this.cancelRun(liveStepRun.id);
+      } catch (err) {
+        // the run settled between listing and killing — the boundary check
+        // still lands the cancel; nothing to surface
+        this.logger.info('task.cancel_run_race', {
+          taskId,
+          runId: liveStepRun.id,
+          error: err instanceof Error ? err.name : 'unknown',
+        });
+      }
+    }
+    this.logger.info('task.cancel_requested', { taskId, taskState: task.state });
     return this.store.getTask(taskId)!;
   }
 
@@ -273,6 +330,7 @@ export class TaskCoordinator {
       )
       .finally(() => {
         this.taskDriving.delete(driving);
+        this.cancelRequests.delete(taskId); // the loop is gone; nothing left to cancel
       });
     this.taskDriving.add(driving);
     return updated;
@@ -448,7 +506,9 @@ export class TaskCoordinator {
           ? `Task ${task.id} passed QA and is awaiting your review — approve, reject, or request changes from the task view.`
           : task.state === 'failed'
             ? `Task ${task.id} failed — open the task view for the step-by-step trail.`
-            : null;
+            : task.state === 'cancelled'
+              ? `Task ${task.id} was cancelled — its branch survives for inspection.`
+              : null;
       if (note === null) return; // nothing announceable (e.g. already human-terminal)
       this.store.appendAssistantMessage(task.sourceConversationId, note);
       const kickoffRun = task.sourceMessageId

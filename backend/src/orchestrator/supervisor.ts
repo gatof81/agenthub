@@ -64,6 +64,13 @@ export interface SupervisorDeps {
    * (ADR-015); null/absent = consults are a logged no-op — never a gate.
    */
   designSpecialistId?: string | null;
+  /**
+   * Owner-cancel probe (#140): the loop drains cancel REQUESTS cooperatively
+   * at step boundaries (the coordinator owns the request set and also kills
+   * the live step run, so a mid-turn cancel is prompt). Absent = never
+   * cancelled.
+   */
+  isCancelled?: (taskId: string) => boolean;
 }
 
 /** The implementer's design request (ADR-015): a deterministic marker, like QA's CHANGES_REQUIRED. */
@@ -77,6 +84,7 @@ export class Supervisor {
   private readonly logger: Logger;
   private readonly maxCycles: number;
   private readonly designSpecialistId: string | null;
+  private readonly isCancelled: (taskId: string) => boolean;
 
   constructor(deps: SupervisorDeps) {
     this.store = deps.store;
@@ -86,6 +94,7 @@ export class Supervisor {
     this.logger = deps.logger ?? NOOP_LOGGER;
     this.maxCycles = deps.maxQaCycles ?? MAX_QA_CYCLES;
     this.designSpecialistId = deps.designSpecialistId ?? null;
+    this.isCancelled = deps.isCancelled ?? (() => false);
   }
 
   /**
@@ -165,6 +174,8 @@ export class Supervisor {
     // first developer prompt (ADR-015)
     let carryBrief: string | null = null;
     for (;;) {
+      // owner cancel (#140), drained at the cycle boundary
+      if (await this.cancelIfRequested(task, workspace, fromState)) return;
       // — implementation (with at most ONE design consult per cycle, ADR-015) —
       this.store.transitionTask(task.id, fromState, 'implementing');
       const basePrompt = pendingFeedback
@@ -220,6 +231,10 @@ export class Supervisor {
           specialistId: devSpecialistId,
           prompt: devPrompt,
         });
+        // cancelled BEFORE failed (#140): a step run the coordinator killed on
+        // the owner's cancel must land the task in `cancelled`, never read as
+        // a developer failure
+        if (await this.cancelIfRequested(task, workspace, 'implementing')) return;
         if (dev.failed) return this.failTask(task, workspace, 'implementing', 'dev step failed');
 
         implReport = await this.extractor.extractImplementation({
@@ -268,6 +283,9 @@ export class Supervisor {
         `task ${task.id}: implementation (attempt ${cycle + 1})`,
       );
 
+      // owner cancel (#140), drained again before QA — covers the
+      // extractor/commit window after the developer turn
+      if (await this.cancelIfRequested(task, workspace, 'implementing')) return;
       // — QA —
       this.store.transitionTask(task.id, 'implementing', 'qa_pending');
       this.store.transitionTask(task.id, 'qa_pending', 'qa_running');
@@ -283,6 +301,8 @@ export class Supervisor {
         specialistId: qaSpecialistId,
         prompt: this.qaBrief(objective, implReport),
       });
+      // cancelled BEFORE failed (#140) — same reasoning as the developer step
+      if (await this.cancelIfRequested(task, workspace, 'qa_running')) return;
       if (qa.failed) return this.failTask(task, workspace, 'qa_running', 'qa step failed');
 
       const qaReport = await this.extractor.extractQa({
@@ -389,6 +409,32 @@ export class Supervisor {
     await this.workspace.cleanup(task, workspace);
     this.store.transitionTask(task.id, from, 'failed');
     this.logger.warn('task.failed', { taskId: task.id, from, why });
+  }
+
+  /**
+   * Owner cancel, cooperative (#140): the request set is drained at step
+   * boundaries — a running CLI turn is killed by the coordinator through the
+   * run loop (its step then arrives here already dead), and between steps
+   * this check lands it directly. Cleanup keeps the branch (commits survive),
+   * like every terminal cleanup; a cleanup failure never blocks the cancel.
+   */
+  private async cancelIfRequested(
+    task: Task,
+    workspace: TaskWorkspace,
+    from: Task['state'],
+  ): Promise<boolean> {
+    if (!this.isCancelled(task.id)) return false;
+    try {
+      await this.workspace.cleanup(task, workspace);
+    } catch (err) {
+      this.logger.warn('task.cancel_cleanup_failed', {
+        taskId: task.id,
+        error: err instanceof Error ? err.name : 'unknown',
+      });
+    }
+    this.store.transitionTask(task.id, from, 'cancelled');
+    this.logger.info('task.cancelled', { taskId: task.id, from });
+    return true;
   }
 
   /**

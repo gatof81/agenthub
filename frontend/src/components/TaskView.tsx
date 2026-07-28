@@ -31,7 +31,18 @@ const STATE_TONE: Record<TaskState, TaskTone> = {
   approved: 'ok',
   rejected: 'danger',
   failed: 'danger',
+  cancelled: 'danger',
 };
+
+/** Transient (running-loop) states — the owner can cancel these (#140). */
+const TRANSIENT_STATES: ReadonlySet<TaskState> = new Set([
+  'planning',
+  'implementing',
+  'qa_pending',
+  'qa_running',
+  'changes_requested_by_qa',
+  'changes_requested_by_user',
+]);
 
 /** The colour tone for a task state — shared with the kickoff-turn affordance. */
 export function taskStateTone(state: TaskState): TaskTone {
@@ -221,6 +232,22 @@ export function TaskView({
                 <WorkProductCard key={wp.id} wp={wp} />
               ))}
             </div>
+
+            {TRANSIENT_STATES.has(detail.task.state) && (
+              <div className="task-approval">
+                {actionError && <p className="task-error">{actionError}</p>}
+                <div className="task-verdict-actions">
+                  <button
+                    className="danger"
+                    disabled={busy}
+                    title="Stop the running developer → QA loop — lands at the next step boundary; the branch survives"
+                    onClick={() => act(() => api.cancelTask(detail.task.id))}
+                  >
+                    Cancel task
+                  </button>
+                </div>
+              </div>
+            )}
 
             {detail.task.state === 'awaiting_human_approval' && (
               <div className="task-approval">

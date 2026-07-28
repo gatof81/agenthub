@@ -174,3 +174,25 @@ transition. The boot-heal announce omits the frame: reconciliation runs
 before the server accepts connections, so there is no client to nudge — the
 note is simply there when the conversation is next opened. The task view
 remains the detailed record; the note is the doorbell.
+
+## Owner cancel (amended, 2026-07-28, #140)
+
+The lifecycle gains one terminal state: **`cancelled`** — the owner stopping
+a RUNNING loop. Distinct from `rejected` (a verdict on finished work) and
+`failed` (the system gave up); reachable from every transient state and
+deliberately **not** from `awaiting_human_approval`, where reject /
+request-changes are the verbs.
+
+Cancellation is **cooperative**: `POST /api/tasks/:id/cancel` (202) records a
+request the supervisor drains at step boundaries — cycle start, after each
+developer/QA step (checked BEFORE the step's failure handling, so a killed
+step run reads as `cancelled`, never as a step failure), and before QA. To
+make it prompt, the coordinator also kills the live step run through the run
+loop. Cleanup keeps the branch, like every terminal cleanup, and the outcome
+is announced in the conversation (see "Outcome announcement").
+
+The request set is in-memory by design: a restart kills the supervise loop
+anyway, and boot reconciliation lands the task in `failed` with its own note
+— a persisted request would have nothing left to cancel. The transient-vs-
+resting classification ("Boot reconciliation of tasks" above) is unchanged:
+`cancelled` is terminal, so the reconciler never touches it.

@@ -191,7 +191,9 @@ Coordinated work, **one hardcoded flow** (ADR-009) — not a workflow engine
   implementing) | rejected | failed` (`taskStateMachine.ts`). **Terminal
   success is `approved`** — never the implementer finishing, never QA passing
   alone; `changes_requested_*` loop back and are not terminal; `failed` is
-  reachable from any live state.
+  reachable from any live state. `cancelled` (#140) is the owner stopping a
+  RUNNING loop — terminal, reachable from every transient state but **not**
+  from `awaiting_human_approval` (there `rejected` is the verdict verb).
 - **TaskStep** `{id, taskId, seq, kind: implementation | qa, specialistId}` —
   executed by a specialist (ADR-008) via the existing run machinery; a run
   links back through `runs.task_step_id`.

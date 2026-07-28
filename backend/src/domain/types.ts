@@ -347,9 +347,12 @@ export type TaskState =
   | 'changes_requested_by_user'
   | 'approved'
   | 'rejected'
-  | 'failed';
+  | 'failed'
+  // the owner stopped a RUNNING loop (#140) — distinct from `rejected` (a
+  // verdict on finished work) and `failed` (the system gave up)
+  | 'cancelled';
 
-export type TerminalTaskState = 'approved' | 'rejected' | 'failed';
+export type TerminalTaskState = 'approved' | 'rejected' | 'failed' | 'cancelled';
 
 /** Coordinated work, parented to the Project (18 §8), born from a routed message. */
 export interface Task {

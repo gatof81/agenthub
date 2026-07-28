@@ -966,6 +966,20 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       expect(() => store.transitionTask(task.id, 'qa_running', 'awaiting_human_approval')).toThrow(
         StaleTaskStateError,
       );
+      // owner cancel (#140): legal from a transient state, terminal once there
+      expect(store.transitionTask(task.id, 'implementing', 'cancelled').state).toBe('cancelled');
+      expect(() => store.transitionTask(task.id, 'cancelled', 'implementing')).toThrow(
+        IllegalTaskTransitionError,
+      );
+      // NOT legal from awaiting_human_approval — reject is the verb there
+      const resting = store.createTask({ projectId: p.id });
+      store.transitionTask(resting.id, 'planning', 'implementing');
+      store.transitionTask(resting.id, 'implementing', 'qa_pending');
+      store.transitionTask(resting.id, 'qa_pending', 'qa_running');
+      store.transitionTask(resting.id, 'qa_running', 'awaiting_human_approval');
+      expect(() => store.transitionTask(resting.id, 'awaiting_human_approval', 'cancelled')).toThrow(
+        IllegalTaskTransitionError,
+      );
       store.close();
     });
 

@@ -210,7 +210,8 @@ export type TaskState =
   | 'approved'
   | 'changes_requested_by_user'
   | 'rejected'
-  | 'failed';
+  | 'failed'
+  | 'cancelled';
 
 export interface Task {
   id: string;
@@ -498,6 +499,9 @@ export const api = {
   getTask: (id: string) => call<TaskDetail>('GET', `/api/tasks/${id}`),
   // Human approval (N6): the owner's verdict on a task awaiting_human_approval.
   approveTask: (id: string) => call<{ task: Task }>('POST', `/api/tasks/${id}/approve`),
+  // cancel a RUNNING task (#140): cooperative — the state lands `cancelled`
+  // at the loop's next step boundary, so the 202 body may still be transient
+  cancelTask: (id: string) => call<{ task: Task }>('POST', `/api/tasks/${id}/cancel`),
   rejectTask: (id: string) => call<{ task: Task }>('POST', `/api/tasks/${id}/reject`),
   requestTaskChanges: (id: string, note: string) =>
     call<{ task: Task }>('POST', `/api/tasks/${id}/request-changes`, { note }),

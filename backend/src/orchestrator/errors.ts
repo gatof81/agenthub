@@ -18,7 +18,10 @@ export class OrchestratorError extends Error {
       | 'session_gone'
       | 'project_archived'
       // N6: an approval action on a task not in awaiting_human_approval (409)
-      | 'task_not_approvable',
+      | 'task_not_approvable'
+      // #140: cancel on a task that is not running (terminal, or resting at
+      // awaiting_human_approval where reject/request-changes are the verbs)
+      | 'task_not_cancellable',
     message: string,
   ) {
     super(message);

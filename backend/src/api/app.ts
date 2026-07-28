@@ -676,6 +676,18 @@ export function buildApp(deps: ApiDeps): express.Express {
       .catch(next);
   });
 
+  // Cancel a RUNNING task (#140): cooperative — the supervisor drains the
+  // request at the next step boundary (the live step run is killed to make it
+  // prompt), so the response may still show a transient state. 409
+  // task_not_cancellable for terminal or awaiting_human_approval (where
+  // reject/request-changes are the verbs).
+  app.post('/api/tasks/:id/cancel', (req, res, next) => {
+    orchestrator
+      .cancelTask(req.params.id)
+      .then((task) => res.status(202).json({ task }))
+      .catch(next);
+  });
+
   app.post('/api/tasks/:id/request-changes', (req, res, next) => {
     const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
     if (note === '') {

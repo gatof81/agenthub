@@ -15,6 +15,7 @@ vi.mock('../lib/api.js', async (importOriginal) => {
       approveTask: vi.fn(),
       rejectTask: vi.fn(),
       requestTaskChanges: vi.fn(),
+      cancelTask: vi.fn(),
     },
   };
 });
@@ -24,6 +25,7 @@ const mockedApi = api as unknown as {
   approveTask: ReturnType<typeof vi.fn>;
   rejectTask: ReturnType<typeof vi.fn>;
   requestTaskChanges: ReturnType<typeof vi.fn>;
+  cancelTask: ReturnType<typeof vi.fn>;
 };
 
 function detail(over: Partial<TaskDetail> = {}): TaskDetail {
@@ -166,6 +168,24 @@ describe('TaskView (N5b-2b)', () => {
     render(<TaskView taskId="task_1" onClose={() => {}} />);
     const link = await screen.findByText('View pull request ↗');
     expect(link).toHaveAttribute('href', 'https://github.com/o/r/pull/9');
+  });
+
+  it('cancel task (#140): offered on a RUNNING task, calls the API; absent when awaiting the verdict', async () => {
+    const running = detail();
+    running.task = { ...running.task, state: 'implementing' };
+    mockedApi.getTask.mockResolvedValue(running);
+    mockedApi.cancelTask.mockResolvedValue({ task: { ...running.task } });
+    render(<TaskView taskId="task_1" onClose={() => {}} />);
+    const btn = await screen.findByRole('button', { name: 'Cancel task' });
+    await userEvent.click(btn);
+    expect(mockedApi.cancelTask).toHaveBeenCalledWith('task_1');
+
+    cleanup();
+    // awaiting_human_approval: the verdict actions own the stage — no task-cancel
+    mockedApi.getTask.mockResolvedValue(detail());
+    render(<TaskView taskId="task_1" onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByText('Approve')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Cancel task' })).toBeNull();
   });
 
   it('request changes reveals a note field and sends it', async () => {

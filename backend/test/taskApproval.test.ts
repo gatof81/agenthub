@@ -146,6 +146,27 @@ describe('human approval API (N6)', () => {
     expect(store.getTask(task.id)!.pullRequestUrl).toBe(prUrl);
   });
 
+  it('cancel (#140): 409 task_not_cancellable at awaiting_human_approval — reject is the verb there', async () => {
+    const { app, store, orch } = makeApiHarness();
+    const { task } = await seedApprovable(orch, store);
+    const res = await request(app).post(`/api/tasks/${task.id}/cancel`).set(AUTH);
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('task_not_cancellable');
+    expect(store.getTask(task.id)!.state).toBe('awaiting_human_approval'); // untouched
+  });
+
+  it('cancel (#140): 202 on a running task — the request is cooperative', async () => {
+    const { app, store, orch } = makeApiHarness();
+    const { task } = await seedApprovable(orch, store);
+    // wind the task back to a transient state via the store (the API has no
+    // reverse path — this stands in for a task caught mid-loop)
+    const running = store.createTask({ projectId: task.projectId });
+    store.transitionTask(running.id, 'planning', 'implementing');
+    const res = await request(app).post(`/api/tasks/${running.id}/cancel`).set(AUTH);
+    expect(res.status).toBe(202);
+    expect(res.body.task.id).toBe(running.id);
+  });
+
   it('requires auth', async () => {
     const { app } = makeApiHarness();
     expect((await request(app).post('/api/tasks/whatever/approve')).status).toBe(401);
