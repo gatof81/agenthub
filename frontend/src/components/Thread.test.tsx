@@ -66,6 +66,7 @@ function msg(over: Partial<Message> & { id: string }): Message {
     role: 'user',
     content: 'hello',
     runId: null,
+    taskStepId: null,
     createdAt: '2026-07-27T00:00:00.000Z',
     ...over,
   };
@@ -113,6 +114,22 @@ describe('Thread — rendering', () => {
     expect(await screen.findByText('implement X')).toBeTruthy();
     expect(screen.getByText(/Started task tsk_1/)).toBeTruthy();
     expect(screen.getByText(/awaiting your review/)).toBeTruthy();
+  });
+
+  it('hides task step prompts/outputs — the thread is the owner\'s conversation (#151)', async () => {
+    renderThread([
+      msg({ id: 'm1', content: 'implement X' }),
+      msg({ id: 'm2', role: 'assistant', content: 'Started task tsk_1.', runId: 'run_1' }),
+      // the dev step's prompt (a duplicate of the objective) and its output —
+      // both hosted by the conversation, both marked with the step link
+      msg({ id: 'm3', content: 'implement X', runId: 'run_2', taskStepId: 'step_1' }),
+      msg({ id: 'm4', role: 'assistant', content: 'step output text', runId: 'run_2', taskStepId: 'step_1' }),
+      msg({ id: 'm5', role: 'assistant', content: 'Task tsk_1 passed QA and is awaiting your review.' }),
+    ]);
+    expect(await screen.findByText(/awaiting your review/)).toBeTruthy();
+    // exactly ONE bubble carries the objective — the duplicate step prompt is hidden
+    expect(screen.getAllByText('implement X')).toHaveLength(1);
+    expect(screen.queryByText('step output text')).toBeNull();
   });
 
   it('hangs the View-task affordance on the kickoff message (N5b-2b)', async () => {

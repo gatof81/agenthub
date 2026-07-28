@@ -72,6 +72,9 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   runId: string | null;
+  /** non-null = a task step's prompt/output (#151) — the thread hides these;
+   *  the task view owns step detail */
+  taskStepId: string | null;
   createdAt: string;
   /** present on an assistant turn that used tools — render as ordered bubbles
    *  (text → tool step → text) instead of the single `content` blob (A) */

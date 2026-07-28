@@ -758,6 +758,45 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
 
     // — run history (activity panel) —
 
+    it('messages carry their run step link — step prompts/outputs marked, everything else null (#151)', () => {
+      const store = makeStore();
+      const { project, conv, message } = seedRun(store);
+      expect(message.taskStepId).toBeNull(); // an ordinary send
+      const task = store.createTask({ projectId: project.id, sourceConversationId: conv.id });
+      const step = store.createTaskStep({ taskId: task.id, kind: 'implementation', specialistId: 'dev' });
+      const { message: stepMsg, run: stepRun } = store.sendMessage({
+        conversationId: conv.id,
+        content: 'the step prompt',
+        caps: CAPS,
+        policy: POLICY,
+        instructions: INSTRUCTIONS,
+        taskStepId: step.id,
+      });
+      // the prompt is marked on every read path
+      expect(stepMsg.taskStepId).toBe(step.id);
+      expect(store.getMessage(stepMsg.id)!.taskStepId).toBe(step.id);
+      expect(store.listMessages(conv.id).find((m) => m.id === stepMsg.id)!.taskStepId).toBe(step.id);
+      // ...and so is the step run's assistant OUTPUT message
+      store.finalizeRun({
+        runId: stepRun.id,
+        from: 'queued',
+        to: 'cancelled',
+        assistantContent: 'partial step output',
+        usage: { totalCostUsd: null, numTurns: null, usage: null, source: 'cancelled-unknown' },
+        summary: summaryFor(stepRun.id, 'cancelled'),
+      });
+      const output = store.listMessages(conv.id).findLast((m) => m.role === 'assistant')!;
+      expect(output.content).toBe('partial step output');
+      expect(output.taskStepId).toBe(step.id);
+      // the conversation-list preview path carries the link too — the step
+      // output is the conversation's last message at this point
+      const byConv = store.getLastMessagesByConversationIds([conv.id]);
+      expect(byConv.get(conv.id)!.taskStepId).toBe(step.id);
+      // a run-less note stays null (the thread shows it)
+      expect(store.appendAssistantMessage(conv.id, 'note').taskStepId).toBeNull();
+      store.close();
+    });
+
     it('appendAssistantMessage persists a standalone assistant note with no run, in thread order', () => {
       const store = makeStore();
       const { conv } = seedRun(store);

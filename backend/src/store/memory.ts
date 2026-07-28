@@ -262,6 +262,7 @@ export class MemoryHubStore implements HubStore {
       role: 'assistant',
       content: capMessageContent(content),
       runId: null,
+      taskStepId: null,
       createdAt: this.now(),
     };
     this.messages.push(message);
@@ -280,6 +281,9 @@ export class MemoryHubStore implements HubStore {
       role: 'user',
       content: capMessageContent(input.content),
       runId: null,
+      // the step link (#151): a step run's prompt is marked so the thread can
+      // hide it (same value SQLite derives from the run at read time)
+      taskStepId: input.taskStepId ?? null,
       createdAt: now,
     };
     const run: Run = {
@@ -371,6 +375,8 @@ export class MemoryHubStore implements HubStore {
         role: 'assistant',
         content: capMessageContent(input.assistantContent),
         runId: run.id,
+        // a step run's output message carries its step link (#151)
+        taskStepId: run.taskStepId,
         createdAt: now,
       });
     }

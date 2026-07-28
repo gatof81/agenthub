@@ -205,6 +205,14 @@ export interface Message {
   role: MessageRole;
   content: string;
   runId: string | null;
+  /**
+   * The step link of this message's run (#151) — non-null marks a task step's
+   * prompt/output, which the THREAD hides (step detail belongs to the task
+   * view); null for the owner's messages, envelope notes and run-less outcome
+   * notes. Derived from the run at read time in SQLite (LEFT JOIN), never a
+   * column on the message row.
+   */
+  taskStepId: string | null;
   createdAt: string;
 }
 
