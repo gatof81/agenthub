@@ -139,20 +139,20 @@ describe('SessionResolver (ADR-013, fake router + store, no turn executed)', () 
     const task = store.createTask({ projectId: project.id, sourceConversationId: conversation.id });
     store.sendMessage({
       conversationId: conversation.id,
-      content: 'usa encabezados nivel 3',
+      content: 'use level-3 headings',
       caps: DEV_AGENT.defaultCaps,
       policy: DEV_AGENT.allowedTools,
       instructions: DEV_AGENT.instructions,
     });
     store.transitionTask(task.id, 'planning', 'cancelled');
     const run = store.dispatchNextRun(project.id)!;
-    const target = await resolver.resolve(run, store.getConversation(conversation.id)!, 'usa encabezados nivel 3');
+    const target = await resolver.resolve(run, store.getConversation(conversation.id)!, 'use level-3 headings');
     expect(target).toMatchObject({ kind: 'stale-steer', task: { id: task.id } });
 
     // control: a message sent AFTER the task ended is genuinely new work
     store.sendMessage({
       conversationId: conversation.id,
-      content: 'ahora hace Y',
+      content: 'now do Y',
       caps: DEV_AGENT.defaultCaps,
       policy: DEV_AGENT.allowedTools,
       instructions: DEV_AGENT.instructions,
@@ -178,7 +178,7 @@ describe('SessionResolver (ADR-013, fake router + store, no turn executed)', () 
       },
     });
     const freshRun = store.dispatchNextRun(project.id)!;
-    const fresh = await resolver.resolve(freshRun, store.getConversation(conversation.id)!, 'ahora hace Y');
+    const fresh = await resolver.resolve(freshRun, store.getConversation(conversation.id)!, 'now do Y');
     expect(fresh).toMatchObject({ kind: 'start-task' });
   });
 
