@@ -86,6 +86,45 @@ describe('RunLoop (ADR-013, fake adapter alone)', () => {
     expect(store.getRun(run.id)!.state).toBe('cancelled');
   });
 
+  it('a mid-stream seam error sweeps for escaped children before sealing (FR-21, #139)', async () => {
+    const store = new MemoryHubStore();
+    const port = new FakeSubstrateExecPort();
+    // the adapter dies mid-turn AFTER the exec started — the moment Bash-tool
+    // children may already exist
+    const adapter = {
+      async *runTurn() {
+        yield { kind: 'started', execId: 'e1', pgid: 1, requestId: 'r1' } as const;
+        throw new Error('socket hang up');
+      },
+      kill: () => Promise.resolve({ outcome: 'killed' as const }),
+      status: () => Promise.resolve({ state: 'unknown' as const }),
+      awaitReady: () => Promise.resolve(),
+    };
+    const loop = new RunLoop({
+      store,
+      adapter: adapter as unknown as import('../src/domain/ports.js').RuntimeAdapter,
+      execPort: port,
+      resolveTarget: () => Promise.resolve('s1'),
+      sessionMeta: () => ({ sessionId: 's1', lastKnownState: 'ready' }),
+      onRunTerminal: () => {},
+    });
+    const { conversation, run } = seedQueuedRun(store);
+    // the sweep exec's scripted report: one marked pid found and killed
+    port.enqueueFixture({ streamLines: ['HUB_SWEEP|4242|4242|'] });
+
+    loop.pump(conversation.projectId!);
+    await settle(loop);
+
+    const final = store.getRun(run.id)!;
+    expect(final.state).toBe('failed');
+    expect(final.errorCode).toBe('seam_unavailable');
+    // the FR-21 sweep ran and its outcome landed in the same terminal record
+    expect(final.sweepResult).toEqual({ matched: 1, killed: ['4242'], survivors: [] });
+    const sweepReq = port.execRequests.at(-1)!;
+    expect(sweepReq.req.argv).toContain('hub_sweep');
+    expect(sweepReq.req.argv.at(-1)).toBe(run.id);
+  });
+
   it('reconcileRuns heals an interrupted-with-unknown-exec run to failed (UC-06)', async () => {
     const { store, loop } = makeLoop();
     const { run } = seedQueuedRun(store);

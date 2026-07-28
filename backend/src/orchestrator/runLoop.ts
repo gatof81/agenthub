@@ -528,6 +528,19 @@ export class RunLoop {
         // no-session exec_refused path above; 08 §6)
         const lastKnownState =
           this.sessionMeta(conversation).lastKnownState ?? 'unknown';
+        // The turn may have spawned Bash-tool children before the stream died
+        // (#139): every other abnormal end sweeps for escapees (FR-21) — a
+        // mid-stream seam error must too, or they survive unkilled. Only once
+        // an exec actually started (execId set); best-effort — with the seam
+        // itself down the sweep degrades to a warning, recorded in the same
+        // terminal transaction like the cancel/timeout paths.
+        const warnings = this.excerpts(stderr);
+        let sweepResult: SweepResult | undefined;
+        if (execId !== null) {
+          const swept = await this.sweep(sessionId, run.id);
+          if (swept.warning) warnings.push(swept.warning);
+          sweepResult = swept.result;
+        }
         this.finalize(current, current.state, 'failed', {
           usageSource: 'error-partial',
           errorCode: refused ? 'exec_refused' : 'seam_unavailable',
@@ -538,8 +551,9 @@ export class RunLoop {
           // still a run the user was reading — keep what streamed (this branch
           // is before the post-loop partialText, so assemble here too)
           assistantContent: assembleAssistantText(this.store.getEvents(run.id)) || null,
+          ...(sweepResult ? { sweepResult } : {}),
           userMessageContent: message.content,
-          warnings: this.excerpts(stderr),
+          warnings,
           runtimeSessionId,
         });
       }
