@@ -788,6 +788,10 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       const output = store.listMessages(conv.id).findLast((m) => m.role === 'assistant')!;
       expect(output.content).toBe('partial step output');
       expect(output.taskStepId).toBe(step.id);
+      // the conversation-list preview path carries the link too — the step
+      // output is the conversation's last message at this point
+      const byConv = store.getLastMessagesByConversationIds([conv.id]);
+      expect(byConv.get(conv.id)!.taskStepId).toBe(step.id);
       // a run-less note stays null (the thread shows it)
       expect(store.appendAssistantMessage(conv.id, 'note').taskStepId).toBeNull();
       store.close();
