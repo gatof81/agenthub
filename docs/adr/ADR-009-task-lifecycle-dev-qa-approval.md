@@ -153,7 +153,7 @@ work product. At most one consult per QA cycle; no design specialist
 configured or a failed consult run → a logged no-op, the loop proceeds. The
 consult advises; it never gates: QA and owner approval remain the only gates.
 
-## Outcome announcement (amended, 2026-07-27)
+## Outcome announcement (amended 2026-07-27; `cancelled` added 2026-07-28, #140)
 
 A task's resting and terminal outcomes are announced **in the source
 conversation** — the same channel the kickoff spoke through — as a

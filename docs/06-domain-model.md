@@ -188,7 +188,9 @@ Coordinated work, **one hardcoded flow** (ADR-009) — not a workflow engine
   classifies as a task. `TaskState`: `planning → implementing → qa_pending →
   qa_running → (changes_requested_by_qa → implementing)* →
   awaiting_human_approval → approved | (changes_requested_by_user →
-  implementing) | rejected | failed | cancelled` (`taskStateMachine.ts`). **Terminal
+  implementing) | rejected | failed`; `cancelled` reachable from any
+  transient state, **not** from `awaiting_human_approval`
+  (`taskStateMachine.ts`). **Terminal
   success is `approved`** — never the implementer finishing, never QA passing
   alone; `changes_requested_*` loop back and are not terminal; `failed` is
   reachable from any live state. `cancelled` (#140) is the owner stopping a
