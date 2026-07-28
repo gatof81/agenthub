@@ -608,7 +608,13 @@ export function storeContractSuite(name: string, makeStore: () => HubStore): voi
       const all = store.getReplayableEvents(conv.id);
       expect(all.map((r) => r.event.id)).toEqual(['ev_2', 'ev_3', 'ev_b1']);
       expect(all.map((r) => r.index)).toEqual([0, 1, 2]);
-      expect(store.getReplayableEvents(conv.id, 1).map((r) => r.event.id)).toEqual(['ev_b1']);
+      // a tail read (#142: cut in the store, not post-filtered) keeps the
+      // FULL-ordering index on each row — the SSE id contract
+      const tail = store.getReplayableEvents(conv.id, 1);
+      expect(tail.map((r) => r.event.id)).toEqual(['ev_b1']);
+      expect(tail.map((r) => r.index)).toEqual([2]);
+      // cursor already at the end → an empty replay, never a wrap-around
+      expect(store.getReplayableEvents(conv.id, 2)).toEqual([]);
       store.close();
     });
 

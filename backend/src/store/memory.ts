@@ -513,19 +513,20 @@ export class MemoryHubStore implements HubStore {
         const rb = runOrder.get(b.runId)!;
         return ra === rb ? a.seq - b.seq : ra - rb;
       });
-    return rows
-      .map((row, index) => ({
-        index,
-        event: clone({
-          id: row.id,
-          runId: row.runId,
-          seq: row.seq,
-          type: row.type,
-          payload: row.payload,
-          ts: row.ts,
-        }),
-      }))
-      .filter((r) => r.index > afterIndex);
+    // cut BEFORE materializing, mirroring the SQLite OFFSET (#142): only the
+    // tail is cloned; the index stays the position in the full ordering
+    const offset = afterIndex + 1;
+    return rows.slice(offset).map((row, i) => ({
+      index: offset + i,
+      event: clone({
+        id: row.id,
+        runId: row.runId,
+        seq: row.seq,
+        type: row.type,
+        payload: row.payload,
+        ts: row.ts,
+      }),
+    }));
   }
 
   getSseCursor(conversationId: string): number {

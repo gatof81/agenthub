@@ -910,16 +910,22 @@ export class SqliteHubStore implements HubStore {
   getReplayableEvents(conversationId: string, afterIndex = -1): ReplayableEvent[] {
     this.mustConversation(conversationId);
     const placeholders = REPLAYABLE_EVENT_TYPES.map(() => '?').join(',');
+    // The SSE id IS the row's position in this conversation-wide ordering, so
+    // a reconnect cursor is an OFFSET into it (#142). Cutting in SQL means the
+    // head of a long conversation is skipped inside the btree walk instead of
+    // being decoded, materialized and filtered in JS on EVERY reconnect — the
+    // JS side is O(tail). `LIMIT -1` is SQLite's "no limit" (OFFSET requires a
+    // LIMIT clause).
+    const offset = afterIndex + 1;
     const rows = this.db
       .prepare(
         `SELECT e.* FROM run_events e JOIN runs r ON e.run_id = r.id
          WHERE r.conversation_id = ? AND e.type IN (${placeholders})
-         ORDER BY r.created_at, r.rowid, e.seq`,
+         ORDER BY r.created_at, r.rowid, e.seq
+         LIMIT -1 OFFSET ?`,
       )
-      .all(conversationId, ...REPLAYABLE_EVENT_TYPES) as EventRow[];
-    return rows
-      .map((row, index) => ({ index, event: toEvent(row) }))
-      .filter((r) => r.index > afterIndex);
+      .all(conversationId, ...REPLAYABLE_EVENT_TYPES, offset) as EventRow[];
+    return rows.map((row, i) => ({ index: offset + i, event: toEvent(row) }));
   }
 
   getSseCursor(conversationId: string): number {
