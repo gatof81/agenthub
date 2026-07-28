@@ -251,6 +251,7 @@ describe('deadline-bounded shutdown snapshot (B3-09)', () => {
       sink,
       tmpDir: tmp,
       intervalMs: 6 * 3600_000,
+      suffix: () => 'aaaa', // deterministic keys (doc 13 par-6), like makeService
       log: () => {},
     });
   };
