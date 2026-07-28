@@ -1,6 +1,6 @@
 # 06 — Domain Model (Phase 1)
 
-**Status:** approved (owner, 2026-07-15; correction amendments per ADR-007..010, owner 2026-07-17; I-14 per ADR-014, owner 2026-07-23) · **Last updated:** 2026-07-23
+**Status:** approved (owner, 2026-07-15; correction amendments per ADR-007..010, owner 2026-07-17; I-14 per ADR-014, owner 2026-07-23) · **Last updated:** 2026-07-28
 
 The entities, relationships, and invariants behind
 [04-requirements.md](./04-requirements.md) and the flows in
@@ -188,10 +188,14 @@ Coordinated work, **one hardcoded flow** (ADR-009) — not a workflow engine
   classifies as a task. `TaskState`: `planning → implementing → qa_pending →
   qa_running → (changes_requested_by_qa → implementing)* →
   awaiting_human_approval → approved | (changes_requested_by_user →
-  implementing) | rejected | failed` (`taskStateMachine.ts`). **Terminal
+  implementing) | rejected | failed`; `cancelled` reachable from any
+  transient state, **not** from `awaiting_human_approval`
+  (`taskStateMachine.ts`). **Terminal
   success is `approved`** — never the implementer finishing, never QA passing
   alone; `changes_requested_*` loop back and are not terminal; `failed` is
-  reachable from any live state.
+  reachable from any live state. `cancelled` (#140) is the owner stopping a
+  RUNNING loop — terminal, reachable from every transient state but **not**
+  from `awaiting_human_approval` (there `rejected` is the verdict verb).
 - **TaskStep** `{id, taskId, seq, kind: implementation | qa, specialistId}` —
   executed by a specialist (ADR-008) via the existing run machinery; a run
   links back through `runs.task_step_id`.

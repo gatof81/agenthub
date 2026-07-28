@@ -77,7 +77,7 @@ const progressStep = (text: string): StepResult => ({
 function setup(
   script: StepResult[],
   maxQaCycles?: number,
-  opts: { designSpecialistId?: string | null } = {},
+  opts: { designSpecialistId?: string | null; isCancelled?: (taskId: string) => boolean } = {},
 ) {
   const store = new MemoryHubStore();
   const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
@@ -91,6 +91,7 @@ function setup(
     workspace,
     ...(maxQaCycles !== undefined ? { maxQaCycles } : {}),
     ...(opts.designSpecialistId !== undefined ? { designSpecialistId: opts.designSpecialistId } : {}),
+    ...(opts.isCancelled !== undefined ? { isCancelled: opts.isCancelled } : {}),
   });
   return { store, task, runner, workspace, sup };
 }
@@ -411,5 +412,42 @@ describe('Supervisor dev → QA loop (ADR-009)', () => {
 
     expect(store.getTask(task.id)!.state).toBe('failed');
     expect(workspace.calls).toEqual(['create']); // no 'cleanup' — nothing was created
+  });
+
+  it('an owner cancel before any step lands cancelled at the first boundary — no steps run (#140)', async () => {
+    const { store, task, runner, workspace, sup } = setup([okStep('never runs')], undefined, {
+      isCancelled: () => true,
+    });
+    await sup.supervise(task, 'add X', 'dev', 'qa');
+    expect(store.getTask(task.id)!.state).toBe('cancelled');
+    expect(runner.calls).toHaveLength(0); // drained before the dev step
+    expect(store.listTaskSteps(task.id)).toHaveLength(0);
+    expect(workspace.calls).toEqual(['create', 'cleanup']); // branch survives, worktree gone
+  });
+
+  it('a step run killed by the owner cancel reads as CANCELLED, never as a step failure (#140)', async () => {
+    // the coordinator kills the live step run and marks the request; the
+    // supervisor sees a failed:true step but the cancel check runs FIRST
+    const store = new MemoryHubStore();
+    const p = store.createProject({ name: 'p', defaultAgentId: 'dev', sessionTemplateId: 'tpl' });
+    const task = store.createTask({ projectId: p.id });
+    const workspace = new RecordingWorkspace();
+    let cancelled = false;
+    const runner: StepRunner = {
+      runStep: () => {
+        cancelled = true; // the cancel lands while the dev turn is in flight
+        return Promise.resolve(failStep()); // the killed run reports failed
+      },
+    };
+    const sup = new Supervisor({
+      store,
+      runner,
+      extractor: new DeterministicReportExtractor(),
+      workspace,
+      isCancelled: () => cancelled,
+    });
+    await sup.supervise(task, 'add X', 'dev', 'qa');
+    expect(store.getTask(task.id)!.state).toBe('cancelled'); // not 'failed'
+    expect(workspace.calls).toContain('cleanup');
   });
 });

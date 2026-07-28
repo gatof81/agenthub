@@ -44,6 +44,7 @@ function makeCoordinator(opts?: { qaSpecialistId?: string | null }) {
   const workspace = new RecordingWorkspaceManager();
   const finalized: Array<{ run: Run; from: Run['state']; to: string; note: string }> = [];
   const pumped: string[] = [];
+  const killed: string[] = [];
   const finalize: FinalizeRun = (run, from, to, o) => {
     finalized.push({ run, from, to, note: o.assistantContent });
     // seal like the real choke point so state assertions see the terminal row
@@ -74,8 +75,12 @@ function makeCoordinator(opts?: { qaSpecialistId?: string | null }) {
     qaSpecialistId: opts?.qaSpecialistId ?? 'qa',
     pump: (key) => pumped.push(key),
     finalize,
+    cancelRun: (runId) => {
+      killed.push(runId);
+      return Promise.resolve();
+    },
   });
-  return { store, workspace, coordinator, finalized, pumped };
+  return { store, workspace, coordinator, finalized, pumped, killed };
 }
 
 /** A project + conversation + a task row in `state`, seeded through the store. */
@@ -175,6 +180,54 @@ describe('TaskCoordinator (ADR-013, narrow fakes only)', () => {
     expect(finalized[0]!.note).toContain('re-entering the developer → QA loop');
     // the resumed supervise() loop runs in the background and is tracked for idle()
     expect(coordinator.driving().length).toBe(1);
+  });
+
+  it('cancelTask (#140): 409 for terminal and awaiting states; a live step run is killed', async () => {
+    const { store, coordinator, killed } = makeCoordinator();
+    // awaiting → the verbs are reject/request-changes, not cancel
+    const resting = seedTask(store, 'awaiting_human_approval');
+    await expect(coordinator.cancelTask(resting.task.id)).rejects.toMatchObject({
+      code: 'task_not_cancellable',
+    });
+    // a RUNNING task: request lands, and the live step run gets the kill
+    const live = seedTask(store, 'implementing');
+    // drain the seed's envelope run so the step run below is the live one (I-2)
+    const seedRun = store.dispatchNextRun(live.project.id)!;
+    store.transitionRun(seedRun.id, 'starting', 'streaming');
+    store.finalizeRun({
+      runId: seedRun.id,
+      from: 'streaming',
+      to: 'completed',
+      usage: { totalCostUsd: null, numTurns: null, usage: null, source: 'result-event' },
+      summary: deriveRunSummary({
+        run: store.getRun(seedRun.id)!,
+        outcome: 'completed',
+        events: [],
+        usage: { totalCostUsd: null, numTurns: null },
+        userMessageContent: 'x',
+        warnings: [],
+        runtimeSessionId: null,
+        endedAt: '2026-07-28T00:00:00.000Z',
+      }),
+    });
+    const step = store.createTaskStep({
+      taskId: live.task.id,
+      kind: 'implementation',
+      specialistId: 'dev',
+      workspaceAccess: null,
+    });
+    store.sendMessage({
+      conversationId: live.conversation.id,
+      content: 'step prompt',
+      caps: DEV_AGENT.defaultCaps,
+      policy: DEV_AGENT.allowedTools,
+      instructions: DEV_AGENT.instructions,
+      taskStepId: step.id,
+    });
+    const stepRun = store.dispatchNextRun(live.project.id)!; // starting = live
+    const after = await coordinator.cancelTask(live.task.id);
+    expect(after.state).toBe('implementing'); // cooperative: transition lands at the boundary
+    expect(killed).toEqual([stepRun.id]);
   });
 
   it('reconcileTasks heals transient states to failed and leaves resting/terminal tasks alone', async () => {

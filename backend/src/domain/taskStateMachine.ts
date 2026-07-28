@@ -18,19 +18,29 @@
 import type { TaskState, TerminalTaskState } from './types.js';
 
 const LEGAL_TRANSITIONS: Readonly<Record<TaskState, readonly TaskState[]>> = {
-  planning: ['implementing', 'failed'],
-  implementing: ['qa_pending', 'failed'],
-  qa_pending: ['qa_running', 'failed'],
-  qa_running: ['awaiting_human_approval', 'changes_requested_by_qa', 'failed'],
-  changes_requested_by_qa: ['implementing', 'failed'],
+  // `cancelled` (#140) is reachable from every TRANSIENT state — the owner
+  // stopping the running loop. Deliberately NOT from awaiting_human_approval:
+  // that state is at rest waiting on a verdict, and `rejected` is the verb
+  // there (cancel would be a synonym with a second audit meaning).
+  planning: ['implementing', 'failed', 'cancelled'],
+  implementing: ['qa_pending', 'failed', 'cancelled'],
+  qa_pending: ['qa_running', 'failed', 'cancelled'],
+  qa_running: ['awaiting_human_approval', 'changes_requested_by_qa', 'failed', 'cancelled'],
+  changes_requested_by_qa: ['implementing', 'failed', 'cancelled'],
   awaiting_human_approval: ['approved', 'changes_requested_by_user', 'rejected', 'failed'],
-  changes_requested_by_user: ['implementing', 'failed'],
+  changes_requested_by_user: ['implementing', 'failed', 'cancelled'],
   approved: [],
   rejected: [],
   failed: [],
+  cancelled: [],
 };
 
-export const TERMINAL_TASK_STATES: readonly TerminalTaskState[] = ['approved', 'rejected', 'failed'];
+export const TERMINAL_TASK_STATES: readonly TerminalTaskState[] = [
+  'approved',
+  'rejected',
+  'failed',
+  'cancelled',
+];
 
 export function isTerminalTask(state: TaskState): state is TerminalTaskState {
   return (TERMINAL_TASK_STATES as readonly TaskState[]).includes(state);

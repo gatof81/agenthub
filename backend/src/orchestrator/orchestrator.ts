@@ -149,6 +149,7 @@ export class Orchestrator {
       // the run machinery, injected (ADR-013): dispatch and the terminal choke point
       pump: (key) => this.runLoop.pump(key),
       finalize: (run, from, to, opts) => this.runLoop.finalize(run, from, to, opts),
+      cancelRun: (runId) => this.runLoop.cancelRun(runId),
       notify: this.notify,
       logger: this.logger,
     });
@@ -355,6 +356,10 @@ export class Orchestrator {
 
   requestTaskChanges(taskId: string, note: string): Task {
     return this.tasks.requestTaskChanges(taskId, note);
+  }
+
+  cancelTask(taskId: string): Promise<Task> {
+    return this.tasks.cancelTask(taskId);
   }
 
 
